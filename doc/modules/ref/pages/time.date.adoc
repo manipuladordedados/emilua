@@ -1,0 +1,54 @@
+= time.date
+
+// a time.datetime class will also be available
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+== Description
+
+endif::[]
+
+// implementation will be an userdata
+//
+// it'll have the members:
+//
+// * year
+// * month
+// * day
+// * timezone
+
+== Functions
+
+=== `from_local(year: integer, month: integer: day: integer) -> date`
+
+// uses UTC timezone
+
+=== `from_utc(year: integer, month: integer: day: integer) -> date`
+
+// uses process/local timezone (TZ variable)
+
+=== `new(year: integer, month: integer: day: integer, tz: time.timezone) -> date`
+
+=== `add_days(self, n: integer)`
+
+== Properties
+
+=== `year: integer`
+
+// read-write
+
+=== `month: integer`
+
+// read-write
+
+=== `day: integer`
+
+// read-write
+
+=== `timezone: integer`
+
+// read-write
