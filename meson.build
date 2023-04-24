@@ -151,6 +151,7 @@ gperf_gen = generator(
 install_data(
     'src' / 'emilua_gperf.awk',
     install_dir : get_option('libexecdir') / 'emilua',
+    install_mode : 'rwxr-xr-x',
 )
 
 if get_option('enable_manpages')
