@@ -1,4 +1,4 @@
-#!/usr/bin/gawk --file
+#!/usr/bin/env -S gawk --file
 #
 # emilua_gperf.awk
 #
