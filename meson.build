@@ -150,7 +150,7 @@ gperf_gen = generator(
 )
 install_data(
     'src' / 'emilua_gperf.awk',
-    install_dir : get_option('datadir') / 'emilua',
+    install_dir : get_option('libexecdir') / 'emilua',
 )
 
 if get_option('enable_manpages')
@@ -358,7 +358,7 @@ import('pkgconfig').generate(
         'thread_support_level=' +
         get_option('thread_support_level').to_string(),
         'file_io_enabled=' + get_option('enable_file_io').to_string(),
-        'emilua_gperf=${datadir}' / 'emilua' / 'emilua_gperf.awk',
+        'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
     ],
     extra_cflags : pc_extra_cflags,
 )
