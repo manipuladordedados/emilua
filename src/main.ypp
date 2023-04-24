@@ -400,20 +400,6 @@ end:
         appctx.app_args.emplace_back(filename);
     }
 
-#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-    asio::io_context ioctx{main_ctx_concurrency_hint};
-    asio::make_service<emilua::properties_service>(
-        ioctx, main_ctx_concurrency_hint);
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
-    asio::io_context ioctx{1};
-    asio::make_service<emilua::properties_service>(ioctx, 1);
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
-    asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
-    asio::make_service<emilua::properties_service>(ioctx, 1);
-#else
-# error Invalid thread support level
-#endif
-
     if (
         auto it = appctx.app_env.find("EMILUA_PATH") ;
         it != appctx.app_env.end()
@@ -452,26 +438,42 @@ end:
         "emilua-" BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MAJOR)
         "." BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MINOR);
 
-    try {
-        auto vm_ctx = emilua::make_vm(ioctx, appctx,
-                                      emilua::widen_on_windows(filename),
-                                      main_context_type);
-        appctx.master_vm = vm_ctx;
-        vm_ctx->strand().post([vm_ctx]() {
-            vm_ctx->fiber_resume(
-                vm_ctx->L(),
-                hana::make_set(
-                    emilua::vm_context::options::skip_clear_interrupter));
-        }, std::allocator<void>{});
-    } catch (std::exception& e) {
-        try {
-            boost::nowide::cerr << "Error starting the lua VM: " << e.what() <<
-                std::endl;
-        } catch (const std::ios_base::failure&) {}
-        return 1;
-    }
+    {
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
+        asio::io_context ioctx{main_ctx_concurrency_hint};
+        asio::make_service<emilua::properties_service>(
+            ioctx, main_ctx_concurrency_hint);
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
+        asio::io_context ioctx{1};
+        asio::make_service<emilua::properties_service>(ioctx, 1);
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
+        asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
+        asio::make_service<emilua::properties_service>(ioctx, 1);
+#else
+# error Invalid thread support level
+#endif
 
-    ioctx.run();
+        try {
+            auto vm_ctx = emilua::make_vm(ioctx, appctx,
+                                          emilua::widen_on_windows(filename),
+                                          main_context_type);
+            appctx.master_vm = vm_ctx;
+            vm_ctx->strand().post([vm_ctx]() {
+                vm_ctx->fiber_resume(
+                    vm_ctx->L(),
+                    hana::make_set(
+                        emilua::vm_context::options::skip_clear_interrupter));
+            }, std::allocator<void>{});
+        } catch (std::exception& e) {
+            try {
+                boost::nowide::cerr << "Error starting the lua VM: " <<
+                    e.what() << std::endl;
+            } catch (const std::ios_base::failure&) {}
+            return 1;
+        }
+
+        ioctx.run();
+    }
 
     {
         std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
