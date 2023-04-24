@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, 2021 Vinícius dos Santos Oliveira
+/* Copyright (c) 2020, 2021, 2023 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -578,6 +578,10 @@ public:
 
         static constexpr struct arguments_t {} arguments{};
 
+        // Remember to call lua_checkstack() yourself if you opt for the
+        // variadic version.
+        static constexpr struct variadic_arguments_t {} variadic_arguments{};
+
         // Convert from `asio::error::operation_aborted` to `errc::interrupted`
         // iff `FiberDataIndex::INTERRUPTED` has been set for the fiber about to
         // be resumed.
@@ -950,6 +954,16 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
             hana::always(hana::false_c)
         )(x);
     };
+    static constexpr auto is_variadic_arguments = [](auto&& x) {
+        return hana::if_(
+            hana::is_a<hana::pair_tag>(x),
+            [](auto&& x) {
+                return hana::typeid_(hana::first(x)) ==
+                    hana::type_c<options::variadic_arguments_t>;
+            },
+            hana::always(hana::false_c)
+        )(x);
+    };
 
     static constexpr decltype(hana::any_of(options, is_auto_detect_interrupt))
         has_auto_detect_interrupt;
@@ -1029,6 +1043,11 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
             close();
             return;
         }
+
+        hana::find_if(options, is_variadic_arguments) | [&](auto&& x) {
+            narg += hana::second(x)(new_current_fiber);
+            return hana::nothing;
+        };
     } catch (...) {
         // on Lua errors, current exception should be empty
         if (std::current_exception()) {
