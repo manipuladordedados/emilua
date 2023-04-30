@@ -830,6 +830,11 @@ exception::exception(errc ec, const char* what_arg)
 bool detail::unsafe_can_suspend(vm_context& vm_ctx, lua_State* L)
 {
     auto current_fiber = vm_ctx.current_fiber();
+    if (current_fiber == vm_ctx.async_event_thread_) {
+        lua_pushliteral(current_fiber, "attempt to suspend a system fiber");
+        return false;
+    }
+
     rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
     lua_pushthread(current_fiber);
     lua_xmove(current_fiber, L, 1);
@@ -866,6 +871,11 @@ bool detail::unsafe_can_suspend(vm_context& vm_ctx, lua_State* L)
 bool detail::unsafe_can_suspend2(vm_context& vm_ctx, lua_State* L)
 {
     auto current_fiber = vm_ctx.current_fiber();
+    if (current_fiber == vm_ctx.async_event_thread_) {
+        lua_pushliteral(current_fiber, "attempt to suspend a system fiber");
+        return false;
+    }
+
     rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
     lua_pushthread(current_fiber);
     lua_xmove(current_fiber, L, 1);
