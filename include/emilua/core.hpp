@@ -965,11 +965,15 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
         )(x);
     };
 
+    static constexpr decltype(hana::any_of(options, is_skip_clear_interrupter))
+        has_skip_clear_interrupter;
     static constexpr decltype(hana::any_of(options, is_auto_detect_interrupt))
         has_auto_detect_interrupt;
     static constexpr decltype(
         hana::any_of(options, is_fast_auto_detect_interrupt)
     ) has_fast_auto_detect_interrupt;
+    static constexpr decltype(hana::any_of(options, is_variadic_arguments))
+        has_variadic_arguments;
 
     assert(strand_.running_in_this_thread());
     if (!valid_)
@@ -1048,6 +1052,14 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
             narg += hana::second(x)(new_current_fiber);
             return hana::nothing;
         };
+        if (
+            has_variadic_arguments && !has_skip_clear_interrupter &&
+            !lua_checkstack(new_current_fiber, LUA_MINSTACK)
+        ) {
+            notify_errmem();
+            close();
+            return;
+        }
     } catch (...) {
         // on Lua errors, current exception should be empty
         if (std::current_exception()) {
@@ -1060,7 +1072,7 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
         return;
     }
 
-    if (hana::none_of(options, is_skip_clear_interrupter)) {
+    if (!has_skip_clear_interrupter) {
         // There is no need for a try-catch block here. Only throwing function
         // in set_interrupter() is lua_rawseti(). lua_rawseti() shouldn't throw
         // on LUA_ERRMEM for `nil` assignment.
