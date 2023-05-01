@@ -6,6 +6,7 @@
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/fiber.hpp>
 #include <emilua/scope_cleanup.hpp>
+#include <emilua/detail/core.hpp>
 
 #include <fmt/ostream.h>
 #include <fmt/format.h>
@@ -317,18 +318,29 @@ static int fiber_mt_index(lua_State* L)
 
 static int fiber_mt_gc(lua_State* L)
 {
-    auto& vm_ctx = get_vm_context(L);
+    rawgetp(L, LUA_REGISTRYINDEX, &detail::context_key);
+    auto vm_ctx = static_cast<vm_context*>(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    if (!vm_ctx) {
+        // VM is closing and context_key in LUA_REGISTRYINDEX was collected
+        // already
+        return 0;
+    }
+
     auto handle = static_cast<fiber_handle*>(lua_touserdata(L, 1));
     assert(handle);
 
     if (!handle->fiber)
         return 0;
-    assert(!handle->join_in_progress);
+    if (handle->join_in_progress) {
+        assert(vm_ctx->is_closing());
+        return 0;
+    }
 
     constexpr int extra = /*common path=*/3 +
         /*code branches=*/hana::maximum(hana::tuple_c<int, 1, 2>);
     if (!lua_checkstack(handle->fiber, extra)) {
-        vm_ctx.notify_errmem();
+        vm_ctx->notify_errmem();
         return 0;
     }
 

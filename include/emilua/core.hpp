@@ -675,6 +675,13 @@ public:
         return valid_;
     }
 
+    // intended to be called from guest-context, but so far it's used only to
+    // add debugging context in non-release builds
+    bool is_closing()
+    {
+        return lua_errmem || failed_cleanup_handler_coro || exit_request;
+    }
+
     template<class HanaSet = std::decay_t<decltype(hana::make_set())>>
     void fiber_resume(lua_State* new_current_fiber, HanaSet&& options = {});
 
