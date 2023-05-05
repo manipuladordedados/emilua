@@ -325,6 +325,10 @@ install_subdir(
     ],
 )
 
+pc_base_variables = [
+    'thread_support_level=' + get_option('thread_support_level').to_string(),
+    'file_io_enabled=' + get_option('enable_file_io').to_string(),
+]
 pc_extra_cflags = []
 
 if get_option('thread_support_level') == 0
@@ -342,7 +346,20 @@ if get_option('use_wolfssl')
     pc_extra_cflags += '-DBOOST_ASIO_USE_WOLFSSL'
 endif
 
+# https://github.com/mesonbuild/meson/issues/8651
+another_meson_workaround = static_library(
+    'another_meson_workaround',
+    [],
+
+    # this is what we want from this workaround
+    include_directories : include_directories(incdir),
+
+    implicit_include_directories : false,
+    install : false,
+)
+
 import('pkgconfig').generate(
+    another_meson_workaround,
     filebase : 'emilua',
     name : 'Emilua Plugin API',
     description : 'Lua execution engine',
@@ -352,14 +369,18 @@ import('pkgconfig').generate(
         ssl.name(),
     ] +
     (get_option('enable_io_uring') ? [liburing.name()] : []),
-    variables : [
+    variables : pc_base_variables + [
         'pluginsdir=${libdir}' / 'emilua-' +
         meson.project_version().split('.')[0] + '.' +
         meson.project_version().split('.')[1],
-        'thread_support_level=' +
-        get_option('thread_support_level').to_string(),
-        'file_io_enabled=' + get_option('enable_file_io').to_string(),
+
+        'emilua_bin=${bindir}' / 'emilua',
         'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
+    ],
+    uninstalled_variables : pc_base_variables + [
+        'pluginsdir=' + meson.project_build_root() / 'plugins',
+        'emilua_bin=' + emilua_bin.full_path(),
+        'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
     ],
     extra_cflags : pc_extra_cflags,
 )
