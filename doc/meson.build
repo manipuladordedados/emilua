@@ -40,6 +40,7 @@ foreach line : fs.read('modules' / 'ref' / 'all.adoc').split('\n')
         input : input,
         install : true,
         install_dir : get_option('mandir') / 'man3em',
+        install_tag : 'man',
     )
 endforeach
 
@@ -69,5 +70,6 @@ foreach line : fs.read('modules' / 'tutorial' / 'all.adoc').split('\n')
         input : input,
         install : true,
         install_dir : get_option('mandir') / 'man7',
+        install_tag : 'man',
     )
 endforeach

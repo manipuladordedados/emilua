@@ -152,6 +152,7 @@ install_data(
     'src' / 'emilua_gperf.awk',
     install_dir : get_option('libexecdir') / 'emilua',
     install_mode : 'rwxr-xr-x',
+    install_tag : 'devel',
 )
 
 if get_option('enable_manpages')
@@ -171,6 +172,7 @@ if get_option('enable_manpages')
         input : 'doc/man/emilua.1.adoc',
         install : true,
         install_dir : get_option('mandir') / 'man1',
+        install_tag : 'man',
     )
 
     subdir('doc')
@@ -319,6 +321,7 @@ emilua_bin = executable(
 install_subdir(
     'include/emilua',
     install_dir : get_option('includedir'),
+    install_tag : 'devel',
     exclude_files : [
         'config.h.in',
         'meson.build',

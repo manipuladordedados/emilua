@@ -31,4 +31,5 @@ configure_file(
     output : 'config.h',
     configuration : conf,
     install_dir : get_option('includedir') / 'emilua',
+    install_tag : 'devel',
 )
