@@ -54,6 +54,29 @@ static int mutex_lock(lua_State* L)
     return 0;
 }
 
+static int mutex_try_lock(lua_State* L)
+{
+    auto handle = static_cast<mutex_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &mutex_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (handle->locked) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    handle->locked = true;
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 static int mutex_unlock(lua_State* L)
 {
     auto handle = static_cast<mutex_handle*>(lua_touserdata(L, 1));
@@ -107,6 +130,12 @@ static int mutex_mt_index(lua_State* L)
             "lock",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, mutex_lock);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "try_lock",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, mutex_try_lock);
                 return 1;
             })
     EMILUA_GPERF_END(key)(L);

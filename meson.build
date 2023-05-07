@@ -469,6 +469,7 @@ if get_option('enable_tests')
             'mutex2',
             'mutex3',
             'mutex4',
+            'mutex5',
             'cond1',
             'cond2',
             'cond3',

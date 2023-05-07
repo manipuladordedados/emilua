@@ -56,6 +56,15 @@ NOTE: This mutex applies dispatch semantics. That means no context switch to
 other ready fibers will take place if it's possible to acquire the mutex
 immediately.
 
+=== `try_lock(self) -> boolean`
+
+Tries to lock the mutex. Returns whether lock acquisition was successful.
+
+CAUTION: It's an error to call `try_lock()` if current fiber already owns the
+mutex.
+
+NOTE: The current fiber is never suspended.
+
 === `unlock(self)`
 
 Unlocks the mutex.

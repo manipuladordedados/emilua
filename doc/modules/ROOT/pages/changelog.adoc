@@ -3,6 +3,10 @@
 :_:
 :cpp: C++
 
+== 0.5
+
+* Add `mutex.try_lock()`.
+
 == 0.4
 
 * A new `byte_span` type akin to Go slices is used for IO ops.
