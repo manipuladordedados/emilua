@@ -201,6 +201,7 @@ incdir = [
 ]
 
 src = [
+    'src/recursive_mutex.cpp',
     'src/generic_error.cpp',
     'src/scope_cleanup.cpp',
     'src/serial_port.cpp',
@@ -470,6 +471,8 @@ if get_option('enable_tests')
             'mutex3',
             'mutex4',
             'mutex5',
+            'recursive_mutex1',
+            'recursive_mutex2',
             'cond1',
             'cond2',
             'cond3',

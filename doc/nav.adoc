@@ -99,6 +99,7 @@
 *** xref:ref:stream.scanner.adoc[scanner]
 ** sync primitives
 *** xref:ref:mutex.adoc[]
+*** xref:ref:recursive_mutex.adoc[]
 *** xref:ref:condition_variable.adoc[]
 ** system
 *** xref:ref:system.arguments.adoc[arguments]

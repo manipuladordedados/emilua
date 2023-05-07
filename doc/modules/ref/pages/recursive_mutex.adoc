@@ -1,0 +1,45 @@
+= recursive_mutex
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+== Description
+
+endif::[]
+
+A recursive mutex.
+
+A fiber that already has exclusive ownership of a given `recursive_mutex`
+instance can call `lock()` or `try_lock()` to acquire an additional level of
+ownership of the mutex. `unlock()` must be called once for each level of
+ownership acquired by a single fiber before ownership can be acquired by another
+fiber.
+
+== Functions
+
+=== `new() -> recursive_mutex`
+
+Constructor.
+
+=== `lock(self)`
+
+Locks the mutex.
+
+NOTE: This suspending function does *not* act as an interruption point.
+
+NOTE: This mutex applies dispatch semantics. That means no context switch to
+other ready fibers will take place if it's possible to acquire the mutex
+immediately.
+
+=== `try_lock(self) -> boolean`
+
+Tries to lock the mutex. Returns whether lock acquisition was successful.
+
+NOTE: The current fiber is never suspended.
+
+=== `unlock(self)`
+
+Unlocks the mutex.

@@ -20,6 +20,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <emilua/detail/core.hpp>
 #include <emilua/condition_variable.hpp>
+#include <emilua/recursive_mutex.hpp>
 #include <emilua/generic_error.hpp>
 #include <emilua/scope_cleanup.hpp>
 #include <emilua/serial_port.hpp>
@@ -1066,6 +1067,14 @@ static int require(lua_State* L)
                     return 2;
                 })
             EMILUA_GPERF_PAIR(
+                "recursive_mutex",
+                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                   lua_State* L) -> int {
+                    lua_pushboolean(L, 1);
+                    rawgetp(L, LUA_REGISTRYINDEX, &recursive_mutex_key);
+                    return 2;
+                })
+            EMILUA_GPERF_PAIR(
                 "condition_variable",
                 [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
                    lua_State* L) -> int {
@@ -1618,6 +1627,7 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
     init_lua_shim_module(L);
     init_fiber_module(L);
     init_mutex_module(L);
+    init_recursive_mutex_module(L);
     init_condition_variable_module(L);
     init_actor_module(L);
 

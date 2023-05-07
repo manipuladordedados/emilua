@@ -61,7 +61,7 @@ immediately.
 Tries to lock the mutex. Returns whether lock acquisition was successful.
 
 CAUTION: It's an error to call `try_lock()` if current fiber already owns the
-mutex.
+mutex (cf. recursive_mutex(3em) for an alternative).
 
 NOTE: The current fiber is never suspended.
 

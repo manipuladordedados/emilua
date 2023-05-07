@@ -128,6 +128,8 @@ include::pages/json.writer.adoc[]
 
 include::pages/mutex.adoc[]
 
+include::pages/recursive_mutex.adoc[]
+
 include::pages/pipe.read_stream.adoc[]
 
 include::pages/pipe.write_stream.adoc[]
