@@ -1,0 +1,2 @@
+Possible deadlock(s) detected during VM 0x1 shutdown:
+	Underlying promise for future 0x2 is broken

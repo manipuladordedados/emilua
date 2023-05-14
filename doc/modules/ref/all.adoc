@@ -130,6 +130,8 @@ include::pages/mutex.adoc[]
 
 include::pages/recursive_mutex.adoc[]
 
+include::pages/future.adoc[]
+
 include::pages/pipe.read_stream.adoc[]
 
 include::pages/pipe.write_stream.adoc[]

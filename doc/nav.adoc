@@ -101,6 +101,7 @@
 *** xref:ref:mutex.adoc[]
 *** xref:ref:recursive_mutex.adoc[]
 *** xref:ref:condition_variable.adoc[]
+*** xref:ref:future.adoc[]
 ** system
 *** xref:ref:system.arguments.adoc[arguments]
 *** xref:ref:system.environment.adoc[environment]

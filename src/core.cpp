@@ -792,6 +792,10 @@ std::string category_impl::message(int value) const noexcept
         return "Parsed RDF doesn't contain a recognized Emilua module";
     case static_cast<int>(errc::bad_rdf_error_category):
         return "Parsed RDF module contains an invalid error category";
+    case static_cast<int>(errc::broken_promise):
+        return "Broken promise";
+    case static_cast<int>(errc::promise_already_satisfied):
+        return "Promise already satisfied";
     default:
         return {};
     }

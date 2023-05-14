@@ -901,6 +901,8 @@ enum class errc {
     bad_rdf,
     bad_rdf_module,
     bad_rdf_error_category,
+    broken_promise,
+    promise_already_satisfied,
 };
 
 const std::error_category& category();
