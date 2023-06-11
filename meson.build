@@ -241,7 +241,6 @@ bytecode_src = [
 
 re2c_src = [
     'src/actor.ypp',
-    'src/main.ypp',
 ]
 
 if host_machine.system() != 'windows'
@@ -292,7 +291,7 @@ pp_state = custom_target(
     ],
 )
 
-emilua_bin = executable(
+libemilua = library(
     'emilua',
     gperf_gen.process(src),
     bytecode_gen.process(bytecode_src),
@@ -314,6 +313,40 @@ emilua_bin = executable(
         liburing,
         libcap,
     ],
+    include_directories : include_directories(incdir),
+    implicit_include_directories : false,
+    version : meson.project_version(),
+    install : true,
+)
+
+libemilua_dep = declare_dependency(
+    dependencies : [
+        thread_dep,
+        boost,
+        luajit,
+        fmt,
+        ssl,
+        curses,
+        liburing,
+    ],
+    link_whole :
+        (
+            get_option('default_library') == 'static' and
+            get_option('enable_plugins')
+        ) ?
+        [libemilua] : [],
+    link_with :
+        (
+            get_option('default_library') == 'static' and
+            get_option('enable_plugins')
+        ) ?
+        [] : [libemilua],
+)
+
+emilua_bin = executable(
+    'emilua',
+    re2c_gen.process('src/main.ypp'),
+    dependencies : libemilua_dep,
     export_dynamic : get_option('enable_plugins'),
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
@@ -351,20 +384,8 @@ if get_option('use_wolfssl')
     pc_extra_cflags += '-DBOOST_ASIO_USE_WOLFSSL'
 endif
 
-# https://github.com/mesonbuild/meson/issues/8651
-another_meson_workaround = static_library(
-    'another_meson_workaround',
-    [],
-
-    # this is what we want from this workaround
-    include_directories : include_directories(incdir),
-
-    implicit_include_directories : false,
-    install : false,
-)
-
 import('pkgconfig').generate(
-    another_meson_workaround,
+    libemilua,
     filebase : 'emilua',
     name : 'Emilua Plugin API',
     description : 'Lua execution engine',
