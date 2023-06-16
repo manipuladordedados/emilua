@@ -38,6 +38,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #if BOOST_OS_LINUX
 #include <linux/close_range.h>
 #include <linux/securebits.h>
+#include <linux/sched.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
@@ -2958,13 +2959,23 @@ static int system_spawn(lua_State* L)
     args.nsenter_ipc = nsenter_ipc;
     args.nsenter_net = nsenter_net;
 
-    int clone_flags = CLONE_PIDFD;
     int pidfd = -1;
-    int childpid = clone(system_spawn_child_main, clone_stack_address,
-                         clone_flags, &args, &pidfd);
-    if (childpid == -1) {
+    clone_args cl_args;
+    std::memset(&cl_args, 0, sizeof(clone_args));
+    cl_args.flags = CLONE_PIDFD;
+    cl_args.pidfd = reinterpret_cast<std::uint64_t>(&pidfd);
+    cl_args.exit_signal = 0;
+    cl_args.stack = NULL;
+    cl_args.stack_size = 0;
+    auto childpid = syscall(SYS_clone3, &cl_args, sizeof(clone_args));
+    switch (childpid) {
+    case -1:
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
+    case 0: {
+        int exit_status = system_spawn_child_main(&args);
+        std::_Exit(exit_status);
+    }
     }
     BOOST_SCOPE_EXIT_ALL(&) {
         if (pidfd != -1) {
