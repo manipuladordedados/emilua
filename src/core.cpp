@@ -35,6 +35,7 @@ char raw_getmetatable_key;
 
 #if BOOST_OS_LINUX
 void* clone_stack_address;
+std::size_t clone_stack_size;
 #endif // BOOST_OS_LINUX
 
 asio::io_context::id properties_service::id;

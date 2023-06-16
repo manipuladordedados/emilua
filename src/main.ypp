@@ -79,6 +79,7 @@ int main(int argc, char *argv[], char *envp[])
     boost::context::fixedsize_stack clone_stack_allocator;
     auto clone_stack = clone_stack_allocator.allocate();
     emilua::clone_stack_address = clone_stack.sp;
+    emilua::clone_stack_size = clone_stack.size;
 #endif // BOOST_OS_LINUX
 
 #if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES

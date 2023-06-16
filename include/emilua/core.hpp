@@ -141,6 +141,7 @@ extern char fiber_list_key;
 
 #if BOOST_OS_LINUX
 extern void* clone_stack_address;
+extern std::size_t clone_stack_size;
 #endif // BOOST_OS_LINUX
 
 enum FiberDataIndex: lua_Integer
