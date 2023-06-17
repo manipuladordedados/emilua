@@ -191,6 +191,10 @@ as the calling Lua VM exists (even if the Lua VM might jump between
 threads). The thread will also exist for even longer, for as long as other Lua
 VMs are using it.
 
+`cgroup: file_descriptor|filesystem.path|nil`::
+
+Version 2 cgroup to put the child process into.
+
 `nsenter_user: file_descriptor|nil`::
 
 Enter in this Linux user namespace. When `nsenter_user` is specified, Emilua

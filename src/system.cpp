@@ -2763,6 +2763,42 @@ static int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    int cgroup = -1;
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (cgroup != -1) {
+            int res = close(cgroup);
+            boost::ignore_unused(res);
+        }
+    };
+    lua_getfield(L, 1, "cgroup");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TUSERDATA: {
+        auto handle = static_cast<file_descriptor_handle*>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument, "arg", "cgroup");
+            return lua_error(L);
+        }
+        if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+            push(L, std::errc::invalid_argument, "arg", "cgroup");
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+        if (*handle == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy, "arg", "cgroup");
+            return lua_error(L);
+        }
+        cgroup = *handle;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "cgroup");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     int nsenter_user = -1;
     lua_getfield(L, 1, "nsenter_user");
     switch (lua_type(L, -1)) {
@@ -2967,6 +3003,12 @@ static int system_spawn(lua_State* L)
     cl_args.exit_signal = 0;
     cl_args.stack = NULL;
     cl_args.stack_size = 0;
+
+    if (cgroup != -1) {
+        cl_args.flags |= CLONE_INTO_CGROUP;
+        cl_args.cgroup = cgroup;
+    }
+
     auto childpid = syscall(SYS_clone3, &cl_args, sizeof(clone_args));
     switch (childpid) {
     case -1:
