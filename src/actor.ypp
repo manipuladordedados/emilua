@@ -1114,7 +1114,7 @@ static int spawn_vm(lua_State* L)
                 concurrency_hint = 1;
         }
 #endif
-        lua_getfield(L, 2, "linux_namespaces");
+        lua_getfield(L, 2, "subprocess");
         if (lua_type(L, -1) == LUA_TTABLE) {
 #if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
             if (host_type_already_defined) {
@@ -1128,7 +1128,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_uts");
+                     "arg", "subprocess/new_uts");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1144,7 +1144,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_ipc");
+                     "arg", "subprocess/new_ipc");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1160,7 +1160,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_pid");
+                     "arg", "subprocess/new_pid");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1176,7 +1176,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_user");
+                     "arg", "subprocess/new_user");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1192,7 +1192,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_net");
+                     "arg", "subprocess/new_net");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1208,7 +1208,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/new_mount");
+                     "arg", "subprocess/new_mount");
                 return lua_error(L);
             case LUA_TBOOLEAN:
                 if (lua_toboolean(L, -1)) {
@@ -1224,12 +1224,12 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/stdin");
+                     "arg", "subprocess/stdin");
                 return lua_error(L);
             case LUA_TSTRING:
                 if (tostringview(L) != "share") {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdin");
+                         "arg", "subprocess/stdin");
                     return lua_error(L);
                 }
                 proc_stdin = STDIN_FILENO;
@@ -1240,18 +1240,18 @@ static int spawn_vm(lua_State* L)
                     lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdin");
+                         "arg", "subprocess/stdin");
                     return lua_error(L);
                 }
                 rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
                 if (!lua_rawequal(L, -1, -2)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdin");
+                         "arg", "subprocess/stdin");
                     return lua_error(L);
                 }
                 if (*handle == INVALID_FILE_DESCRIPTOR) {
                     push(L, std::errc::device_or_resource_busy,
-                         "arg", "linux_namespaces/stdin");
+                         "arg", "subprocess/stdin");
                     return lua_error(L);
                 }
                 proc_stdin = *handle;
@@ -1267,12 +1267,12 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/stdout");
+                     "arg", "subprocess/stdout");
                 return lua_error(L);
             case LUA_TSTRING:
                 if (tostringview(L) != "share") {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdout");
+                         "arg", "subprocess/stdout");
                     return lua_error(L);
                 }
                 proc_stdout = STDOUT_FILENO;
@@ -1283,18 +1283,18 @@ static int spawn_vm(lua_State* L)
                     lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdout");
+                         "arg", "subprocess/stdout");
                     return lua_error(L);
                 }
                 rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
                 if (!lua_rawequal(L, -1, -2)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stdout");
+                         "arg", "subprocess/stdout");
                     return lua_error(L);
                 }
                 if (*handle == INVALID_FILE_DESCRIPTOR) {
                     push(L, std::errc::device_or_resource_busy,
-                         "arg", "linux_namespaces/stdout");
+                         "arg", "subprocess/stdout");
                     return lua_error(L);
                 }
                 proc_stdout = *handle;
@@ -1310,12 +1310,12 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/stderr");
+                     "arg", "subprocess/stderr");
                 return lua_error(L);
             case LUA_TSTRING:
                 if (tostringview(L) != "share") {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stderr");
+                         "arg", "subprocess/stderr");
                     return lua_error(L);
                 }
                 proc_stderr = STDERR_FILENO;
@@ -1326,18 +1326,18 @@ static int spawn_vm(lua_State* L)
                     lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stderr");
+                         "arg", "subprocess/stderr");
                     return lua_error(L);
                 }
                 rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
                 if (!lua_rawequal(L, -1, -2)) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/stderr");
+                         "arg", "subprocess/stderr");
                     return lua_error(L);
                 }
                 if (*handle == INVALID_FILE_DESCRIPTOR) {
                     push(L, std::errc::device_or_resource_busy,
-                         "arg", "linux_namespaces/stderr");
+                         "arg", "subprocess/stderr");
                     return lua_error(L);
                 }
                 proc_stderr = *handle;
@@ -1353,7 +1353,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/environment");
+                     "arg", "subprocess/environment");
                 return lua_error(L);
             case LUA_TTABLE:
                 lua_pushnil(L);
@@ -1363,7 +1363,7 @@ static int spawn_vm(lua_State* L)
                         lua_type(L, -1) != LUA_TSTRING
                     ) {
                         push(L, std::errc::invalid_argument,
-                             "arg", "linux_namespaces/environment");
+                             "arg", "subprocess/environment");
                         return lua_error(L);
                     }
 
@@ -1381,7 +1381,7 @@ static int spawn_vm(lua_State* L)
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "linux_namespaces/init");
+                     "arg", "subprocess/init");
                 return lua_error(L);
             case LUA_TTABLE:
                 request.has_lua_hook = 1;
@@ -1390,25 +1390,25 @@ static int spawn_vm(lua_State* L)
                 switch (lua_type(L, -1)) {
                 default:
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/init/fd");
+                         "arg", "subprocess/init/fd");
                     return lua_error(L);
                 case LUA_TUSERDATA: {
                     auto handle = static_cast<file_descriptor_handle*>(
                         lua_touserdata(L, -1));
                     if (!lua_getmetatable(L, -1)) {
                         push(L, std::errc::invalid_argument,
-                             "arg", "linux_namespaces/init/fd");
+                             "arg", "subprocess/init/fd");
                         return lua_error(L);
                     }
                     rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
                     if (!lua_rawequal(L, -1, -2)) {
                         push(L, std::errc::invalid_argument,
-                             "arg", "linux_namespaces/init/fd");
+                             "arg", "subprocess/init/fd");
                         return lua_error(L);
                     }
                     if (*handle == INVALID_FILE_DESCRIPTOR) {
                         push(L, std::errc::device_or_resource_busy,
-                             "arg", "linux_namespaces/init/fd");
+                             "arg", "subprocess/init/fd");
                         return lua_error(L);
                     }
                     lua_hook_fd = *handle;
@@ -1423,7 +1423,7 @@ static int spawn_vm(lua_State* L)
                 lua_getfield(L, -1, "script");
                 if (lua_type(L, -1) != LUA_TSTRING) {
                     push(L, std::errc::invalid_argument,
-                         "arg", "linux_namespaces/init/script");
+                         "arg", "subprocess/init/script");
                     return lua_error(L);
                 }
                 lua_hook.emplace(tostringview(L));

@@ -58,7 +58,7 @@ function spawn_vm(guest_code)
     sguest = sguest:release()
 
     local my_channel = do_spawn_vm('/app.lua', {
-        linux_namespaces = {
+        subprocess = {
             new_user = true,
             new_net = true,
             new_mount = true,

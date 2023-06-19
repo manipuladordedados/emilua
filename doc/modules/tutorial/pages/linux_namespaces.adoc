@@ -139,17 +139,17 @@ work/lifetime accounting, process reaping, DoS protection, serialization, lots
 of Linux namespaces details (e.g. PID1), and much more, but it still expects you
 to actually initialize the sandbox.
 
-== The option `linux_namespaces`
+== The option `subprocess`
 
 The `spawn_vm()` function will only use Linux namespaces when you pass an
 options object that instructs it to use Linux namespaces:
 
 [source,lua]
 ----
-local my_channel = spawn_vm(module, { linux_namespaces = { ... } })
+local my_channel = spawn_vm(module, { subprocess = { ... } })
 ----
 
-The following options are supported for the `linux_namespaces` table:
+The following options are supported for the `subprocess` table:
 
 `new_uts: boolean = false`:: Whether to create the process within a new UTS
 namespace.
@@ -205,7 +205,7 @@ the network resources as that's the easiest one:
 [source,lua]
 ----
 spawn_vm('', {
-    linux_namespaces = {
+    subprocess = {
         new_user = true,
         new_net = true
     }
@@ -238,7 +238,7 @@ local shost, sguest = unix.seqpacket_socket.pair()
 sguest = sguest:release()
 
 spawn_vm('', {
-    linux_namespaces = {
+    subprocess = {
         new_user = true,
         new_net = true,
         init = { script = init_script, fd = sguest }
@@ -437,7 +437,7 @@ local init_script = [[
 ]]
 
 spawn_vm('', {
-    linux_namespaces = {
+    subprocess = {
         ...,
         new_mount = true,
 
@@ -623,7 +623,7 @@ local shost, sguest = unix.seqpacket_socket.pair()
 sguest = sguest:release()
 
 local my_channel = spawn_vm('/app.lua', {
-    linux_namespaces = {
+    subprocess = {
         new_user = true,
         new_net = true,
         new_mount = true,
