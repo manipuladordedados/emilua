@@ -154,6 +154,12 @@ include::pages/time.system_timer.adoc[]
 
 include::pages/time.high_resolution_clock.adoc[]
 
+include::pages/inbox.adoc[]
+
+include::pages/spawn_vm.adoc[]
+
+include::pages/spawn_context_threads.adoc[]
+
 include::pages/stream.write_all.adoc[]
 
 include::pages/stream.write_at_least.adoc[]

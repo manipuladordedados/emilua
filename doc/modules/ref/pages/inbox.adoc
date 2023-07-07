@@ -1,0 +1,33 @@
+= inbox
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local inbox = require "inbox"
+----
+
+== Description
+
+Returns the inbox associated with the caller VM.
+
+== Methods
+
+=== `receive(self) -> value`
+
+Receives a message.
+
+=== `close(self)`
+
+Closes the channel. No further messages can be received after inbox is closed.
+
+NOTE: If `inbox` is not imported by the time the main fiber finishes execution,
+it's automatically closed.

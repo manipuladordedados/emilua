@@ -1,0 +1,145 @@
+= spawn_vm
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+spawn_vm(module: string, opts: table) -> channel
+----
+
+== Description
+
+Creates a new actor and returns a tx-channel.
+
+The new actor will execute with `_CONTEXT='worker'` (this `_CONTEXT` is not
+propagated to imported submodules within the actor).
+
+[TIP]
+.Threading with work-stealing
+====
+Spawn more VMs than threads and spawn them all in the same thread-pool. The
+system will transparently steal VMs from the shared pool to keep the work-queue
+somewhat fair between the threads.
+====
+
+[TIP]
+.Threading with load-balancing
+====
+Spawn each VM in a new thread pool and make sure each-one has only one
+thread. Now use messaging to apply some load-balancing strategy of your choice.
+====
+
+=== `module: string`
+
+The name of the module that will serve as the entry point for the new actor.
+
+TIP: `'.'` is also a valid module to use when you spawn actors.
+
+=== Named parameters
+
+`inherit_context: boolean = true`::
+
+Whether to inherit the thread pool of the parent VM (i.e. the one calling
+`spawn_vm()`). On `false`, a new thread pool (starting with `1` thread) is
+created to run the new actor.
++
+Emilua can handle multiple VMs running on the same thread just fine. Cooperative
+multitasking is used to alternate execution among the ready VMs.
++
+TIP: A thread pool is one type of an execution context. The API prefers the term
+“context” as it's more general than “thread pool”.
+
+`concurrency_hint: integer|"safe" = "safe"`::
+
+`integer`:::
+
++
+--
+A suggestion to the new thread pool (`inherit_context` should be `false`) as to
+the number of active threads that should be used for scheduling
+actors{_}footnote:[<https://www.boost.org/doc/libs/1_69_0/doc/html/boost_asio/overview/core/concurrency_hint.html>].
++
+NOTE: You still need to call `spawn_context_threads()` to create the extra
+threads.
+--
+
+`"safe"`::: The default. No assumption is made upfront on the number of active
+threads that will be created through `spawn_context_threads()`.
+
+`new_master: boolean = false`::
+
+The first VM (actor) to run in a process has different responsibilities as
+that's the VM that will spawn all other actors in the system. The Emilua runtime
+will restrict modification of global process resources that don't play nice with
+threads such as the current working directory and signal handling disposition to
+this VM.
++
+Upon spawning a new actor, it's possible to transfer ownership over these
+resources to the new VM. After `spawn_vm()` returns, the calling actor ceases to
+be the master VM in the process and can no longer recover its previous role as
+the master VM.
+
+== `channel` functions
+
+=== `send(self, msg)`
+
+Sends a message.
+
+[NOTE]
+====
+You can send the address of other actors (or self) by sending the channel as a
+message. A clone of the tx-channel will be made and sent over.
+
+This simple foundation is enough to:
+
+[quote, '<https://en.wikipedia.org/wiki/Actor_model>']
+____
+[...] gives Actors the ability to create and participate in arbitrarily variable
+topological relationships with one another [...]
+____
+====
+
+=== `close(self)`
+
+Closes the channel. No further messages can be sent after a channel is closed.
+
+=== `detach(self)`
+
+Free resources associated with subprocess tracking and allow it to outlive the
+calling VM. In other words, `SIGKILL` won't be sent to the subprocess.
+
+NOTE: The channel remains open.
+
+NOTE: This method is only available for channels associated with IPC-based
+actors that are direct children of the caller.
+
+=== `kill(self, signal: integer = SIGKILL)`
+
+Sends `signal` to the subprocess and detaches from it.
+
+If it fails to send the signal, subprocess is not detached.
+
+Channel is closed as well.
+
+NOTE: This method is only available for channels associated with IPC-based
+actors that are direct children of the caller.
+
+== `channel` properties
+
+=== `child_pid: integer`
+
+The process id used by the OS to represent this child process (e.g. the number
+that shows up in `/proc` on some UNIX systems).
+
+NOTE: You can only access this field for channels associated with IPC-based
+actors that are direct children of the caller.

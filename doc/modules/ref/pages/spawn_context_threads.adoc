@@ -1,0 +1,32 @@
+= spawn_context_threads
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+spawn_context_threads(count: integer)
+----
+
+== Description
+
+Spawns extra `count` threads to the thread pool of the caller VM.
+
+TIP: Emilua can handle multiple VMs running on the same thread just
+fine. Cooperative multitasking is used to alternate execution among the
+ready VMs.
+
+[NOTE]
+====
+It doesn't make sense to have more context threads than actors as some threads
+will always be idle in this scenario.
+
+No safety-belts will prevent you from running such inefficient layout.
+====

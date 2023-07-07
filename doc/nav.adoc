@@ -3,7 +3,6 @@
 * Tutorial
 ** xref:tutorial:getting-started.adoc[]
 ** xref:tutorial:streams.adoc[]
-** xref:tutorial:actor.adoc[]
 ** xref:tutorial:alternatives.adoc[]
 ** xref:tutorial:fiber.adoc[]
 ** xref:tutorial:internals.adoc[]
@@ -15,6 +14,10 @@
 * Reference
 ** xref:ref:generic_error.adoc[]
 ** xref:ref:asio_error.adoc[]
+** Actor system
+*** xref:ref:inbox.adoc[]
+*** xref:ref:spawn_vm.adoc[]
+*** xref:ref:spawn_context_threads.adoc[]
 ** xref:ref:byte_span.adoc[]
 ** filesystem
 *** xref:ref:filesystem.path.adoc[path]
