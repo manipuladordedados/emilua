@@ -43,6 +43,9 @@ thread. Now use messaging to apply some load-balancing strategy of your choice.
 
 The name of the module that will serve as the entry point for the new actor.
 
+NOTE: For IPC-based actors, this argument no longer means an actual module when
+namespaces are involved. It'll just be passed along to the new process.
+
 TIP: `'.'` is also a valid module to use when you spawn actors.
 
 === Named parameters
@@ -89,6 +92,136 @@ resources to the new VM. After `spawn_vm()` returns, the calling actor ceases to
 be the master VM in the process and can no longer recover its previous role as
 the master VM.
 
+`subprocess: table|nil`::
+
+`table`:::
+
++
+--
+Spawn the actor in a new subprocess.
++
+NOTE: Not available on Windows.
+--
+
+`nil`::: Default. Don't spawn the actor in a new subprocess.
+
+`subprocess.new_uts: boolean = false`:: Whether to create the process within a
+new UTS namespace.
+
+`subprocess.new_ipc: boolean = false`:: Whether to create the process within a
+new IPC namespace.
+
+`subprocess.new_pid: boolean = false`::
+
++
+--
+Whether to create the process within a new PID namespace.
+
+The first process in a PID namespace is PID1 within that namespace. PID1 has a
+few special responsibilities. After `subprocess.init.script` exits, the Emilua
+runtime will fork if it's running as PID1. This new child will assume the role
+of starting your module (the Lua VM). The PID1 process will perform the
+following jobs:
+
+* Forward `SIGTERM`, `SIGUSR1`, `SIGUSR2`, `SIGHUP`, and `SIGINT` to the
+  child. There is no point in re-routing every signal, but more may be added to
+  this set if you present a compelling case.
+* Reap zombie processes.
+* Exit when the child dies with the same exit code as the child's.
+--
+
+`subprocess.new_user: boolean = false`::
+
++
+--
+Whether to create the process within a new user namespace.
+
+[TIP]
+====
+Even if it's a sandbox, and root inside the sandbox doesn't mean root outside
+it, maybe you still want to drop all root privileges at the end of the
+`init.script`:
+
+[source,lua]
+----
+C.cap_set_proc('=')
+----
+
+It won't be particularly useful for most people, but that technique is still
+useful to -- for instance -- create alternative LXC/FlatPak front-ends to run a
+few programs (if the program can't update its own binary files, new
+possibilities for sandboxing practice open up).
+====
+--
+
+`subprocess.new_net: boolean = false`:: Whether to create the process within a
+new net namespace.
+
+`subprocess.new_mount: boolean = false`:: Whether to create the process within a
+new mount namespace.
+
+`subprocess.environment: { [string] = string }|nil`:: A table of strings that
+will be used as the created process' `envp`. On `nil`, an empty `envp` will be
+used.
+
+`subprocess.stdin,stdout,stderr: "share"|file_descriptor|nil`::
+
+`"share"`:::
+The spawned process will share the specified standard handle (`stdin`, `stdout`,
+or `stderr`) with the caller process.
+
+`file_descriptor`:::
+Use the file descriptor as the specified standard handle (`stdin`, `stdout`, or
+`stderr`) for the spawned process.
+
+`nil`:::
+Create and use a closed pipe end as the specified standard handle (`stdin`,
+`stdout`, or `stderr`) for the spawned process.
+
+`subprocess.init.script: string`::
+
++
+--
+The source code for a script that is used to initialize the sandbox in the child
+process.
+
+[NOTE]
+.`errexit`
+====
+We don't want to accidentally ignore errors from the C API exposed to the
+`init.script`. That's why we borrow an idea from BASH. One common folklore among
+BASH programmers is the unofficial strict mode. Among other things, this mode
+dictates the use of BASH's `set -o errexit`.
+
+And `errexit` exists for the `init.script` as well. For `init.script`, `errexit`
+is just a global boolean. Every time the C API fails, the Emilua wrapper for the
+function will check its value. On `errexit=true` (the default when the script
+starts), the process will abort whenever some C API fails. That's specially
+important when you're using the API to drop process credentials/rights.
+====
+
+[TIP]
+.The controlling terminal
+====
+The Emilua runtime won't call `setsid()` nor `setpgid()` by itself, so the
+process will stay in the same session as its parent, and it'll have access to
+the same controlling terminal.
+
+If you want to block the new actor from accessing the controlling terminal, you
+may perform the usual calls in `init.script`:
+
+[source,lua]
+----
+C.setsid()
+C.setpgid(0, 0)
+----
+====
+--
+
+`subprocess.init.fd: file_descriptor`:: A file descriptor that will be sent to
+the `init.script`. The script can access this fd through the variable `fdarg`
+that is available within the script.
+
 == `channel` functions
 
 === `send(self, msg)`
@@ -115,24 +248,24 @@ Closes the channel. No further messages can be sent after a channel is closed.
 
 === `detach(self)`
 
-Free resources associated with subprocess tracking and allow it to outlive the
-calling VM. In other words, `SIGKILL` won't be sent to the subprocess.
+Detaches the calling VM/actor from the role of supervisor for the process/actor
+represented by `self`. After this operation is done, the process/actor
+represented by `self` is allowed to outlive the calling process.
 
 NOTE: The channel remains open.
 
 NOTE: This method is only available for channels associated with IPC-based
 actors that are direct children of the caller.
 
-=== `kill(self, signal: integer = SIGKILL)`
+=== `kill(self, signo: integer = system.signal.SIGKILL)`
 
-Sends `signal` to the subprocess and detaches from it.
-
-If it fails to send the signal, subprocess is not detached.
-
-Channel is closed as well.
+Sends `signo` to the subprocess. On `SIGKILL`, it'll also close the channel.
 
 NOTE: This method is only available for channels associated with IPC-based
 actors that are direct children of the caller.
+
+NOTE: A PID file descriptor is used to send `signo` so no races involving PID
+numbers ever happen.
 
 == `channel` properties
 
@@ -141,5 +274,251 @@ actors that are direct children of the caller.
 The process id used by the OS to represent this child process (e.g. the number
 that shows up in `/proc` on some UNIX systems).
 
+Do keep in mind that process reaping happens automatically and the PID won't
+remain reserved once the child dies, so it's racy to use the PID. Even if
+process reaping was *not* automatic, it'd still be possible to have races if the
+parent died while some other process was using this PID. Use `child_pid` only as
+a last resort.
+
 NOTE: You can only access this field for channels associated with IPC-based
 actors that are direct children of the caller.
+
+== The C API exposed to `init.script`
+
+=== Helpers
+
+==== `mode(user: integer, group: integer, other: integer) -> integer`
+
+[source,lua]
+----
+function mode(user, group, other)
+    return bit.bor(bit.lshift(user, 6), bit.lshift(group, 3), other)
+end
+----
+
+==== `receive_with_fd(fd: integer, buf_size: integer) -> string, integer, integer`
+
+Returns three values:
+
+1. String with the received message (or `nil` on error).
+2. File descriptor received (or `-1` on none).
+3. The errno value (or `0` on success).
+
+==== `send_with_fd(fd: integer, str: buffer, fd2: integer) -> integer, integer`
+
+Returns two values:
+
+1. `sendmsg()` return.
+2. The errno value (or `0` on success).
+
+=== Functions
+
+These functions live inside the global table `C`. `errno` (or `0` on success) is
+returned as the second result.
+
+* `read()`. Opposed to the C function, it receives two arguments. The second
+  argument is the size of the buffer. The buffer is allocated automatically, and
+  returned as a string in the first result (unless an error happens, then `nil`
+  is returned).
+* `write()`. Opposed to the C function, it receives two arguments. The second
+  one is a string which will be used as the buffer.
+* `sethostname()`. Opposed to the C function, it only receives the string
+  argument.
+* `setdomainname()`. Opposed to the C function, it only receives the string
+  argument.
+* `setgroups()`. Opposed to the C function, it receives a list of numbers as its
+  single argument.
+* `cap_set_proc()`. Opposed to the C function, it receives a string as its
+  single argument. The string is converted to the `cap_t` type using the
+  function `cap_from_text()`.
+* `cap_drop_bound()`. Opposed to the C function, it receives a string as its
+  single argument. The string is converted to the `cap_value_t` type using the
+  function `cap_from_name()`.
+* `cap_set_ambient()`. Opposed to the C function, it receives a string as its
+  first argument. The string is converted to the `cap_value_t` type using the
+  function `cap_from_name()`. The second parameter is a boolean.
+* `execve()`. Opposed to the C function, `argv` and `envp` are specified as a
+  Lua table.
+* `fexecve()`. Opposed to the C function, `argv` and `envp` are specified as a
+  Lua table.
+
+Other exported functions work as usual (except that `errno` or `0` is returned
+as the second result):
+
+* `open()`.
+* `mkdir()`.
+* `chdir()`.
+* `umask()`.
+* `mount()`.
+* `umount()`.
+* `umount2()`.
+* `pivot_root()`.
+* `chroot()`.
+* `setsid()`.
+* `setpgid()`.
+* `setresuid()`.
+* `setresgid()`.
+* `cap_reset_ambient()`.
+* `cap_set_secbits()`.
+* `unshare()`.
+* `setns()`.
+
+=== Constants
+
+These constants live inside the global table `C`.
+
+* `O_CLOEXEC`.
+* `EAFNOSUPPORT`.
+* `EADDRINUSE`.
+* `EADDRNOTAVAIL`.
+* `EISCONN`.
+* `E2BIG`.
+* `EDOM`.
+* `EFAULT`.
+* `EBADF`.
+* `EBADMSG`.
+* `EPIPE`.
+* `ECONNABORTED`.
+* `EALREADY`.
+* `ECONNREFUSED`.
+* `ECONNRESET`.
+* `EXDEV`.
+* `EDESTADDRREQ`.
+* `EBUSY`.
+* `ENOTEMPTY`.
+* `ENOEXEC`.
+* `EEXIST`.
+* `EFBIG`.
+* `ENAMETOOLONG`.
+* `ENOSYS`.
+* `EHOSTUNREACH`.
+* `EIDRM`.
+* `EILSEQ`.
+* `ENOTTY`.
+* `EINTR`.
+* `EINVAL`.
+* `ESPIPE`.
+* `EIO`.
+* `EISDIR`.
+* `EMSGSIZE`.
+* `ENETDOWN`.
+* `ENETRESET`.
+* `ENETUNREACH`.
+* `ENOBUFS`.
+* `ECHILD`.
+* `ENOLINK`.
+* `ENOLCK`.
+* `ENODATA`.
+* `ENOMSG`.
+* `ENOPROTOOPT`.
+* `ENOSPC`.
+* `ENOSR`.
+* `ENXIO`.
+* `ENODEV`.
+* `ENOENT`.
+* `ESRCH`.
+* `ENOTDIR`.
+* `ENOTSOCK`.
+* `ENOSTR`.
+* `ENOTCONN`.
+* `ENOMEM`.
+* `ENOTSUP`.
+* `ECANCELED`.
+* `EINPROGRESS`.
+* `EPERM`.
+* `EOPNOTSUPP`.
+* `EWOULDBLOCK`.
+* `EOWNERDEAD`.
+* `EACCES`.
+* `EPROTO`.
+* `EPROTONOSUPPORT`.
+* `EROFS`.
+* `EDEADLK`.
+* `EAGAIN`.
+* `ERANGE`.
+* `ENOTRECOVERABLE`.
+* `ETIME`.
+* `ETXTBSY`.
+* `ETIMEDOUT`.
+* `ENFILE`.
+* `EMFILE`.
+* `EMLINK`.
+* `ELOOP`.
+* `EOVERFLOW`.
+* `EPROTOTYPE`.
+* `O_CREAT`.
+* `O_RDONLY`.
+* `O_WRONLY`.
+* `O_RDWR`.
+* `O_DIRECTORY`.
+* `O_EXCL`.
+* `O_NOCTTY`.
+* `O_NOFOLLOW`.
+* `O_TMPFILE`.
+* `O_TRUNC`.
+* `O_APPEND`.
+* `O_ASYNC`.
+* `O_DIRECT`.
+* `O_DSYNC`.
+* `O_LARGEFILE`.
+* `O_NOATIME`.
+* `O_NONBLOCK`.
+* `O_PATH`.
+* `O_SYNC`.
+* `S_IRWXU`.
+* `S_IRUSR`.
+* `S_IWUSR`.
+* `S_IXUSR`.
+* `S_IRWXG`.
+* `S_IRGRP`.
+* `S_IWGRP`.
+* `S_IXGRP`.
+* `S_IRWXO`.
+* `S_IROTH`.
+* `S_IWOTH`.
+* `S_IXOTH`.
+* `S_ISUID`.
+* `S_ISGID`.
+* `S_ISVTX`.
+* `MS_REMOUNT`.
+* `MS_BIND`.
+* `MS_SHARED`.
+* `MS_PRIVATE`.
+* `MS_SLAVE`.
+* `MS_UNBINDABLE`.
+* `MS_MOVE`.
+* `MS_DIRSYNC`.
+* `MS_LAZYTIME`.
+* `MS_MANDLOCK`.
+* `MS_NOATIME`.
+* `MS_NODEV`.
+* `MS_NODIRATIME`.
+* `MS_NOEXEC`.
+* `MS_NOSUID`.
+* `MS_RDONLY`.
+* `MS_REC`.
+* `MS_RELATIME`.
+* `MS_SILENT`.
+* `MS_STRICTATIME`.
+* `MS_SYNCHRONOUS`.
+* `MS_NOSYMFOLLOW`.
+* `MNT_FORCE`.
+* `MNT_DETACH`.
+* `MNT_EXPIRE`.
+* `UMOUNT_NOFOLLOW`.
+* `CLONE_NEWCGROUP`.
+* `CLONE_NEWIPC`.
+* `CLONE_NEWNET`.
+* `CLONE_NEWNS`.
+* `CLONE_NEWPID`.
+* `CLONE_NEWTIME`.
+* `CLONE_NEWUSER`.
+* `CLONE_NEWUTS`.
+* `SECBIT_NOROOT`.
+* `SECBIT_NOROOT_LOCKED`.
+* `SECBIT_NO_SETUID_FIXUP`.
+* `SECBIT_NO_SETUID_FIXUP_LOCKED`.
+* `SECBIT_KEEP_CAPS`.
+* `SECBIT_KEEP_CAPS_LOCKED`.
+* `SECBIT_NO_CAP_AMBIENT_RAISE`.
+* `SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED`.
