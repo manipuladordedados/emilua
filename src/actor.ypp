@@ -1116,11 +1116,11 @@ static int spawn_vm(lua_State* L)
             host_type_already_defined = true;
             run_in_subprocess = true;
 
-            lua_getfield(L, -1, "new_uts");
+            lua_getfield(L, -1, "newns_uts");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_uts");
+                     "arg", "subprocess/newns_uts");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX
@@ -1137,11 +1137,11 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
-            lua_getfield(L, -1, "new_ipc");
+            lua_getfield(L, -1, "newns_ipc");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_ipc");
+                     "arg", "subprocess/newns_ipc");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX
@@ -1158,11 +1158,11 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
-            lua_getfield(L, -1, "new_pid");
+            lua_getfield(L, -1, "newns_pid");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_pid");
+                     "arg", "subprocess/newns_pid");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX
@@ -1179,11 +1179,11 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
-            lua_getfield(L, -1, "new_user");
+            lua_getfield(L, -1, "newns_user");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_user");
+                     "arg", "subprocess/newns_user");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX
@@ -1200,11 +1200,11 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
-            lua_getfield(L, -1, "new_net");
+            lua_getfield(L, -1, "newns_net");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_net");
+                     "arg", "subprocess/newns_net");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX
@@ -1221,11 +1221,11 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
-            lua_getfield(L, -1, "new_mount");
+            lua_getfield(L, -1, "newns_mount");
             switch (lua_type(L, -1)) {
             default:
                 push(L, std::errc::invalid_argument,
-                     "arg", "subprocess/new_mount");
+                     "arg", "subprocess/newns_mount");
                 return lua_error(L);
             case LUA_TBOOLEAN:
 #if BOOST_OS_LINUX

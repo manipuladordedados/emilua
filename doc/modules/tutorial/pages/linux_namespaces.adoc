@@ -151,8 +151,8 @@ the network resources as that's the easiest one:
 ----
 spawn_vm('', {
     subprocess = {
-        new_user = true,
-        new_net = true
+        newns_user = true,
+        newns_net = true
     }
 })
 ----
@@ -184,8 +184,8 @@ sguest = sguest:release()
 
 spawn_vm('', {
     subprocess = {
-        new_user = true,
-        new_net = true,
+        newns_user = true,
+        newns_net = true,
         init = { script = init_script, fd = sguest }
     }
 })
@@ -292,12 +292,12 @@ sguest = sguest:release()
 
 local my_channel = spawn_vm('/app.lua', {
     subprocess = {
-        new_user = true,
-        new_net = true,
-        new_mount = true,
-        new_pid = true,
-        new_uts = true,
-        new_ipc = true,
+        newns_user = true,
+        newns_net = true,
+        newns_mount = true,
+        newns_pid = true,
+        newns_uts = true,
+        newns_ipc = true,
         init = { script = init_script, fd = sguest }
     }
 })

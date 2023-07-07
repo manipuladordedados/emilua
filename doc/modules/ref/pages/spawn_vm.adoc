@@ -105,17 +105,17 @@ NOTE: Not available on Windows.
 
 `nil`::: Default. Don't spawn the actor in a new subprocess.
 
-`subprocess.new_uts: boolean = false`:: Whether to create the process within a
-new UTS namespace.
+`subprocess.newns_uts: boolean = false`:: Whether to create the process within a
+new Linux UTS namespace.
 
-`subprocess.new_ipc: boolean = false`:: Whether to create the process within a
-new IPC namespace.
+`subprocess.newns_ipc: boolean = false`:: Whether to create the process within a
+new Linux IPC namespace.
 
-`subprocess.new_pid: boolean = false`::
+`subprocess.newns_pid: boolean = false`::
 
 +
 --
-Whether to create the process within a new PID namespace.
+Whether to create the process within a new Linux PID namespace.
 
 The first process in a PID namespace is PID1 within that namespace. PID1 has a
 few special responsibilities. After `subprocess.init.script` exits, the Emilua
@@ -130,11 +130,11 @@ following jobs:
 * Exit when the child dies with the same exit code as the child's.
 --
 
-`subprocess.new_user: boolean = false`::
+`subprocess.newns_user: boolean = false`::
 
 +
 --
-Whether to create the process within a new user namespace.
+Whether to create the process within a new Linux user namespace.
 
 [TIP]
 ====
@@ -154,11 +154,11 @@ possibilities for sandboxing practice open up).
 ====
 --
 
-`subprocess.new_net: boolean = false`:: Whether to create the process within a
-new net namespace.
+`subprocess.newns_net: boolean = false`:: Whether to create the process within a
+new Linux net namespace.
 
-`subprocess.new_mount: boolean = false`:: Whether to create the process within a
-new mount namespace.
+`subprocess.newns_mount: boolean = false`:: Whether to create the process within
+a new Linux mount namespace.
 
 `subprocess.environment: { [string] = string }|nil`:: A table of strings that
 will be used as the created process' `envp`. On `nil`, an empty `envp` will be
