@@ -33,10 +33,10 @@ extern "C" {
 } // extern "C"
 #endif // EMILUA_CONFIG_ENABLE_COLOR
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_UNIX
+#include <emilua/actor.hpp>
 #include <sys/wait.h>
-#include <emilua/linux_namespaces.hpp>
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 namespace asio = boost::asio;
 namespace hana = boost::hana;
@@ -81,37 +81,34 @@ int main(int argc, char *argv[], char *envp[])
     emilua::clone_stack_address = clone_stack.sp;
 #endif // BOOST_OS_LINUX
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    int linux_namespaces_service_pipe[2];
-    if (
-        socketpair(AF_UNIX, SOCK_SEQPACKET, 0, linux_namespaces_service_pipe) ==
-        -1
-    ) {
-        linux_namespaces_service_pipe[0] = -1;
-        linux_namespaces_service_pipe[1] = -1;
-        perror("<4>Failed to start Linux namespaces subsystem");
+#if BOOST_OS_UNIX
+    int ipc_actor_service_pipe[2];
+    if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
+        ipc_actor_service_pipe[0] = -1;
+        ipc_actor_service_pipe[1] = -1;
+        perror("<4>Failed to start subprocess-based actor subsystem");
     }
 
-    if (linux_namespaces_service_pipe[0] != -1) {
-        shutdown(linux_namespaces_service_pipe[0], SHUT_WR);
-        shutdown(linux_namespaces_service_pipe[1], SHUT_RD);
+    if (ipc_actor_service_pipe[0] != -1) {
+        shutdown(ipc_actor_service_pipe[0], SHUT_WR);
+        shutdown(ipc_actor_service_pipe[1], SHUT_RD);
 
         switch (fork()) {
         case -1: {
-            perror("<4>Failed to start Linux namespaces subsystem");
-            close(linux_namespaces_service_pipe[0]);
-            close(linux_namespaces_service_pipe[1]);
-            linux_namespaces_service_pipe[0] = -1;
-            linux_namespaces_service_pipe[1] = -1;
+            perror("<4>Failed to start subprocess-based actor subsystem");
+            close(ipc_actor_service_pipe[0]);
+            close(ipc_actor_service_pipe[1]);
+            ipc_actor_service_pipe[0] = -1;
+            ipc_actor_service_pipe[1] = -1;
             break;
         }
         case 0:
-            close(linux_namespaces_service_pipe[1]);
-            return emilua::app_context::linux_namespaces_service_main(
-                linux_namespaces_service_pipe[0]);
+            close(ipc_actor_service_pipe[1]);
+            return emilua::app_context::ipc_actor_service_main(
+                ipc_actor_service_pipe[0]);
         default: {
-            close(linux_namespaces_service_pipe[0]);
-            linux_namespaces_service_pipe[0] = -1;
+            close(ipc_actor_service_pipe[0]);
+            ipc_actor_service_pipe[0] = -1;
 
             emilua::bzero_region args;
 
@@ -136,21 +133,21 @@ int main(int argc, char *argv[], char *envp[])
                 std::string_view view = argv[i];
                 args.s = const_cast<char*>(view.data());
                 args.n = view.size();
-                write(linux_namespaces_service_pipe[1], &args, sizeof(args));
+                write(ipc_actor_service_pipe[1], &args, sizeof(args));
             }
             for (char** rawenv = envp ; *rawenv ; ++rawenv) {
                 std::string_view env{*rawenv};
                 args.s = const_cast<char*>(env.data());
                 args.n = env.size();
-                write(linux_namespaces_service_pipe[1], &args, sizeof(args));
+                write(ipc_actor_service_pipe[1], &args, sizeof(args));
             }
             args.s = nullptr;
             args.n = 0;
-            write(linux_namespaces_service_pipe[1], &args, sizeof(args));
+            write(ipc_actor_service_pipe[1], &args, sizeof(args));
         }
         }
     }
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     LUAJIT_VERSION_SYM();
     try {
@@ -236,9 +233,9 @@ int main(int argc, char *argv[], char *envp[])
     emilua::app_context appctx;
     appctx.app_env = std::move(tmp_env);
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    appctx.linux_namespaces_service_sockfd = linux_namespaces_service_pipe[1];
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_UNIX
+    appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
+#endif // BOOST_OS_UNIX
 
 #define NEXT_ARG(OPTION, LABEL) do {                           \
         if (YYCURSOR = *++cur_arg ; YYCURSOR != nullptr) {     \

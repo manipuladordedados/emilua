@@ -716,9 +716,9 @@ struct linux_container_message
     {
         double as_double;
         uint64_t as_int;
-    } members[EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER];
+    } members[EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER];
     unsigned char strbuf[
-        EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_SIZE - sizeof(members)];
+        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE - sizeof(members)];
 };
 ----
 

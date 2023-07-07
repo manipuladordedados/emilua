@@ -8,6 +8,7 @@
 * Add `mutex.try_lock()`.
 * Add module `recursive_mutex`.
 * Add module `future`.
+* Enable IPC-based actors on all UNIX systems.
 
 == 0.4
 

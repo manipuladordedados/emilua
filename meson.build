@@ -23,7 +23,7 @@ if host_machine.system() == 'linux'
     boost_modules += 'context'
 endif
 
-if get_option('enable_linux_namespaces')
+if host_machine.system() != 'windows' # POSIX systems
     boost_modules += 'serialization'
 endif
 
@@ -271,9 +271,9 @@ if get_option('enable_file_io')
     src += 'src/file.cpp'
 endif
 
-if get_option('enable_linux_namespaces')
-    src += 'src/linux_namespaces.cpp'
-    src += 'src/linux_namespaces/sys_bindings.cpp'
+if host_machine.system() != 'windows' # POSIX systems
+    src += 'src/ipc_actor.cpp'
+    src += 'src/ipc_actor/sys_bindings.cpp'
 endif
 
 # Meson doesn't have the ability to chain generators, so instead of
@@ -430,6 +430,7 @@ if get_option('enable_tests')
         'EMILUA_BIN=' + emilua_bin.full_path(),
         'NORMALIZE_PATH_BIN=' + normalize_path_bin.full_path(),
         'AWK_BIN=' + gawk.full_path(),
+        'TESTS_PATH=' + meson.current_source_dir() / 'test',
 
         # Make output strings for perror(), strerror(), and others predictable
         'LANG=',
@@ -675,78 +676,78 @@ if get_option('enable_tests')
         }
     endif
 
-    if get_option('enable_linux_namespaces')
+    if host_machine.system() != 'windows' # POSIX systems
         tests +=  {
-            'linux_namespaces' : [
+            'ipc_actor1' : [
                 # serialization for good objects
-                'linux_namespaces1',
-                'linux_namespaces2',
-                'linux_namespaces3',
-                'linux_namespaces4',
-                'linux_namespaces5',
-                'linux_namespaces6',
-                'linux_namespaces7',
-                'linux_namespaces8',
-                'linux_namespaces9',
-                'linux_namespaces10',
-                'linux_namespaces11',
-                'linux_namespaces12',
-                'linux_namespaces13',
-                'linux_namespaces14',
-                'linux_namespaces15',
-                'linux_namespaces16',
-                'linux_namespaces17',
-                'linux_namespaces18',
-                'linux_namespaces19',
-                'linux_namespaces20',
-                'linux_namespaces21',
-                'linux_namespaces22',
-                'linux_namespaces23',
-                'linux_namespaces24',
-                'linux_namespaces25',
-                'linux_namespaces26',
-                'linux_namespaces27',
-                'linux_namespaces28',
-                'linux_namespaces29',
-                'linux_namespaces30',
-                'linux_namespaces31',
-                'linux_namespaces32',
-                'linux_namespaces33',
-                'linux_namespaces34',
-                'linux_namespaces35',
-                'linux_namespaces36',
-                'linux_namespaces37',
-                'linux_namespaces38',
-                'linux_namespaces39',
-                'linux_namespaces40',
-                'linux_namespaces41',
-                'linux_namespaces42',
-                'linux_namespaces43',
-                'linux_namespaces44',
+                'ipc_actor_1_1',
+                'ipc_actor_1_2',
+                'ipc_actor_1_3',
+                'ipc_actor_1_4',
+                'ipc_actor_1_5',
+                'ipc_actor_1_6',
+                'ipc_actor_1_7',
+                'ipc_actor_1_8',
+                'ipc_actor_1_9',
+                'ipc_actor_1_10',
+                'ipc_actor_1_11',
+                'ipc_actor_1_12',
+                'ipc_actor_1_13',
+                'ipc_actor_1_14',
+                'ipc_actor_1_15',
+                'ipc_actor_1_16',
+                'ipc_actor_1_17',
+                'ipc_actor_1_18',
+                'ipc_actor_1_19',
+                'ipc_actor_1_20',
+                'ipc_actor_1_21',
+                'ipc_actor_1_22',
+                'ipc_actor_1_23',
+                'ipc_actor_1_24',
+                'ipc_actor_1_25',
+                'ipc_actor_1_26',
+                'ipc_actor_1_27',
+                'ipc_actor_1_28',
+                'ipc_actor_1_29',
+                'ipc_actor_1_30',
+                'ipc_actor_1_31',
+                'ipc_actor_1_32',
+                'ipc_actor_1_33',
+                'ipc_actor_1_34',
+                'ipc_actor_1_35',
+                'ipc_actor_1_36',
+                'ipc_actor_1_37',
+                'ipc_actor_1_38',
+                'ipc_actor_1_39',
+                'ipc_actor_1_40',
+                'ipc_actor_1_41',
+                'ipc_actor_1_42',
+                'ipc_actor_1_43',
+                'ipc_actor_1_44',
 
                 # bad input on send()
-                'linux_namespaces45',
-                'linux_namespaces46',
-                'linux_namespaces47',
-                'linux_namespaces48',
-                'linux_namespaces49',
-                'linux_namespaces50',
-                'linux_namespaces51',
-                'linux_namespaces52',
-                'linux_namespaces53',
-                'linux_namespaces54',
-                'linux_namespaces55',
+                'ipc_actor_1_45',
+                'ipc_actor_1_46',
+                'ipc_actor_1_47',
+                'ipc_actor_1_48',
+                'ipc_actor_1_49',
+                'ipc_actor_1_50',
+                'ipc_actor_1_51',
+                'ipc_actor_1_52',
+                'ipc_actor_1_53',
+                'ipc_actor_1_54',
+                'ipc_actor_1_55',
 
                 # misc
-                'linux_namespaces56',
+                'ipc_actor_1_56',
             ]
         }
     endif
 
-    if get_option('enable_linux_namespaces') and get_option('enable_plugins')
-        linux_namespaces_badinjector = shared_module(
-            'linux_namespaces_badinjector',
-            ['test/linux_namespaces_badinjector.cpp'],
+    if host_machine.system() != 'windows' and get_option('enable_plugins')
+        ipc_actor_badinjector = shared_module(
+            'ipc_actor_badinjector',
+            ['test/ipc_actor_badinjector.cpp'],
             dependencies : [
                 thread_dep,
                 boost,
@@ -758,36 +759,35 @@ if get_option('enable_tests')
         )
 
         tests_env += (
-            'EMILUA_PATH=' +
-            fs.parent(linux_namespaces_badinjector.full_path()))
+            'EMILUA_PATH=' + fs.parent(ipc_actor_badinjector.full_path()))
 
         tests +=  {
-            'linux_namespaces2' : [
-                'linux_namespaces2_1',
-                'linux_namespaces2_2',
-                'linux_namespaces2_3',
-                'linux_namespaces2_4',
-                'linux_namespaces2_5',
-                'linux_namespaces2_6',
-                'linux_namespaces2_7',
-                'linux_namespaces2_8',
-                'linux_namespaces2_9',
-                'linux_namespaces2_10',
-                'linux_namespaces2_11',
-                'linux_namespaces2_12',
-                'linux_namespaces2_13',
-                'linux_namespaces2_14',
-                'linux_namespaces2_15',
-                'linux_namespaces2_16',
-                'linux_namespaces2_17',
-                'linux_namespaces2_18',
-                'linux_namespaces2_19',
-                'linux_namespaces2_20',
-                'linux_namespaces2_21',
-                'linux_namespaces2_22',
+            'ipc_actor2' : [
+                'ipc_actor_2_1',
+                'ipc_actor_2_2',
+                'ipc_actor_2_3',
+                'ipc_actor_2_4',
+                'ipc_actor_2_5',
+                'ipc_actor_2_6',
+                'ipc_actor_2_7',
+                'ipc_actor_2_8',
+                'ipc_actor_2_9',
+                'ipc_actor_2_10',
+                'ipc_actor_2_11',
+                'ipc_actor_2_12',
+                'ipc_actor_2_13',
+                'ipc_actor_2_14',
+                'ipc_actor_2_15',
+                'ipc_actor_2_16',
+                'ipc_actor_2_17',
+                'ipc_actor_2_18',
+                'ipc_actor_2_19',
+                'ipc_actor_2_20',
+                'ipc_actor_2_21',
+                'ipc_actor_2_22',
 
-                'linux_namespaces_fuzzer1',
-                'linux_namespaces_fuzzer2',
+                'ipc_actor_fuzzer1',
+                'ipc_actor_fuzzer2',
             ]
         }
     endif

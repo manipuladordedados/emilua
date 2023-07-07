@@ -362,9 +362,9 @@ public:
         log(priority, log_domain<Domain>::name, format_str, std::move(args));
     }
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    static int linux_namespaces_service_main(int sockfd);
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_UNIX
+    static int ipc_actor_service_main(int sockfd);
+#endif // BOOST_OS_UNIX
 
     std::vector<std::string_view> app_args;
     std::unordered_map<std::string_view, std::string_view> app_env;
@@ -394,9 +394,9 @@ public:
     // <https://lists.isocpp.org/std-proposals/2021/07/2809.php>.
     std::condition_variable extra_threads_count_dummy_cond;
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    int linux_namespaces_service_sockfd = -1;
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_UNIX
+    int ipc_actor_service_sockfd = -1;
+#endif // BOOST_OS_UNIX
 
 private:
     void init_log_domain(std::string_view name, int& log_level);
@@ -465,25 +465,23 @@ struct inbox_t
     };
 #endif // BOOST_OS_UNIX
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    struct linux_container_address
+#if BOOST_OS_UNIX
+    struct ipc_actor_address
     {
-        linux_container_address(std::shared_ptr<file_descriptor_box> inbox)
+        ipc_actor_address(std::shared_ptr<file_descriptor_box> inbox)
             : inbox{std::move(inbox)}
         {}
 
         std::shared_ptr<file_descriptor_box> inbox;
     };
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     struct value_type: std::variant<
         bool, lua_Number, std::string,
 #if BOOST_OS_UNIX
         std::shared_ptr<file_descriptor_box>,
+        ipc_actor_address,
 #endif // BOOST_OS_UNIX
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-        linux_container_address,
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
         std::map<std::string, value_type>,
         std::vector<value_type>,
         actor_address

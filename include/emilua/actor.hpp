@@ -7,10 +7,13 @@
 
 #include <emilua/core.hpp>
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_LINUX
 #include <sys/syscall.h>
+#endif // BOOST_OS_LINUX
+
+#if BOOST_OS_UNIX
 #include <boost/asio/local/datagram_protocol.hpp>
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 namespace emilua {
 
@@ -18,41 +21,170 @@ extern char inbox_key;
 
 void init_actor_module(lua_State* L);
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-extern char linux_container_chan_mt_key;
+#if BOOST_OS_UNIX
+static constexpr std::uint64_t DOUBLE_SIGN_BIT = UINT64_C(0x8000000000000000);
+static constexpr std::uint64_t EXPONENT_MASK   = UINT64_C(0x7FF0000000000000);
+static constexpr std::uint64_t MANTISSA_MASK   = UINT64_C(0x000FFFFFFFFFFFFF);
+static constexpr std::uint64_t QNAN_BIT        = UINT64_C(0x0008000000000000);
 
-struct linux_container_reaper : public pending_operation
+extern char ipc_actor_chan_mt_key;
+
+// If members[0]'s type is nil then it means the message is flat (i.e. a sole
+// root non-composite value) and its value is that of members[1].
+struct ipc_actor_message
 {
-    linux_container_reaper(int childpidfd, pid_t childpid)
+    enum kind : std::uint64_t
+    {
+        boolean_true    = 1,
+        boolean_false   = 2,
+        string          = 3,
+        file_descriptor = 4,
+        actor_address   = 5,
+        nil             = 6
+    };
+
+    union {
+        double as_double;
+        std::uint64_t as_int;
+    } members[EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER];
+    unsigned char strbuf[
+        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE - sizeof(members)];
+};
+static_assert(sizeof(ipc_actor_message) ==
+              EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE);
+static_assert(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER *
+              512 == sizeof(std::declval<ipc_actor_message>().strbuf));
+static_assert(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER > 2);
+
+struct ipc_actor_inbox_service;
+
+struct ipc_actor_inbox_op
+    : public std::enable_shared_from_this<ipc_actor_inbox_op>
+{
+    ipc_actor_inbox_op(vm_context& vm_ctx, ipc_actor_inbox_service* service)
+        : executor{vm_ctx.strand()}
+        , vm_ctx{vm_ctx.weak_from_this()}
+        , service{service}
+    {}
+
+    void do_wait();
+    void on_wait(const boost::system::error_code& ec);
+
+private:
+    strand_type executor;
+    std::weak_ptr<vm_context> vm_ctx;
+    ipc_actor_inbox_service* service;
+};
+
+struct ipc_actor_inbox_service : public pending_operation
+{
+    ipc_actor_inbox_service(asio::io_context& ioctx, int inboxfd)
         : pending_operation{/*shared_ownership=*/false}
+        , sock{ioctx}
+    {
+        asio::local::datagram_protocol protocol;
+        boost::system::error_code ignored_ec;
+        sock.assign(protocol, inboxfd, ignored_ec);
+        assert(!ignored_ec);
+    }
+
+    void async_enqueue(vm_context& vm_ctx)
+    {
+        if (running)
+            return;
+
+        running = true;
+        auto op = std::make_shared<ipc_actor_inbox_op>(vm_ctx, this);
+        op->do_wait();
+    }
+
+    void cancel() noexcept override
+    {}
+
+    asio::local::datagram_protocol::socket sock;
+    bool running = false;
+};
+
+struct bzero_region
+{
+    void *s;
+    size_t n;
+};
+
+struct ipc_actor_start_vm_request
+{
+    enum action : std::uint8_t
+    {
+        CLOSE_FD,
+        SHARE_PARENT,
+        USE_PIPE
+    };
+
+    int clone_flags;
+    action stdin_action;
+    action stdout_action;
+    action stderr_action;
+    std::uint8_t stderr_has_color;
+    std::uint8_t has_lua_hook;
+};
+
+struct ipc_actor_start_vm_reply
+{
+    pid_t childpid;
+    int error;
+};
+
+inline bool is_snan(std::uint64_t as_i)
+{
+  return (as_i & EXPONENT_MASK) == EXPONENT_MASK &&
+      (as_i & MANTISSA_MASK) != 0 &&
+      (as_i & QNAN_BIT) == 0;
+}
+
+struct ipc_actor_reaper : public pending_operation
+{
+    ipc_actor_reaper(int childpidfd, pid_t childpid)
+        : pending_operation{/*shared_ownership=*/false}
+#if BOOST_OS_LINUX
         , childpidfd{childpidfd}
+#endif // BOOST_OS_LINUX
         , childpid{childpid}
     {}
 
-    ~linux_container_reaper()
+    ~ipc_actor_reaper()
     {
+#if BOOST_OS_LINUX
         close(childpidfd);
+#else // BOOST_OS_LINUX
+        // TODO
+#endif // BOOST_OS_LINUX
     }
 
     void cancel() noexcept override
     {
+#if BOOST_OS_LINUX
         syscall(SYS_pidfd_send_signal, childpidfd, SIGKILL, /*info=*/NULL,
                 /*flags=*/0);
+#else // BOOST_OS_LINUX
+        // TODO
+#endif // BOOST_OS_LINUX
     }
 
+#if BOOST_OS_LINUX
     int childpidfd;
+#endif // BOOST_OS_LINUX
     pid_t childpid;
 };
 
-struct linux_container_address
+struct ipc_actor_address
 {
-    linux_container_address(asio::io_context& ioctx)
+    ipc_actor_address(asio::io_context& ioctx)
         : dest{ioctx}
     {}
 
     asio::local::datagram_protocol::socket dest;
-    linux_container_reaper* reaper = nullptr;
+    ipc_actor_reaper* reaper = nullptr;
 };
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 } // namespace emilua

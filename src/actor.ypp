@@ -19,14 +19,11 @@
 
 #if BOOST_OS_UNIX
 #include <emilua/file_descriptor.hpp>
-#endif // BOOST_OS_UNIX
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/archive/binary_oarchive.hpp>
-#include <emilua/linux_namespaces.hpp>
 #include <sys/wait.h>
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 namespace emilua {
 
@@ -42,12 +39,12 @@ static char closed_tx_chan_mt_key;
 static char chan_receive_key;
 static char chan_send_key;
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-char linux_container_chan_mt_key;
-static char linux_container_chan_send_key;
+#if BOOST_OS_UNIX
+char ipc_actor_chan_mt_key;
+static char ipc_actor_chan_send_key;
 
-struct linux_container_send_op
-    : public std::enable_shared_from_this<linux_container_send_op>
+struct ipc_actor_send_op
+    : public std::enable_shared_from_this<ipc_actor_send_op>
 {
     struct file_descriptor_lock
     {
@@ -59,9 +56,9 @@ struct linux_container_send_op
         file_descriptor_handle value = INVALID_FILE_DESCRIPTOR;
     };
 
-    linux_container_send_op(emilua::vm_context& vm_ctx,
-                            asio::cancellation_slot cancel_slot,
-                            asio::local::datagram_protocol::socket& sock)
+    ipc_actor_send_op(emilua::vm_context& vm_ctx,
+                      asio::cancellation_slot cancel_slot,
+                      asio::local::datagram_protocol::socket& sock)
         : sock{sock}
         , current_fiber{vm_ctx.current_fiber()}
         , vm_ctx{vm_ctx.shared_from_this()}
@@ -124,7 +121,7 @@ struct linux_container_send_op
             struct cmsghdr align;
             char buf[CMSG_SPACE(
                 sizeof(int) *
-                EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER)];
+                EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
         } cmsgu;
         msg.msg_control = cmsgu.buf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
@@ -176,17 +173,17 @@ struct linux_container_send_op
     lua_State* current_fiber;
     std::shared_ptr<emilua::vm_context> vm_ctx;
     asio::cancellation_slot cancel_slot;
-    linux_container_message message;
+    ipc_actor_message message;
     std::size_t message_size;
     std::array<
         file_descriptor_lock,
-        EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER
+        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER
     > descriptors;
     std::uint8_t descriptors_size = 0;
 
     static constexpr auto opt_args = vm_context::options::arguments;
 };
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 static int deserializer_closure(lua_State* L)
 {
@@ -257,21 +254,19 @@ static int deserializer_closure(lua_State* L)
         *fdhandle = fdbox->value;
         fdbox->value = -1;
     };
-#endif // BOOST_OS_UNIX
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    static constexpr auto push_linux_container_address = [](
-        lua_State* L, inbox_t::linux_container_address& a
+    static constexpr auto push_ipc_actor_address = [](
+        lua_State* L, inbox_t::ipc_actor_address& a
     ) {
         assert(a.inbox->value != -1);
 
         auto& vm_ctx = get_vm_context(L);
-        auto ch = static_cast<linux_container_address*>(
-            lua_newuserdata(L, sizeof(linux_container_address))
+        auto ch = static_cast<ipc_actor_address*>(
+            lua_newuserdata(L, sizeof(ipc_actor_address))
         );
-        rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+        rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
         setmetatable(L, -2);
-        new (ch) linux_container_address{vm_ctx.strand().context()};
+        new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
         asio::local::datagram_protocol protocol;
         boost::system::error_code ignored_ec;
@@ -279,7 +274,7 @@ static int deserializer_closure(lua_State* L)
         assert(!ignored_ec);
         a.inbox->value = -1;
     };
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     auto push_leaf_or_append_path_and_return_true_on_leaf = [&](
         inbox_t::value_type::variant_type& value
@@ -293,12 +288,10 @@ static int deserializer_closure(lua_State* L)
             [L](std::shared_ptr<inbox_t::file_descriptor_box>& fdbox) {
                 push_file_descriptor(L, fdbox); return true;
             },
-#endif // BOOST_OS_UNIX
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-            [L](inbox_t::linux_container_address& a) {
-                push_linux_container_address(L, a); return true;
+            [L](inbox_t::ipc_actor_address& a) {
+                push_ipc_actor_address(L, a); return true;
             },
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
             [&](std::map<std::string, inbox_t::value_type>& m) {
                 path.emplace_back(std::in_place_type<object_range>, m);
                 return false;
@@ -980,13 +973,13 @@ static int chan_receive(lua_State* L)
     );
     set_interrupter(L, vm_ctx);
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#if BOOST_OS_UNIX
     for (auto& op: vm_ctx.pending_operations) {
-        auto service = dynamic_cast<linux_container_inbox_service*>(&op);
+        auto service = dynamic_cast<ipc_actor_inbox_service*>(&op);
         if (service)
             service->async_enqueue(vm_ctx);
     }
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     vm_ctx.inbox.recv_fiber = vm_ctx.current_fiber();
     vm_ctx.inbox.work_guard = vm_ctx.shared_from_this();
@@ -1070,17 +1063,17 @@ static int spawn_vm(lua_State* L)
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
     int concurrency_hint = 1;
 #endif
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    bool run_in_namespace = false;
+#if BOOST_OS_UNIX
+    bool run_in_subprocess = false;
     std::unordered_map<std::string, std::string> newenv;
     std::optional<std::string> lua_hook;
     int lua_hook_fd = -1;
     int proc_stdin = -1;
     int proc_stdout = -1;
     int proc_stderr = -1;
-    linux_container_start_vm_request request;
+    ipc_actor_start_vm_request request;
     std::memset(&request, 0, sizeof(request));
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     switch (lua_type(L, 2)) {
     default:
@@ -1116,13 +1109,12 @@ static int spawn_vm(lua_State* L)
 #endif
         lua_getfield(L, 2, "subprocess");
         if (lua_type(L, -1) == LUA_TTABLE) {
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
             if (host_type_already_defined) {
                 push(L, std::errc::invalid_argument, "arg", 2);
                 return lua_error(L);
             }
             host_type_already_defined = true;
-            run_in_namespace = true;
+            run_in_subprocess = true;
 
             lua_getfield(L, -1, "new_uts");
             switch (lua_type(L, -1)) {
@@ -1131,9 +1123,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_uts");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWUTS;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1147,9 +1144,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_ipc");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWIPC;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1163,9 +1165,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_pid");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWPID;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1179,9 +1186,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_user");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWUSER;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1195,9 +1207,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_net");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWNET;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1211,9 +1228,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/new_mount");
                 return lua_error(L);
             case LUA_TBOOLEAN:
+#if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWNS;
                 }
+#else // BOOST_OS_LINUX
+                push(L, std::errc::not_supported);
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1434,17 +1456,13 @@ static int spawn_vm(lua_State* L)
                 lua_pop(L, 1);
                 break;
             }
-#else // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-            push(L, std::errc::not_supported);
-            return lua_error(L);
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
         }
     }
     }
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    if (run_in_namespace) {
-        if (vm_ctx.appctx.linux_namespaces_service_sockfd == -1) {
+#if BOOST_OS_UNIX
+    if (run_in_subprocess) {
+        if (vm_ctx.appctx.ipc_actor_service_sockfd == -1) {
             push(L, std::errc::no_child_process);
             return lua_error(L);
         }
@@ -1462,42 +1480,39 @@ static int spawn_vm(lua_State* L)
 
         switch (proc_stdin) {
         case -1:
-            request.stdin_action = linux_container_start_vm_request::CLOSE_FD;
+            request.stdin_action = ipc_actor_start_vm_request::CLOSE_FD;
             break;
         case STDIN_FILENO:
-            request.stdin_action =
-                linux_container_start_vm_request::SHARE_PARENT;
+            request.stdin_action = ipc_actor_start_vm_request::SHARE_PARENT;
             break;
         default:
-            request.stdin_action = linux_container_start_vm_request::USE_PIPE;
+            request.stdin_action = ipc_actor_start_vm_request::USE_PIPE;
         }
 
         switch (proc_stdout) {
         case -1:
-            request.stdout_action = linux_container_start_vm_request::CLOSE_FD;
+            request.stdout_action = ipc_actor_start_vm_request::CLOSE_FD;
             break;
         case STDOUT_FILENO:
-            request.stdout_action =
-                linux_container_start_vm_request::SHARE_PARENT;
+            request.stdout_action = ipc_actor_start_vm_request::SHARE_PARENT;
             break;
         default:
-            request.stdout_action = linux_container_start_vm_request::USE_PIPE;
+            request.stdout_action = ipc_actor_start_vm_request::USE_PIPE;
         }
 
         switch (proc_stderr) {
         case -1:
-            request.stderr_action = linux_container_start_vm_request::CLOSE_FD;
+            request.stderr_action = ipc_actor_start_vm_request::CLOSE_FD;
             break;
         case STDERR_FILENO:
-            request.stderr_action =
-                linux_container_start_vm_request::SHARE_PARENT;
+            request.stderr_action = ipc_actor_start_vm_request::SHARE_PARENT;
             request.stderr_has_color = emilua::stdout_has_color;
             break;
         default:
-            request.stderr_action = linux_container_start_vm_request::USE_PIPE;
+            request.stderr_action = ipc_actor_start_vm_request::USE_PIPE;
         }
 
-        if (body.size() > EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_SIZE) {
+        if (body.size() > EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE) {
             push(L, std::errc::message_size);
             return lua_error(L);
         }
@@ -1535,26 +1550,17 @@ static int spawn_vm(lua_State* L)
             std::memcpy(it, &channel[0], sizeof(int));
             it += sizeof(int);
 
-            if (
-                request.stdin_action ==
-                linux_container_start_vm_request::USE_PIPE
-            ) {
+            if (request.stdin_action == ipc_actor_start_vm_request::USE_PIPE) {
                 std::memcpy(it, &proc_stdin, sizeof(int));
                 it += sizeof(int);
             }
 
-            if (
-                request.stdout_action ==
-                linux_container_start_vm_request::USE_PIPE
-            ) {
+            if (request.stdout_action == ipc_actor_start_vm_request::USE_PIPE) {
                 std::memcpy(it, &proc_stdout, sizeof(int));
                 it += sizeof(int);
             }
 
-            if (
-                request.stderr_action ==
-                linux_container_start_vm_request::USE_PIPE
-            ) {
+            if (request.stderr_action == ipc_actor_start_vm_request::USE_PIPE) {
                 std::memcpy(it, &proc_stderr, sizeof(int));
                 it += sizeof(int);
             }
@@ -1564,7 +1570,7 @@ static int spawn_vm(lua_State* L)
             msg.msg_controllen = CMSG_SPACE(sizeof(int) * nfds);
         }
 
-        auto nwritten = sendmsg(vm_ctx.appctx.linux_namespaces_service_sockfd,
+        auto nwritten = sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd,
                                 &msg, MSG_NOSIGNAL);
         int send_errno = errno;
         close(channel[0]);
@@ -1577,7 +1583,7 @@ static int spawn_vm(lua_State* L)
             return lua_error(L);
         }
 
-        linux_container_start_vm_reply reply;
+        ipc_actor_start_vm_reply reply;
 
         std::memset(&msg, 0, sizeof(msg));
         iov.iov_base = &reply;
@@ -1661,16 +1667,15 @@ static int spawn_vm(lua_State* L)
             }
         }
 
-        auto reaper = new linux_container_reaper{pidfd, reply.childpid};
+        auto reaper = new ipc_actor_reaper{pidfd, reply.childpid};
         vm_ctx.pending_operations.push_back(*reaper);
         pidfd = -1;
 
-        auto ch = static_cast<linux_container_address*>(lua_newuserdata(
-            L, sizeof(linux_container_address)
-        ));
-        rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+        auto ch = static_cast<ipc_actor_address*>(
+            lua_newuserdata(L, sizeof(ipc_actor_address)));
+        rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
         setmetatable(L, -2);
-        new (ch) linux_container_address{vm_ctx.strand().context()};
+        new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
         asio::local::datagram_protocol protocol;
         boost::system::error_code ignored_ec;
@@ -1681,7 +1686,7 @@ static int spawn_vm(lua_State* L)
         ch->reaper = reaper;
         return 1;
     }
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
     lua_pushthread(vm_ctx.current_fiber());
@@ -1961,20 +1966,20 @@ static int inbox_mt_index(lua_State* L)
     }
 }
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-static int linux_container_chan_send(lua_State* L)
+#if BOOST_OS_UNIX
+static int ipc_actor_chan_send(lua_State* L)
 {
     lua_settop(L, 2);
 
     auto& vm_ctx = get_vm_context(L);
     EMILUA_CHECK_SUSPEND_ALLOWED(vm_ctx, L);
 
-    auto channel = static_cast<linux_container_address*>(lua_touserdata(L, 1));
+    auto channel = static_cast<ipc_actor_address*>(lua_touserdata(L, 1));
     if (!channel || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
@@ -1987,7 +1992,7 @@ static int linux_container_chan_send(lua_State* L)
 
     auto cancel_slot = set_default_interrupter(L, vm_ctx);
 
-    auto op = std::make_shared<linux_container_send_op>(
+    auto op = std::make_shared<ipc_actor_send_op>(
         vm_ctx, std::move(cancel_slot), channel->dest);
     using descriptors_size_type = decltype(op->descriptors_size);
     bool op_started = false;
@@ -2013,18 +2018,17 @@ static int linux_container_chan_send(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     case LUA_TBOOLEAN:
-        op->message.members[0].as_int = EXPONENT_MASK |
-            linux_container_message::nil;
+        op->message.members[0].as_int = EXPONENT_MASK | ipc_actor_message::nil;
         op->message.members[1].as_int = EXPONENT_MASK;
         op->message.members[1].as_int |=
             lua_toboolean(L, 2) ?
-            linux_container_message::boolean_true :
-            linux_container_message::boolean_false;
+            ipc_actor_message::boolean_true :
+            ipc_actor_message::boolean_false;
         op->message_size = sizeof(op->message.members[0]) * 2;
         break;
     case LUA_TNUMBER:
         op->message.members[0].as_int = EXPONENT_MASK |
-            linux_container_message::nil;
+            ipc_actor_message::nil;
         op->message.members[1].as_double = lua_tonumber(L, 2);
         assert(!is_snan(op->message.members[1].as_int));
         op->message_size = sizeof(op->message.members[0]) * 2;
@@ -2035,10 +2039,9 @@ static int linux_container_chan_send(lua_State* L)
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
-        op->message.members[0].as_int = EXPONENT_MASK |
-            linux_container_message::nil;
+        op->message.members[0].as_int = EXPONENT_MASK | ipc_actor_message::nil;
         op->message.members[1].as_int = EXPONENT_MASK |
-            linux_container_message::string;
+            ipc_actor_message::string;
         *strit++ = v.size();
         std::memcpy(strit, v.data(), v.size());
         strit += v.size();
@@ -2048,7 +2051,7 @@ static int linux_container_chan_send(lua_State* L)
         std::memset(
             &op->message.members[2], 0,
             sizeof(op->message.members[0]) *
-            (EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER - 2));
+            (EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER - 2));
 
         op->message_size =
             strit - reinterpret_cast<unsigned char*>(&op->message);
@@ -2084,7 +2087,7 @@ static int linux_container_chan_send(lua_State* L)
                             boost::ignore_unused(res);
                             return;
                         }
-                        auto inbox_service = new linux_container_inbox_service{
+                        auto inbox_service = new ipc_actor_inbox_service{
                             dest->strand().context(), inboxfd};
                         dest->pending_operations.push_back(*inbox_service);
                         if (dest->inbox.recv_fiber)
@@ -2097,9 +2100,9 @@ static int linux_container_chan_send(lua_State* L)
             }
 
             op->message.members[0].as_int = EXPONENT_MASK |
-                linux_container_message::nil;
+                ipc_actor_message::nil;
             op->message.members[1].as_int = EXPONENT_MASK |
-                linux_container_message::actor_address;
+                ipc_actor_message::actor_address;
             op->message_size = sizeof(op->message.members[0]) * 2;
             op->descriptors[0].value = channel[1];
             op->descriptors_size = 1;
@@ -2117,14 +2120,14 @@ static int linux_container_chan_send(lua_State* L)
             shutdown(channel[1], SHUT_RD);
 
             ++vm_ctx.inbox.nsenders;
-            auto inbox_service = new linux_container_inbox_service{
+            auto inbox_service = new ipc_actor_inbox_service{
                 vm_ctx.strand().context(), channel[0]};
             vm_ctx.pending_operations.push_back(*inbox_service);
 
             op->message.members[0].as_int = EXPONENT_MASK |
-                linux_container_message::nil;
+                ipc_actor_message::nil;
             op->message.members[1].as_int = EXPONENT_MASK |
-                linux_container_message::actor_address;
+                ipc_actor_message::actor_address;
             op->message_size = sizeof(op->message.members[0]) * 2;
             op->descriptors[0].value = channel[1];
             op->descriptors_size = 1;
@@ -2140,9 +2143,9 @@ static int linux_container_chan_send(lua_State* L)
             }
 
             op->message.members[0].as_int = EXPONENT_MASK |
-                linux_container_message::nil;
+                ipc_actor_message::nil;
             op->message.members[1].as_int = EXPONENT_MASK |
-                linux_container_message::file_descriptor;
+                ipc_actor_message::file_descriptor;
             op->message_size = sizeof(op->message.members[0]) * 2;
             op->descriptors[0].reference = msg;
             op->descriptors_size = 1;
@@ -2164,9 +2167,7 @@ static int linux_container_chan_send(lua_State* L)
                 continue;
             }
 
-            if (
-                nf == EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER
-            ) {
+            if (nf == EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER) {
                 push(L, std::errc::invalid_argument, "arg", 2);
                 return lua_error(L);
             }
@@ -2188,8 +2189,8 @@ static int linux_container_chan_send(lua_State* L)
                 op->message.members[nf].as_int = EXPONENT_MASK;
                 op->message.members[nf].as_int |=
                     lua_toboolean(L, -1) ?
-                    linux_container_message::boolean_true :
-                    linux_container_message::boolean_false;
+                    ipc_actor_message::boolean_true :
+                    ipc_actor_message::boolean_false;
                 break;
             case LUA_TNUMBER:
                 op->message.members[nf].as_double = lua_tonumber(L, -1);
@@ -2202,7 +2203,7 @@ static int linux_container_chan_send(lua_State* L)
                     return lua_error(L);
                 }
                 op->message.members[nf].as_int = EXPONENT_MASK |
-                    linux_container_message::string;
+                    ipc_actor_message::string;
                 *strit++ = v.size();
                 std::memcpy(strit, v.data(), v.size());
                 strit += v.size();
@@ -2240,7 +2241,7 @@ static int linux_container_chan_send(lua_State* L)
                                     return;
                                 }
                                 auto inbox_service =
-                                    new linux_container_inbox_service{
+                                    new ipc_actor_inbox_service{
                                         dest->strand().context(), inboxfd};
                                 dest->pending_operations.push_back(
                                     *inbox_service);
@@ -2254,7 +2255,7 @@ static int linux_container_chan_send(lua_State* L)
                     }
 
                     op->message.members[nf].as_int = EXPONENT_MASK |
-                        linux_container_message::actor_address;
+                        ipc_actor_message::actor_address;
                     op->descriptors[op->descriptors_size++].value = channel[1];
                     break;
                 }
@@ -2271,12 +2272,12 @@ static int linux_container_chan_send(lua_State* L)
                     shutdown(channel[1], SHUT_RD);
 
                     ++vm_ctx.inbox.nsenders;
-                    auto inbox_service = new linux_container_inbox_service{
+                    auto inbox_service = new ipc_actor_inbox_service{
                         vm_ctx.strand().context(), channel[0]};
                     vm_ctx.pending_operations.push_back(*inbox_service);
 
                     op->message.members[nf].as_int = EXPONENT_MASK |
-                        linux_container_message::actor_address;
+                        ipc_actor_message::actor_address;
                     op->descriptors[op->descriptors_size++].value = channel[1];
                     break;
                 }
@@ -2291,7 +2292,7 @@ static int linux_container_chan_send(lua_State* L)
                     }
 
                     op->message.members[nf].as_int = EXPONENT_MASK |
-                        linux_container_message::file_descriptor;
+                        ipc_actor_message::file_descriptor;
                     op->descriptors[op->descriptors_size++].reference = msg;
                     break;
                 }
@@ -2309,13 +2310,13 @@ static int linux_container_chan_send(lua_State* L)
 
         for (
             int i = nf ;
-            i != EMILUA_CONFIG_LINUX_NAMESPACES_MESSAGE_MAX_MEMBERS_NUMBER ; ++i
+            i != EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER ; ++i
         ) {
             // Per protocol, only the first nil value need to be marked. However
             // we want to avoid leaking any non-initialized data on our
             // stack/memory to remote processes.
             op->message.members[i].as_int = EXPONENT_MASK |
-                linux_container_message::nil;
+                ipc_actor_message::nil;
         }
         op->message_size =
             strit - reinterpret_cast<unsigned char*>(&op->message);
@@ -2335,9 +2336,9 @@ static int linux_container_chan_send(lua_State* L)
     return lua_yield(L, 0);
 }
 
-inline int linux_container_chan_child_pid(lua_State* L)
+inline int ipc_actor_chan_child_pid(lua_State* L)
 {
-    auto channel = static_cast<linux_container_address*>(lua_touserdata(L, 1));
+    auto channel = static_cast<ipc_actor_address*>(lua_touserdata(L, 1));
     assert(channel);
     if (!channel->reaper) {
         push(L, std::errc::invalid_argument);
@@ -2347,14 +2348,14 @@ inline int linux_container_chan_child_pid(lua_State* L)
     return 1;
 }
 
-static int linux_container_chan_close(lua_State* L)
+static int ipc_actor_chan_close(lua_State* L)
 {
-    auto channel = static_cast<linux_container_address*>(lua_touserdata(L, 1));
+    auto channel = static_cast<ipc_actor_address*>(lua_touserdata(L, 1));
     if (!channel || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
@@ -2373,16 +2374,16 @@ static int linux_container_chan_close(lua_State* L)
     return 0;
 }
 
-static int linux_container_chan_detach(lua_State* L)
+static int ipc_actor_chan_detach(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
 
-    auto channel = static_cast<linux_container_address*>(lua_touserdata(L, 1));
+    auto channel = static_cast<ipc_actor_address*>(lua_touserdata(L, 1));
     if (!channel || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
@@ -2401,18 +2402,18 @@ static int linux_container_chan_detach(lua_State* L)
     return 0;
 }
 
-static int linux_container_chan_kill(lua_State* L)
+static int ipc_actor_chan_kill(lua_State* L)
 {
     lua_settop(L, 2);
 
     auto& vm_ctx = get_vm_context(L);
 
-    auto channel = static_cast<linux_container_address*>(lua_touserdata(L, 1));
+    auto channel = static_cast<ipc_actor_address*>(lua_touserdata(L, 1));
     if (!channel || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_mt_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
@@ -2463,29 +2464,29 @@ static int linux_container_chan_kill(lua_State* L)
     return 0;
 }
 
-static int linux_container_chan_mt_index(lua_State* L)
+static int ipc_actor_chan_mt_index(lua_State* L)
 {
     auto key = tostringview(L, 2);
     if (key == "send") {
-        rawgetp(L, LUA_REGISTRYINDEX, &linux_container_chan_send_key);
+        rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_send_key);
         return 1;
     } else if (key == "child_pid") {
-        return linux_container_chan_child_pid(L);
+        return ipc_actor_chan_child_pid(L);
     } else if (key == "close") {
-        lua_pushcfunction(L, linux_container_chan_close);
+        lua_pushcfunction(L, ipc_actor_chan_close);
         return 1;
     } else if (key == "detach") {
-        lua_pushcfunction(L, linux_container_chan_detach);
+        lua_pushcfunction(L, ipc_actor_chan_detach);
         return 1;
     } else if (key == "kill") {
-        lua_pushcfunction(L, linux_container_chan_kill);
+        lua_pushcfunction(L, ipc_actor_chan_kill);
         return 1;
     } else {
         push(L, errc::bad_index, "index", 2);
         return lua_error(L);
     }
 }
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
 void init_actor_module(lua_State* L)
 {
@@ -2587,25 +2588,25 @@ void init_actor_module(lua_State* L)
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    lua_pushlightuserdata(L, &linux_container_chan_mt_key);
+#if BOOST_OS_UNIX
+    lua_pushlightuserdata(L, &ipc_actor_chan_mt_key);
     {
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__gc");
-        lua_pushcfunction(L, finalizer<linux_container_address>);
+        lua_pushcfunction(L, finalizer<ipc_actor_address>);
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "linux_container_channel");
+        lua_pushliteral(L, "ipc_actor_channel");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
-        lua_pushcfunction(L, linux_container_chan_mt_index);
+        lua_pushcfunction(L, ipc_actor_chan_mt_index);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 
     {
         lua_pushlightuserdata(L, &chan_send_key);
@@ -2640,14 +2641,14 @@ void init_actor_module(lua_State* L)
         lua_rawset(L, LUA_REGISTRYINDEX);
     }
 
-#if EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
-    lua_pushlightuserdata(L, &linux_container_chan_send_key);
+#if BOOST_OS_UNIX
+    lua_pushlightuserdata(L, &ipc_actor_chan_send_key);
     rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
-    lua_pushcfunction(L, linux_container_chan_send);
+    lua_pushcfunction(L, ipc_actor_chan_send);
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
-#endif // EMILUA_CONFIG_ENABLE_LINUX_NAMESPACES
+#endif // BOOST_OS_UNIX
 }
 
 } // namespace emilua
