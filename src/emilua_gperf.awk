@@ -14,7 +14,7 @@
 
 function gperf(context_index    , i, proc, input, out) {
     proc = GPERF_BIN " --language=C++ --enum --readonly-tables --struct-type " \
-        "--class-name=" symbol_prefix context_index
+        "--initializer-suffix=,{} --class-name=" symbol_prefix context_index
     input = sprintf( \
         "struct word_type_%s%i { const char* name; %s; };\n%%%%\n",
         symbol_prefix, context_index,
