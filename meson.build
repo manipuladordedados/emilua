@@ -598,6 +598,7 @@ if get_option('enable_tests')
             'actor26',
             'actor27',
             'actor28',
+            'actor30',
         ],
         'json' : [
             'json1',

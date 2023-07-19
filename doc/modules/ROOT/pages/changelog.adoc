@@ -9,6 +9,8 @@
 * Add module `recursive_mutex`.
 * Add module `future`.
 * Enable IPC-based actors on all UNIX systems.
+* spawn_vm() performs the same module path resolution from require() now. That
+  means it's possible to use root-imports from spawn_vm().
 
 == 0.4
 

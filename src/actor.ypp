@@ -1793,6 +1793,45 @@ static int spawn_vm(lua_State* L)
             push(L, e.code(), "module", tostringview(L, 1));
             return lua_error(L);
         }
+    } else if (module.starts_with("/")) {
+        const char* YYCURSOR = module.data();
+        const char* YYMARKER;
+        boost::ignore_unused(YYMARKER);
+        const char* begin;
+    loop_parse_slash:
+        begin = YYCURSOR;
+        %{
+        * {
+            push(L, errc::invalid_module_name, "module", tostringview(L, 1));
+            return lua_error(L);
+        }
+        {emilua_modseppat}{emilua_modnamepat} {
+            std::string_view component(begin + 1, YYCURSOR - begin - 1);
+            if (*YYCURSOR == '\0') {
+                module = component;
+                goto end_parse_slash;
+            } else {
+                module_path /= component;
+                goto loop_parse_slash;
+            }
+        }
+        %}
+    end_parse_slash:
+
+        module_path = vm_ctx.import_tree[importer_path].import_root;
+        try {
+            if (fs::exists(module_path / (std::string{module} + ".lua"))) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else {
+                throw std::system_error{errc::module_not_found};
+            }
+        } catch (const std::system_error& e) {
+            push(L, e.code(), "module", tostringview(L, 1));
+            return lua_error(L);
+        }
     } else {
         push(L, errc::invalid_module_name);
         return lua_error(L);
