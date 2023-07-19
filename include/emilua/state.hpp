@@ -11,18 +11,11 @@
 
 namespace emilua {
 
-enum ContextType: lua_Integer
-{
-    regular_context,
-    main,
-    test,
-    worker,
-    error_category,
-};
-
-std::shared_ptr<vm_context> make_vm(boost::asio::io_context& ioctx,
-                                    emilua::app_context& appctx,
-                                    std::filesystem::path entry_point,
-                                    ContextType lua_context);
+std::shared_ptr<vm_context> make_vm(
+    boost::asio::io_context& ioctx,
+    emilua::app_context& appctx,
+    ContextType lua_context,
+    std::filesystem::path entry_point,
+    std::filesystem::path import_root = std::filesystem::path{});
 
 } // namespace emilua

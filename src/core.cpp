@@ -796,6 +796,8 @@ std::string category_impl::message(int value) const noexcept
         return "Broken promise";
     case static_cast<int>(errc::promise_already_satisfied):
         return "Promise already satisfied";
+    case static_cast<int>(errc::current_module_not_known):
+        return "Global _FILE is missing or invalid";
     default:
         return {};
     }

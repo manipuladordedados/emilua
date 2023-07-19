@@ -452,8 +452,8 @@ end:
 
         try {
             auto vm_ctx = emilua::make_vm(ioctx, appctx,
-                                          emilua::widen_on_windows(filename),
-                                          main_context_type);
+                                          main_context_type,
+                                          emilua::widen_on_windows(filename));
             appctx.master_vm = vm_ctx;
             vm_ctx->strand().post([vm_ctx]() {
                 vm_ctx->fiber_resume(

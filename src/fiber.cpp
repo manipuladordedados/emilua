@@ -419,15 +419,6 @@ static int spawn(lua_State* L)
                     FiberDataIndex::DEFAULT_EMIT_SIGNAL_INTERRUPTER);
         lua_rawseti(new_fiber, -2, FiberDataIndex::ASIO_CANCELLATION_SIGNAL);
     }
-    {
-        rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
-        lua_pushthread(vm_ctx->current_fiber());
-        lua_xmove(vm_ctx->current_fiber(), L, 1);
-        lua_rawget(L, -2);
-        lua_rawgeti(L, -1, FiberDataIndex::SOURCE_PATH);
-        lua_xmove(L, new_fiber, 1);
-        lua_rawseti(new_fiber, -2, FiberDataIndex::SOURCE_PATH);
-    }
     lua_rawset(new_fiber, -3);
     lua_pop(new_fiber, 1);
 
@@ -569,19 +560,9 @@ inline int this_fiber_is_main(lua_State* L)
     lua_pushthread(vm_ctx.current_fiber());
     lua_xmove(vm_ctx.current_fiber(), L, 1);
     lua_rawget(L, -2);
-    lua_rawgeti(L, -1, FiberDataIndex::LEAF);
-    int has_leaf;
-    switch (lua_type(L, -1)) {
-    case LUA_TNIL:
-        has_leaf = false;
-        break;
-    case LUA_TBOOLEAN:
-        has_leaf = true;
-        break;
-    default:
-        assert(false);
-    }
-    lua_pushboolean(L, has_leaf);
+    lua_rawgeti(L, -1, FiberDataIndex::MODULE_PATH);
+    int has_module_path = !lua_isnil(L, -1);
+    lua_pushboolean(L, has_module_path);
     return 1;
 }
 
@@ -594,19 +575,9 @@ inline int this_fiber_id(lua_State* L)
     lua_pushthread(vm_ctx.current_fiber());
     lua_xmove(vm_ctx.current_fiber(), L, 1);
     lua_rawget(L, -2);
-    lua_rawgeti(L, -1, FiberDataIndex::LEAF);
-    int has_leaf; //< i.e. it is a module fiber
-    switch (lua_type(L, -1)) {
-    case LUA_TNIL:
-        has_leaf = false;
-        break;
-    case LUA_TBOOLEAN:
-        has_leaf = true;
-        break;
-    default:
-        assert(false);
-    }
-    id = (has_leaf ? vm_ctx.L() : vm_ctx.current_fiber());
+    lua_rawgeti(L, -1, FiberDataIndex::MODULE_PATH);
+    int has_module_path = !lua_isnil(L, -1); //< i.e. it is a module fiber
+    id = (has_module_path ? vm_ctx.L() : vm_ctx.current_fiber());
 
     lua_pushfstring(L, "%p", id);
     return 1;

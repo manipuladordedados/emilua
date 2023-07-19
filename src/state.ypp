@@ -399,11 +399,10 @@ static int mark_module_as_loaded(lua_State* L)
     rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
     lua_pushthread(L);
     lua_rawget(L, -2);
-    lua_rawgeti(L, -1, FiberDataIndex::STACK);
-    lua_rawgeti(L, -1, (int)lua_objlen(L, -1));
+    lua_rawgeti(L, -1, FiberDataIndex::MODULE_PATH);
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);
-    lua_rawset(L, -6);
+    lua_rawset(L, -5);
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     return 1;
@@ -412,18 +411,17 @@ static int mark_module_as_loaded(lua_State* L)
 static int start_module_fiber(
     lua_State* L,
     std::shared_ptr<vm_context> vm_ctx,
-    lua_Integer lua_context,
+    ContextType lua_context,
     const fs::path module_path,
     const std::string& module_source,
     bool module_is_leaf,
+    const fs::path import_root,
 #if __has_include(<experimental/memory>)
     std::experimental::observer_ptr<bool> commit_package_as_loaded
 #else
     bool* commit_package_as_loaded
 #endif // __has_include(<experimental/memory>)
 ) {
-    enum { STACKIDX = -3, LEAFIDX = -2, CTXIDX = -1 };
-
     lua_State* module_fiber = lua_newthread(L);
 
     rawgetp(L, LUA_REGISTRYINDEX, &module_start_fn_key);
@@ -474,6 +472,21 @@ static int start_module_fiber(
     lua_pushvalue(L, -2);
     lua_rawset(L, -3);
 
+    lua_pushliteral(L, "_FILE");
+    {
+        auto p = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
+        rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+        setmetatable(L, -2);
+        new (p) fs::path{};
+        *p = module_path;
+    }
+    lua_rawset(L, -3);
+
+    vm_ctx->import_tree.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(module_path),
+        std::tuple{});
+
     std::string_view ctx_str;
     switch (lua_context) {
     case ContextType::regular_context:
@@ -513,34 +526,12 @@ static int start_module_fiber(
         /*narr=*/EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY,
         /*nrec=*/0);
 
-    if (commit_package_as_loaded) {
-        lua_createtable(L, /*narr=*/1, /*nrec=*/0);
-        push(L, module_path);
-        lua_pushvalue(L, -1);
-        // redundant to STACK, but simplifies code branches elsewhere
-        lua_rawseti(L, -4, FiberDataIndex::SOURCE_PATH);
-        lua_rawseti(L, -2, 1);
-        lua_rawseti(L, -2, FiberDataIndex::STACK);
-    } else {
-        int parent_stacksize = lua_objlen(L, STACKIDX - 3);
-        lua_createtable(L, /*narr=*/parent_stacksize + 1, /*nrec=*/0);
-        for (int i = 1 ; i <= parent_stacksize ; ++i) {
-            lua_rawgeti(L, STACKIDX - 4, i);
-            lua_rawseti(L, -2, i);
-        }
-        push(L, module_path);
-        lua_pushvalue(L, -1);
-        // redundant to STACK, but simplifies code branches elsewhere
-        lua_rawseti(L, -4, FiberDataIndex::SOURCE_PATH);
-        lua_rawseti(L, -2, parent_stacksize + 1);
-        lua_rawseti(L, -2, FiberDataIndex::STACK);
-    }
+    push(L, module_path);
+    lua_rawseti(L, -2, FiberDataIndex::MODULE_PATH);
 
-    lua_pushboolean(L, module_is_leaf ? 1 : 0);
-    lua_rawseti(L, -2, FiberDataIndex::LEAF);
-
-    lua_pushinteger(L, lua_context);
-    lua_rawseti(L, -2, FiberDataIndex::CONTEXT);
+    vm_ctx->import_tree[module_path].is_leaf = module_is_leaf;
+    vm_ctx->import_tree[module_path].context = lua_context;
+    vm_ctx->import_tree[module_path].import_root = import_root;
 
     // when boolean (i.e. not integer), lua code requests to change this
     // setting are ignored
@@ -577,7 +568,7 @@ static int start_module_fiber(
 
 static int on_external_package(
     std::shared_ptr<vm_context> vm_ctx,
-    lua_Integer lua_context,
+    ContextType lua_context,
     std::string_view module_id,
     lua_State* L
 ) {
@@ -728,6 +719,7 @@ static int on_external_package(
             module_path,
             module_source->get(),
             module_is_leaf,
+            /*import_root=*/p,
 #if __has_include(<experimental/memory>)
             std::experimental::make_observer(&commit_package_as_loaded)
 #else
@@ -746,21 +738,50 @@ static int require(lua_State* L)
     luaL_checktype(L, 1, LUA_TSTRING);
     auto module_id = tostringview(L, 1);
 
+    // get _FILE
+    fs::path importer_path;
+    {
+        lua_Debug ar;
+        int res = lua_getstack(L, /*level=*/2, &ar);
+        assert(res == 1); boost::ignore_unused(res);
+        res = lua_getinfo(L, "f", &ar);
+        assert(res != 0);
+        if (lua_isnil(L, -1)) {
+            return luaL_error(L, "no function environment for tail call");
+        }
+        lua_getfenv(L, -1);
+        lua_getfield(L, -1, "_FILE");
+
+        auto p = static_cast<fs::path*>(lua_touserdata(L, -1));
+        if (!p || !lua_getmetatable(L, -1)) {
+            push(L, errc::current_module_not_known);
+            return lua_error(L);
+        }
+        rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+        if (!lua_rawequal(L, -1, -2)) {
+            push(L, errc::current_module_not_known);
+            return lua_error(L);
+        }
+
+        importer_path = *p;
+    }
+    if (!vm_ctx->import_tree.contains(importer_path)) {
+        push(L, errc::current_module_not_known);
+        return lua_error(L);
+    }
+
     rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
     lua_pushthread(vm_ctx->current_fiber());
     lua_xmove(vm_ctx->current_fiber(), L, 1);
     lua_rawget(L, -2);
-    lua_rawgeti(L, -1, FiberDataIndex::STACK);
-    lua_rawgeti(L, -2, FiberDataIndex::LEAF);
-    lua_rawgeti(L, -3, FiberDataIndex::CONTEXT);
-    enum { STACKIDX = -3, LEAFIDX = -2, CTXIDX = -1 };
-    if (lua_type(L, STACKIDX) == LUA_TNIL) {
+    lua_rawgeti(L, -1, FiberDataIndex::MODULE_PATH);
+    if (lua_isnil(L, -1)) {
         push(L, errc::only_main_fiber_may_import);
         return lua_error(L);
     }
-    bool is_leaf = lua_toboolean(L, LEAFIDX);
-    lua_Integer lua_context;
-    switch (lua_tointeger(L, CTXIDX)) {
+    bool is_leaf = vm_ctx->import_tree[importer_path].is_leaf;
+    ContextType lua_context;
+    switch (vm_ctx->import_tree[importer_path].context) {
     case ContextType::test:
         lua_context = module_id.starts_with(".") ?
             ContextType::test : ContextType::regular_context;
@@ -776,6 +797,8 @@ static int require(lua_State* L)
     */
     /*!include:re2c "emilua/modules.re" */
     if (module_id.starts_with(".")) {
+        auto import_root = vm_ctx->import_tree[importer_path].import_root;
+
         if (module_id.starts_with("./"))
             module_id.remove_prefix(2);
 
@@ -812,20 +835,13 @@ static int require(lua_State* L)
             return lua_error(L);
         }
 
-        // Our detection to this error is very limited, but this is not a
-        // reason to worry.
-        int parent_stacksize = lua_objlen(L, STACKIDX);
-        if (nparents >= parent_stacksize) {
-            push(L, errc::root_cannot_import_parent);
-            return lua_error(L);
-        }
-
-        lua_rawgeti(L, STACKIDX, parent_stacksize);
-        fs::path module_path{widen_on_windows(tostringview(L)),
-                             fs::path::native_format};
-        lua_pop(L, 1);
-        module_path = module_path.parent_path();
+        fs::path module_path{importer_path.parent_path()};
         for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
+            if (!module_path.has_parent_path() || module_path == import_root) {
+                push(L, errc::root_cannot_import_parent);
+                return lua_error(L);
+            }
+
             module_path = module_path.parent_path();
         }
 
@@ -858,16 +874,10 @@ static int require(lua_State* L)
             lua_pop(L, 2);
         }
 
-        push(L, module_path);
-        for (int i = 1, len = parent_stacksize ; i <= len ; ++i) {
-            lua_rawgeti(L, STACKIDX - 1, i);
-            if (lua_rawequal(L, -1, -2)) {
-                push(L, errc::cyclic_import);
-                return lua_error(L);
-            }
-            lua_pop(L, 1);
+        if (vm_ctx->import_tree.contains(module_path)) {
+            push(L, errc::cyclic_import);
+            return lua_error(L);
         }
-        lua_pop(L, 1);
 
         std::optional<std::reference_wrapper<std::string>> module_source;
         try {
@@ -885,15 +895,11 @@ static int require(lua_State* L)
             module_path,
             module_source->get(),
             module_is_leaf,
+            import_root,
             nullptr);
     } else if (module_id.starts_with("/")) {
-        // TODO: detect cycles
-
-        lua_rawgeti(L, STACKIDX, 1);
-        fs::path module_path{widen_on_windows(tostringview(L)),
-                             fs::path::native_format};
-        lua_pop(L, 1);
-        module_path = module_path.parent_path();
+        auto import_root = vm_ctx->import_tree[importer_path].import_root;
+        fs::path module_path{import_root};
 
         const char* YYCURSOR = module_id.data();
         const char* YYMARKER;
@@ -918,6 +924,11 @@ static int require(lua_State* L)
         }
         %}
     end_parse_slash:
+
+        if (vm_ctx->import_tree.contains(module_path)) {
+            push(L, errc::cyclic_import);
+            return lua_error(L);
+        }
 
         bool module_is_leaf;
         try {
@@ -988,17 +999,13 @@ static int require(lua_State* L)
             return lua_error(L);
         }
         assert(module_source);
-        bool commit_package_as_loaded; //< so we have a 1-sized require()-stack
         return start_module_fiber(
             L, vm_ctx, lua_context,
             module_path,
             module_source->get(),
             module_is_leaf,
-#if __has_include(<experimental/memory>)
-            std::experimental::make_observer(&commit_package_as_loaded)
-#else
-            &commit_package_as_loaded
-#endif // __has_include(<experimental/memory>)
+            import_root,
+            nullptr
         );
     } else {
         const char* YYCURSOR = module_id.data();
@@ -1022,12 +1029,12 @@ static int require(lua_State* L)
         return EMILUA_GPERF_BEGIN(module_id)
             EMILUA_GPERF_PARAM(
                 int (*action)(
-                    std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                    std::shared_ptr<vm_context>, ContextType, std::string_view,
                     lua_State*))
             EMILUA_GPERF_DEFAULT_VALUE(on_external_package)
             EMILUA_GPERF_PAIR(
                 "ffi",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
 
@@ -1045,7 +1052,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "generic_error",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &generic_error_key);
@@ -1053,7 +1060,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "asio_error",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &asio_error_key);
@@ -1061,7 +1068,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "mutex",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &mutex_key);
@@ -1069,7 +1076,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "recursive_mutex",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &recursive_mutex_key);
@@ -1077,7 +1084,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "condition_variable",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &condition_variable_key);
@@ -1085,7 +1092,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "future",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &future_key);
@@ -1093,7 +1100,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "inbox",
-                [](std::shared_ptr<vm_context> vm_ctx, lua_Integer,
+                [](std::shared_ptr<vm_context> vm_ctx, ContextType,
                    std::string_view, lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &inbox_key);
@@ -1102,7 +1109,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "json",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &json_key);
@@ -1110,7 +1117,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "time",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &time_key);
@@ -1118,7 +1125,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "filesystem",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_key);
@@ -1126,7 +1133,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "pipe",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &pipe_key);
@@ -1134,7 +1141,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "http",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
 #if EMILUA_CONFIG_ENABLE_HTTP
                     lua_pushboolean(L, 1);
@@ -1146,7 +1153,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "websocket",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
 #if EMILUA_CONFIG_ENABLE_HTTP
                     lua_pushboolean(L, 1);
@@ -1158,7 +1165,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "ip",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &ip_key);
@@ -1166,7 +1173,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "file",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
 #if EMILUA_CONFIG_ENABLE_FILE_IO
                     lua_pushboolean(L, 1);
@@ -1178,7 +1185,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "unix",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
 #if BOOST_OS_UNIX
                     lua_pushboolean(L, 1);
@@ -1190,7 +1197,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "stream",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &stream_key);
@@ -1198,7 +1205,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "regex",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &regex_key);
@@ -1206,7 +1213,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "serial_port",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &serial_port_key);
@@ -1214,7 +1221,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "tls",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &tls_key);
@@ -1222,7 +1229,7 @@ static int require(lua_State* L)
                 })
             EMILUA_GPERF_PAIR(
                 "system",
-                [](std::shared_ptr<vm_context>, lua_Integer, std::string_view,
+                [](std::shared_ptr<vm_context>, ContextType, std::string_view,
                    lua_State* L) -> int {
                     lua_pushboolean(L, 1);
                     rawgetp(L, LUA_REGISTRYINDEX, &system_key);
@@ -1234,8 +1241,9 @@ static int require(lua_State* L)
 
 std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
                                     emilua::app_context& appctx,
+                                    ContextType lua_context,
                                     fs::path entry_point,
-                                    ContextType lua_context)
+                                    fs::path import_root)
 {
     switch (lua_context) {
     case ContextType::regular_context:
@@ -1247,6 +1255,8 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
         break;
     }
 
+    bool is_leaf;
+
     if (!entry_point.is_absolute())
         entry_point = fs::absolute(std::move(entry_point));
 
@@ -1255,6 +1265,13 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
     // ECYCLE detection. Normalizing the path before it even enters the module
     // stack fixes the issue.
     entry_point.make_preferred();
+
+    if (import_root.empty()) {
+        is_leaf = false;
+        import_root = entry_point.parent_path();
+    } else {
+        is_leaf = entry_point.filename() != "init.lua";
+    }
 
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1 || \
     EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
@@ -1523,18 +1540,8 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
             /*narr=*/EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY,
             /*nrec=*/0);
 
-        lua_createtable(L, /*narr=*/1, /*nrec=*/0);
         push(L, entry_point);
-        lua_pushvalue(L, -1);
-        lua_rawseti(L, -4, FiberDataIndex::SOURCE_PATH);
-        lua_rawseti(L, -2, 1);
-        lua_rawseti(L, -2, FiberDataIndex::STACK);
-
-        lua_pushboolean(L, 0);
-        lua_rawseti(L, -2, FiberDataIndex::LEAF);
-
-        lua_pushinteger(L, lua_context);
-        lua_rawseti(L, -2, FiberDataIndex::CONTEXT);
+        lua_rawseti(L, -2, FiberDataIndex::MODULE_PATH);
 
         // when boolean (i.e. not integer), lua code requests to change this
         // setting are ignored
@@ -1702,6 +1709,24 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
     lua_pushliteral(L, "_G");
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_rawset(L, LUA_GLOBALSINDEX);
+
+    lua_pushliteral(L, "_FILE");
+    {
+        auto p = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
+        rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+        setmetatable(L, -2);
+        new (p) fs::path{};
+        *p = entry_point;
+    }
+    lua_rawset(L, LUA_GLOBALSINDEX);
+
+    state->import_tree.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(entry_point),
+        std::tuple{});
+    state->import_tree[entry_point].is_leaf = is_leaf;
+    state->import_tree[entry_point].context = lua_context;
+    state->import_tree[entry_point].import_root = import_root;
     // }}}
 
     {
@@ -1747,9 +1772,6 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
 
             lua_pushboolean(async_event_thread, 0);
             lua_rawseti(async_event_thread, -2, FiberDataIndex::JOINER);
-
-            push(async_event_thread, entry_point);
-            lua_rawseti(async_event_thread, -2, FiberDataIndex::SOURCE_PATH);
         }
         lua_rawset(async_event_thread, -3);
         state->async_event_thread(async_event_thread);

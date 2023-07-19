@@ -9,6 +9,7 @@
 #include <boost/scope_exit.hpp>
 
 #include <emilua/async_base.hpp>
+#include <emilua/filesystem.hpp>
 #include <emilua/windows.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
@@ -1056,6 +1057,38 @@ static int spawn_vm(lua_State* L)
     auto& vm_ctx = get_vm_context(L);
     auto module = tostringview(L, 1);
 
+    // get _FILE
+    fs::path importer_path;
+    {
+        lua_Debug ar;
+        int res = lua_getstack(L, /*level=*/1, &ar);
+        assert(res == 1); boost::ignore_unused(res);
+        res = lua_getinfo(L, "f", &ar);
+        assert(res != 0);
+        if (lua_isnil(L, -1)) {
+            return luaL_error(L, "no function environment for tail call");
+        }
+        lua_getfenv(L, -1);
+        lua_getfield(L, -1, "_FILE");
+
+        auto p = static_cast<fs::path*>(lua_touserdata(L, -1));
+        if (!p || !lua_getmetatable(L, -1)) {
+            push(L, errc::current_module_not_known);
+            return lua_error(L);
+        }
+        rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+        if (!lua_rawequal(L, -1, -2)) {
+            push(L, errc::current_module_not_known);
+            return lua_error(L);
+        }
+
+        importer_path = *p;
+    }
+    if (!vm_ctx.import_tree.contains(importer_path)) {
+        push(L, errc::current_module_not_known);
+        return lua_error(L);
+    }
+
     bool inherit_ctx = true;
     bool new_master = false;
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
@@ -1688,15 +1721,8 @@ static int spawn_vm(lua_State* L)
     }
 #endif // BOOST_OS_UNIX
 
-    rawgetp(L, LUA_REGISTRYINDEX, &fiber_list_key);
-    lua_pushthread(vm_ctx.current_fiber());
-    lua_xmove(vm_ctx.current_fiber(), L, 1);
-    lua_rawget(L, -2);
-    lua_rawgeti(L, -1, FiberDataIndex::SOURCE_PATH);
-    fs::path source_path{widen_on_windows(tostringview(L)),
-                         fs::path::native_format};
     fs::path module_path;
-    bool is_leaf = source_path.filename() != "init.lua";
+    bool is_leaf = vm_ctx.import_tree[importer_path].is_leaf;
 
     /*!re2c
     re2c:define:YYCTYPE = char;
@@ -1705,8 +1731,10 @@ static int spawn_vm(lua_State* L)
     */
     /*!include:re2c "emilua/modules.re" */
     if (module == ".") {
-        module_path = source_path;
+        module_path = importer_path;
     } else if (module.starts_with(".")) {
+        auto import_root = vm_ctx.import_tree[importer_path].import_root;
+
         if (module.starts_with("./"))
             module.remove_prefix(2);
 
@@ -1743,14 +1771,19 @@ static int spawn_vm(lua_State* L)
             return lua_error(L);
         }
 
-        module_path = source_path.parent_path();
+        module_path = importer_path.parent_path();
         for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
+            if (!module_path.has_parent_path() || module_path == import_root) {
+                push(L, errc::root_cannot_import_parent);
+                return lua_error(L);
+            }
+
             module_path = module_path.parent_path();
         }
         try {
-            // actors can only import non-leaf modules to maintain code
-            // consistency
-            if (fs::exists(module_path / module / "init.lua")) {
+            if (fs::exists(module_path / (std::string{module} + ".lua"))) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
                 module_path /= module;
                 module_path /= "init.lua";
             } else {
@@ -1811,12 +1844,14 @@ static int spawn_vm(lua_State* L)
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
         auto new_vm_ctx = emilua::make_vm(
             new_ioctx ? *new_ioctx : vm_ctx.strand().context(),
-            vm_ctx.appctx, module_path, emilua::ContextType::worker);
+            vm_ctx.appctx, emilua::ContextType::worker, module_path,
+            vm_ctx.import_tree[importer_path].import_root);
         new_vm_ctx->ioctxref = new_ioctx;
 #else
         auto new_vm_ctx = emilua::make_vm(
-            vm_ctx.strand().context(), vm_ctx.appctx, module_path,
-            emilua::ContextType::worker);
+            vm_ctx.strand().context(), vm_ctx.appctx,
+            emilua::ContextType::worker, module_path,
+            vm_ctx.import_tree[importer_path].import_root);
 #endif
 
         if (new_master) {

@@ -71,19 +71,16 @@ extern "C" {
 #define EMILUA_GPERF_DECLS_END(ID)
 #define EMILUA_GPERF_NAMESPACE(ID)
 
-#define EMILUA_IMPL_INITIAL_FIBER_DATA_CAPACITY 11
-#define EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY 8
+#define EMILUA_IMPL_INITIAL_FIBER_DATA_CAPACITY 10
+#define EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY 5
 
 // EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY currently takes into
 // consideration:
 //
-// * STACK
-// * LEAF
-// * CONTEXT
 // * INTERRUPTION_DISABLED
 // * JOINER
 // * STATUS
-// * SOURCE_PATH
+// * MODULE_PATH
 // * LOCAL_STORAGE
 
 #define EMILUA_CHECK_SUSPEND_ALLOWED(VM_CTX, L)             \
@@ -143,11 +140,19 @@ extern char fiber_list_key;
 extern void* clone_stack_address;
 #endif // BOOST_OS_LINUX
 
+enum class ContextType : char
+{
+    regular_context,
+    main,
+    test,
+    worker,
+    error_category,
+};
+
 enum FiberDataIndex: lua_Integer
 {
     JOINER = 1,
     STATUS,
-    SOURCE_PATH,
     SUSPENSION_DISALLOWED,
     LOCAL_STORAGE,
     STACKTRACE,
@@ -162,9 +167,7 @@ enum FiberDataIndex: lua_Integer
     // }}}
 
     // data only available for modules:
-    STACK,
-    LEAF,
-    CONTEXT
+    MODULE_PATH
 };
 
 template<class T, class EC = std::error_code>
@@ -706,6 +709,14 @@ public:
 #endif // NDEBUG
         ;
 
+    struct import_data
+    {
+        bool is_leaf;
+        ContextType context;
+        std::filesystem::path import_root;
+    };
+    std::unordered_map<std::filesystem::path, import_data> import_tree;
+
     // Use it to detect cycles when loading modules from external packages.
     std::set<std::string, TransparentStringComp> visited_external_packages;
 
@@ -901,6 +912,7 @@ enum class errc {
     bad_rdf_error_category,
     broken_promise,
     promise_already_satisfied,
+    current_module_not_known,
 };
 
 const std::error_category& category();
