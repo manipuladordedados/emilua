@@ -171,12 +171,12 @@ PID dances. Below we show the race-free method.
 ----
 local init_script = [[
     local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
-    send_with_fd(fdarg, '.', userns)
+    send_with_fd(arg, '.', userns)
     local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
-    send_with_fd(fdarg, '.', netns)
+    send_with_fd(arg, '.', netns)
 
     -- sync point
-    C.read(fdarg, 1)
+    C.read(arg, 1)
 ]]
 
 local shost, sguest = unix.seqpacket_socket.pair()
@@ -186,7 +186,7 @@ spawn_vm{
     subprocess = {
         newns_user = true,
         newns_net = true,
-        init = { script = init_script, fd = sguest }
+        init = { script = init_script, arg = sguest }
     }
 }
 sguest:close()
@@ -235,20 +235,20 @@ local guest_code = [[
 
 local init_script = [[
     local uidmap = C.open('/proc/self/uid_map', C.O_WRONLY)
-    send_with_fd(fdarg, '.', uidmap)
+    send_with_fd(arg, '.', uidmap)
     C.write(C.open('/proc/self/setgroups', C.O_WRONLY), 'deny')
     local gidmap = C.open('/proc/self/gid_map', C.O_WRONLY)
-    send_with_fd(fdarg, '.', gidmap)
+    send_with_fd(arg, '.', gidmap)
 
     -- sync point #1 as tmpfs will fail on mkdir()
     -- with EOVERFLOW if no UID/GID mapping exists
     -- https://bugzilla.kernel.org/show_bug.cgi?id=183461
-    C.read(fdarg, 1)
+    C.read(arg, 1)
 
     local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
-    send_with_fd(fdarg, '.', userns)
+    send_with_fd(arg, '.', userns)
     local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
-    send_with_fd(fdarg, '.', netns)
+    send_with_fd(arg, '.', netns)
 
     -- unshare propagation events
     C.mount(nil, '/', nil, C.MS_PRIVATE)
@@ -270,7 +270,7 @@ local init_script = [[
         '/app.lua',
         bit.bor(C.O_WRONLY, C.O_CREAT),
         mode(6, 0, 0))
-    send_with_fd(fdarg, '.', modulefd)
+    send_with_fd(arg, '.', modulefd)
 
     -- sync point #2 as we must await for
     --
@@ -278,7 +278,7 @@ local init_script = [[
     -- * `/app.lua`
     --
     -- before we run the guest
-    C.read(fdarg, 1)
+    C.read(arg, 1)
 
     C.sethostname('mycoolhostname')
     C.setdomainname('mycooldomainname')
@@ -299,7 +299,7 @@ local my_channel = spawn_vm{
         newns_pid = true,
         newns_uts = true,
         newns_ipc = true,
-        init = { script = init_script, fd = sguest }
+        init = { script = init_script, arg = sguest }
     }
 }
 sguest:close()

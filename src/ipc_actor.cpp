@@ -880,7 +880,7 @@ static int child_main(void*)
 
         if (fdarg != -1) {
             lua_pushinteger(L, fdarg);
-            lua_setfield(L, LUA_GLOBALSINDEX, "fdarg");
+            lua_setfield(L, LUA_GLOBALSINDEX, "arg");
         }
 
         if (luaL_loadbuffer(L, allocator.buffer, nread, NULL) != 0)

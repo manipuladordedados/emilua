@@ -219,9 +219,9 @@ C.setpgid(0, 0)
 ====
 --
 
-`subprocess.init.fd: file_descriptor`:: A file descriptor that will be sent to
-the `init.script`. The script can access this fd through the variable `fdarg`
-that is available within the script.
+`subprocess.init.arg: file_descriptor`:: A file descriptor that will be sent to
+the `init.script`. The script can access this fd through the variable `arg` that
+is available within the script.
 
 == `channel` functions
 

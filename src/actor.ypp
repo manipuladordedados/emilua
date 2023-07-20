@@ -1460,29 +1460,29 @@ static int spawn_vm(lua_State* L)
             case LUA_TTABLE:
                 request.has_lua_hook = 1;
 
-                lua_getfield(L, -1, "fd");
+                lua_getfield(L, -1, "arg");
                 switch (lua_type(L, -1)) {
                 default:
                     push(L, std::errc::invalid_argument,
-                         "arg", "subprocess/init/fd");
+                         "arg", "subprocess/init/arg");
                     return lua_error(L);
                 case LUA_TUSERDATA: {
                     auto handle = static_cast<file_descriptor_handle*>(
                         lua_touserdata(L, -1));
                     if (!lua_getmetatable(L, -1)) {
                         push(L, std::errc::invalid_argument,
-                             "arg", "subprocess/init/fd");
+                             "arg", "subprocess/init/arg");
                         return lua_error(L);
                     }
                     rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
                     if (!lua_rawequal(L, -1, -2)) {
                         push(L, std::errc::invalid_argument,
-                             "arg", "subprocess/init/fd");
+                             "arg", "subprocess/init/arg");
                         return lua_error(L);
                     }
                     if (*handle == INVALID_FILE_DESCRIPTOR) {
                         push(L, std::errc::device_or_resource_busy,
-                             "arg", "subprocess/init/fd");
+                             "arg", "subprocess/init/arg");
                         return lua_error(L);
                     }
                     lua_hook_fd = *handle;
