@@ -58,7 +58,7 @@ else
         end
     end
 
-    local my_channel = spawn_vm('ipc_actor_fuzzer1')
+    local my_channel = spawn_vm()
     my_channel:send(inbox)
     my_channel:send(NITER)
 

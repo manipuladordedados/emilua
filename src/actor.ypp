@@ -1051,11 +1051,25 @@ static int inbox_gc(lua_State* L)
 
 static int spawn_vm(lua_State* L)
 {
-    luaL_checktype(L, 1, LUA_TSTRING);
-    lua_settop(L, 2);
+    lua_settop(L, 1);
 
     auto& vm_ctx = get_vm_context(L);
-    auto module = tostringview(L, 1);
+    std::string_view module;
+
+    switch (lua_type(L, 1)) {
+    case LUA_TSTRING:
+        module = tostringview(L, 1);
+        if (module.size() == 0) {
+            push(L, errc::invalid_module_name);
+            return lua_error(L);
+        }
+        break;
+    case LUA_TTABLE:
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
 
     // get _FILE
     fs::path importer_path;
@@ -1088,6 +1102,7 @@ static int spawn_vm(lua_State* L)
         push(L, errc::current_module_not_known);
         return lua_error(L);
     }
+    const auto& import_root = vm_ctx.import_tree[importer_path].import_root;
 
     bool inherit_ctx = true;
     bool new_master = false;
@@ -1108,21 +1123,25 @@ static int spawn_vm(lua_State* L)
     std::memset(&request, 0, sizeof(request));
 #endif // BOOST_OS_UNIX
 
-    switch (lua_type(L, 2)) {
-    default:
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    case LUA_TNONE:
-    case LUA_TNIL:
-        break;
-    case LUA_TTABLE: {
+    if (module.size() == 0) {
+        lua_getfield(L, 1, "module");
+        switch (lua_type(L, -1)) {
+        case LUA_TSTRING:
+            module = tostringview(L, -1);
+            break;
+        case LUA_TNIL:
+            break;
+        default:
+            push(L, std::errc::invalid_argument, "arg", "module");
+            return lua_error(L);
+        }
         [[maybe_unused]] bool host_type_already_defined = false;
-        lua_getfield(L, 2, "inherit_context");
+        lua_getfield(L, 1, "inherit_context");
         if (lua_type(L, -1) == LUA_TBOOLEAN) {
             inherit_ctx = lua_toboolean(L, -1);
             host_type_already_defined = true;
         }
-        lua_getfield(L, 2, "new_master");
+        lua_getfield(L, 1, "new_master");
         if (lua_type(L, -1) == LUA_TBOOLEAN) {
             new_master = lua_toboolean(L, -1);
             if (new_master && !vm_ctx.is_master()) {
@@ -1133,17 +1152,17 @@ static int spawn_vm(lua_State* L)
             host_type_already_defined = true;
         }
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
-        lua_getfield(L, 2, "concurrency_hint");
+        lua_getfield(L, 1, "concurrency_hint");
         if (lua_type(L, -1) == LUA_TNUMBER) {
             int user_concurrency_hint = lua_tointeger(L, -1);
             if (user_concurrency_hint == 1)
                 concurrency_hint = 1;
         }
 #endif
-        lua_getfield(L, 2, "subprocess");
+        lua_getfield(L, 1, "subprocess");
         if (lua_type(L, -1) == LUA_TTABLE) {
             if (host_type_already_defined) {
-                push(L, std::errc::invalid_argument, "arg", 2);
+                push(L, std::errc::invalid_argument, "arg", 1);
                 return lua_error(L);
             }
             host_type_already_defined = true;
@@ -1491,7 +1510,6 @@ static int spawn_vm(lua_State* L)
             }
         }
     }
-    }
 
 #if BOOST_OS_UNIX
     if (run_in_subprocess) {
@@ -1733,8 +1751,6 @@ static int spawn_vm(lua_State* L)
     if (module == ".") {
         module_path = importer_path;
     } else if (module.starts_with(".")) {
-        auto import_root = vm_ctx.import_tree[importer_path].import_root;
-
         if (module.starts_with("./"))
             module.remove_prefix(2);
 
@@ -1746,7 +1762,7 @@ static int spawn_vm(lua_State* L)
         begin = YYCURSOR;
         %{
         * {
-            push(L, errc::invalid_module_name, "module", tostringview(L, 1));
+            push(L, errc::invalid_module_name, "module", module);
             return lua_error(L);
         }
         {emilua_parentpat} {
@@ -1755,8 +1771,7 @@ static int spawn_vm(lua_State* L)
         }
         {emilua_modnamepat} {
             if (*YYCURSOR != '\0') {
-                push(L, errc::invalid_module_name,
-                     "module", tostringview(L, 1));
+                push(L, errc::invalid_module_name, "module", module);
                 return lua_error(L);
             }
             goto end_parse_dot;
@@ -1790,7 +1805,7 @@ static int spawn_vm(lua_State* L)
                 throw std::system_error{errc::module_not_found};
             }
         } catch (const std::system_error& e) {
-            push(L, e.code(), "module", tostringview(L, 1));
+            push(L, e.code(), "module", module);
             return lua_error(L);
         }
     } else if (module.starts_with("/")) {
@@ -1802,7 +1817,7 @@ static int spawn_vm(lua_State* L)
         begin = YYCURSOR;
         %{
         * {
-            push(L, errc::invalid_module_name, "module", tostringview(L, 1));
+            push(L, errc::invalid_module_name, "module", module);
             return lua_error(L);
         }
         {emilua_modseppat}{emilua_modnamepat} {
@@ -1818,7 +1833,7 @@ static int spawn_vm(lua_State* L)
         %}
     end_parse_slash:
 
-        module_path = vm_ctx.import_tree[importer_path].import_root;
+        module_path = import_root;
         try {
             if (fs::exists(module_path / (std::string{module} + ".lua"))) {
                 module_path /= std::string{module} + ".lua";
@@ -1829,7 +1844,7 @@ static int spawn_vm(lua_State* L)
                 throw std::system_error{errc::module_not_found};
             }
         } catch (const std::system_error& e) {
-            push(L, e.code(), "module", tostringview(L, 1));
+            push(L, e.code(), "module", module);
             return lua_error(L);
         }
     } else {
@@ -1884,13 +1899,12 @@ static int spawn_vm(lua_State* L)
         auto new_vm_ctx = emilua::make_vm(
             new_ioctx ? *new_ioctx : vm_ctx.strand().context(),
             vm_ctx.appctx, emilua::ContextType::worker, module_path,
-            vm_ctx.import_tree[importer_path].import_root);
+            import_root);
         new_vm_ctx->ioctxref = new_ioctx;
 #else
         auto new_vm_ctx = emilua::make_vm(
             vm_ctx.strand().context(), vm_ctx.appctx,
-            emilua::ContextType::worker, module_path,
-            vm_ctx.import_tree[importer_path].import_root);
+            emilua::ContextType::worker, module_path, import_root);
 #endif
 
         if (new_master) {

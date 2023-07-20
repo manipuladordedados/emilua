@@ -7,7 +7,7 @@ if _CONTEXT ~= 'main' then
     local inbox = require 'inbox'
     print('RECEIVED:', inbox:receive())
 else
-    local my_channel = spawn_vm('ipc_actor_2_7')
+    local my_channel = spawn_vm()
     sleep(0.1)
     badinjector.send_invalid_root(my_channel)
     my_channel:close()

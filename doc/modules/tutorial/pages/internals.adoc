@@ -41,7 +41,7 @@ spawn_vm(module)
 
 -- Instantiates a new lua VM in a new
 -- thread with its own `asio::io_context`
-spawn_vm(module, { inherit_context=false })
+spawn_vm{ module=module, inherit_context=false }
 ----
 
 You must specify a lua module name to run in the new VM, not a function. The

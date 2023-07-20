@@ -17,7 +17,7 @@ if _CONTEXT ~= 'main' then
     sleep(0.2)
     print('RECEIVED:', inbox:receive())
 else
-    local my_channel = spawn_vm('ipc_actor_2_12')
+    local my_channel = spawn_vm()
     sleep(0.2)
     badinjector.send_missing_root_actorfd(my_channel)
     my_channel:close()

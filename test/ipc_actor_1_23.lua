@@ -9,7 +9,7 @@ if _CONTEXT ~= 'main' then
     sleep(0.1)
     ch:send('localhost')
 else
-    local my_channel = spawn_vm('ipc_actor_1_23')
+    local my_channel = spawn_vm()
 
     my_channel:send(inbox)
     print(inbox:receive())

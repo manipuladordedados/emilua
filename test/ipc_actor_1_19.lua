@@ -21,7 +21,7 @@ else
     local pin, pout = pipe.pair()
     pout = pout:release()
 
-    local my_channel = spawn_vm('ipc_actor_1_19')
+    local my_channel = spawn_vm()
 
     sleep(0.2)
     my_channel:send(pout)

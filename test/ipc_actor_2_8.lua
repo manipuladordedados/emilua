@@ -17,7 +17,7 @@ if _CONTEXT ~= 'main' then
     sleep(0.2)
     print('RECEIVED:', inbox:receive())
 else
-    local my_channel = spawn_vm('ipc_actor_2_8')
+    local my_channel = spawn_vm()
     sleep(0.2)
     badinjector.send_overflow_root_str(my_channel)
     my_channel:close()

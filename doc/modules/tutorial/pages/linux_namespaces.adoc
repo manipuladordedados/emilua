@@ -77,7 +77,7 @@ Consider the hypothetical `sandbox` class:
 [source,lua]
 ----
 local mysandbox1 = sandbox.new()
-local my_channel = spawn_vm(module, mysandbox1:context())
+local my_channel = spawn_vm(mysandbox1:context(module))
 mysandbox1:handshake()
 ----
 
@@ -149,12 +149,12 @@ the network resources as that's the easiest one:
 
 [source,lua]
 ----
-spawn_vm('', {
+spawn_vm{
     subprocess = {
         newns_user = true,
         newns_net = true
     }
-})
+}
 ----
 
 The process will be created within a new network namespace where no interfaces
@@ -182,13 +182,13 @@ local init_script = [[
 local shost, sguest = unix.seqpacket_socket.pair()
 sguest = sguest:release()
 
-spawn_vm('', {
+spawn_vm{
     subprocess = {
         newns_user = true,
         newns_net = true,
         init = { script = init_script, fd = sguest }
     }
-})
+}
 sguest:close()
 local ignored_buf = byte_span.new(1)
 local userns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
@@ -290,7 +290,8 @@ local init_script = [[
 local shost, sguest = unix.seqpacket_socket.pair()
 sguest = sguest:release()
 
-local my_channel = spawn_vm('/app.lua', {
+local my_channel = spawn_vm{
+    module = '/app.lua',
     subprocess = {
         newns_user = true,
         newns_net = true,
@@ -300,7 +301,7 @@ local my_channel = spawn_vm('/app.lua', {
         newns_ipc = true,
         init = { script = init_script, fd = sguest }
     }
-})
+}
 sguest:close()
 
 local ignored_buf = byte_span.new(1)

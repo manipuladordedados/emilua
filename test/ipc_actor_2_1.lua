@@ -15,7 +15,7 @@ if _CONTEXT ~= 'main' then
     local ch = inbox:receive()['1']
     ch:send('hello')
 else
-    local my_channel = spawn_vm('ipc_actor_2_1')
+    local my_channel = spawn_vm()
     my_channel:send(gen_oversized_table())
     print(inbox:receive())
 end

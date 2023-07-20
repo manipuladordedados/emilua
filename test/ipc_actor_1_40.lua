@@ -10,7 +10,7 @@ if _CONTEXT ~= 'main' then
     sleep(0.1)
     ch:send{ value = msg.value }
 else
-    local my_channel = spawn_vm('ipc_actor_1_40')
+    local my_channel = spawn_vm()
 
     my_channel:send{ dest = inbox, value = 0 / 0 }
     print(inbox:receive().value)

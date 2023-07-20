@@ -15,7 +15,7 @@ if _CONTEXT ~= 'main' then
     local ch = inbox:receive()
     ch:send('hello')
 else
-    local container = spawn_vm2('ipc_actor_1_21')
+    local container = spawn_vm2()
     local actor = spawn_vm('./ipc_actor_1_21_foo')
 
     actor:send(inbox)

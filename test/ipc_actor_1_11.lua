@@ -9,7 +9,7 @@ if _CONTEXT ~= 'main' then
     local ch = msg.dest
     ch:send(msg.value)
 else
-    local my_channel = spawn_vm('ipc_actor_1_11')
+    local my_channel = spawn_vm()
 
     my_channel:send{ dest = inbox, value = 42 }
 

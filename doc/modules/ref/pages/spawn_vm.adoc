@@ -14,7 +14,8 @@ endif::[]
 
 [source,lua]
 ----
-spawn_vm(module: string, opts: table) -> channel
+spawn_vm(module: string) -> channel
+spawn_vm(opts: table) -> channel
 ----
 
 == Description
@@ -39,16 +40,16 @@ Spawn each VM in a new thread pool and make sure each-one has only one
 thread. Now use messaging to apply some load-balancing strategy of your choice.
 ====
 
-=== `module: string`
+=== Parameters
 
-The name of the module that will serve as the entry point for the new actor.
+`module: string`::
 
+The module that will serve as the entry point for the new actor.
++
 NOTE: For IPC-based actors, this argument no longer means an actual module when
-namespaces are involved. It'll just be passed along to the new process.
-
+Linux namespaces are involved. It'll just be passed along to the new process.
++
 TIP: `'.'` is also a valid module to use when you spawn actors.
-
-=== Named parameters
 
 `inherit_context: boolean = true`::
 

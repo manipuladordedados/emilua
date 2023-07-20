@@ -9,5 +9,5 @@ local function gen_oversized_table()
     return ret
 end
 
-local my_channel = spawn_vm('', { subprocess = {} })
+local my_channel = spawn_vm{ subprocess = {} }
 my_channel:send(gen_oversized_table())
