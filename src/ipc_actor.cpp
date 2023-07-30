@@ -220,6 +220,23 @@ static void init_hookstate(lua_State* L)
             return 1;
         });
     lua_setglobal(L, "mode");
+
+    lua_pushcfunction(L, [](lua_State* L) -> int {
+        int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+        int last_error = (res == -1) ? errno : 0;
+        if (last_error != 0) {
+            lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+            if (lua_toboolean(L, -1)) {
+                errno = last_error;
+                perror("<3>ipc_actor/init");
+                std::exit(1);
+            }
+        }
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, last_error);
+        return 2;
+    });
+    lua_setglobal(L, "set_no_new_privs");
 }
 
 void ipc_actor_inbox_op::do_wait()

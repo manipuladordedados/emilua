@@ -312,6 +312,10 @@ Returns two values:
 1. `sendmsg()` return.
 2. The errno value (or `0` on success).
 
+==== `set_no_new_privs()`
+
+Set the calling thread's no_new_privs attribute to `true`.
+
 === Functions
 
 These functions live inside the global table `C`. `errno` (or `0` on success) is
