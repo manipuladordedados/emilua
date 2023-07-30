@@ -16,6 +16,23 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
     }
 EMILUA_GPERF_DECLS_END(includes)
 
+// Landlock structs and types are explicitly declared to avoid mismatched kernel
+// headers and runtime. Landlock is designed with extensibility and backwards
+// compatibility in mind. {{{
+EMILUA_GPERF_DECLS_BEGIN(landlock)
+
+struct landlock_ruleset_attr {
+    std::uint64_t handled_access_fs;
+};
+
+struct landlock_path_beneath_attr {
+    std::uint64_t allowed_access;
+    std::int32_t parent_fd;
+} __attribute__((packed));
+
+EMILUA_GPERF_DECLS_END(landlock)
+// }}}
+
 namespace emilua {
 
 EMILUA_GPERF_DECLS_BEGIN(sys_bindings)
@@ -31,6 +48,55 @@ static void check_last_error(lua_State* L, int last_error)
     }
 };
 EMILUA_GPERF_DECLS_END(sys_bindings)
+
+EMILUA_GPERF_DECLS_BEGIN(landlock)
+static
+emilua::result<std::uint64_t, const char*>
+landlock_handled_access_fs(lua_State* L)
+{
+    std::uint64_t flags = 0;
+
+    for (int i = 0 ;; ++i) {
+        lua_rawgeti(L, -1, i + 1);
+        switch (lua_type(L, -1)) {
+        case LUA_TNIL: {
+            lua_pop(L, 1);
+            return flags;
+        }
+        case LUA_TSTRING:
+            break;
+        default:
+            return emilua::outcome::failure("invalid LANDLOCK_ACCESS_FS");
+        }
+
+        auto key = emilua::tostringview(L, -1);
+        auto flag = EMILUA_GPERF_BEGIN(key)
+            EMILUA_GPERF_PARAM(std::uint64_t action)
+            EMILUA_GPERF_DEFAULT_VALUE(0)
+            EMILUA_GPERF_PAIR("execute", 1ULL << 0)
+            EMILUA_GPERF_PAIR("write_file", 1ULL << 1)
+            EMILUA_GPERF_PAIR("read_file", 1ULL << 2)
+            EMILUA_GPERF_PAIR("read_dir", 1ULL << 3)
+            EMILUA_GPERF_PAIR("remove_dir", 1ULL << 4)
+            EMILUA_GPERF_PAIR("remove_file", 1ULL << 5)
+            EMILUA_GPERF_PAIR("make_char", 1ULL << 6)
+            EMILUA_GPERF_PAIR("make_dir", 1ULL << 7)
+            EMILUA_GPERF_PAIR("make_reg", 1ULL << 8)
+            EMILUA_GPERF_PAIR("make_sock", 1ULL << 9)
+            EMILUA_GPERF_PAIR("make_fifo", 1ULL << 10)
+            EMILUA_GPERF_PAIR("make_block", 1ULL << 11)
+            EMILUA_GPERF_PAIR("make_sym", 1ULL << 12)
+            EMILUA_GPERF_PAIR("refer", 1ULL << 13)
+            EMILUA_GPERF_PAIR("truncate", 1ULL << 14)
+        EMILUA_GPERF_END(key);
+        if (flag == 0) {
+            return emilua::outcome::failure("invalid LANDLOCK_ACCESS_FS");
+        }
+        flags |= flag;
+        lua_pop(L, 1);
+    }
+}
+EMILUA_GPERF_DECLS_END(landlock)
 
 int posix_mt_index(lua_State* L)
 {
@@ -834,6 +900,256 @@ int posix_mt_index(lua_State* L)
 
                     int res = fexecve(fd, argv.data(), envp.data());
                     int last_error = errno;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_create_ruleset",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    lua_settop(L, 2);
+
+                    bool has_ruleset;
+                    bool has_flags;
+
+                    switch (lua_type(L, 1)) {
+                    case LUA_TTABLE:
+                        has_ruleset = true;
+                        break;
+                    case LUA_TNIL:
+                        has_ruleset = false;
+                        break;
+                    default:
+                        return luaL_error(L, "table expected for argument 1");
+                    }
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TTABLE:
+                        has_flags = true;
+                        break;
+                    case LUA_TNIL:
+                        has_flags = false;
+                        break;
+                    default:
+                        return luaL_error(L, "table expected for argument 2");
+                    }
+
+                    struct landlock_ruleset_attr ruleset_attr;
+                    std::memset(&ruleset_attr, 0, sizeof(ruleset_attr));
+
+                    if (has_ruleset) {
+                        lua_pushnil(L);
+                        while (lua_next(L, 1) != 0) {
+                            if (lua_type(L, -2) != LUA_TSTRING) {
+                                return luaL_error(L, "invalid ruleset attr");
+                            }
+
+                            auto hkey = tostringview(L, -2);
+                            auto errstr = EMILUA_GPERF_BEGIN(hkey)
+                                EMILUA_GPERF_PARAM(
+                                    const char* (*action)(
+                                        lua_State*, landlock_ruleset_attr&))
+                                EMILUA_GPERF_DEFAULT_VALUE(
+                                    [](lua_State*, landlock_ruleset_attr&) {
+                                        return "invalid ruleset attr";
+                                    })
+                                EMILUA_GPERF_PAIR(
+                                    "handled_access_fs",
+                                    [](lua_State* L, landlock_ruleset_attr& a) {
+                                        if (lua_type(L, -1) != LUA_TTABLE) {
+                                            return "invalid handled_access_fs";
+                                        }
+
+                                        auto r = landlock_handled_access_fs(L);
+                                        if (r) {
+                                            a.handled_access_fs = r.value();
+                                            return (const char*)(NULL);
+                                        } else {
+                                            return r.error();
+                                        }
+                                    })
+                            EMILUA_GPERF_END(hkey)(L, ruleset_attr);
+                            if (errstr) {
+                                lua_pushstring(L, errstr);
+                                return lua_error(L);
+                            }
+                            lua_pop(L, 1);
+                        }
+                    }
+
+                    std::uint32_t flags = 0;
+                    if (has_flags) {
+                        for (int i = 0 ;; ++i) {
+                            lua_rawgeti(L, 2, i + 1);
+                            switch (lua_type(L, -1)) {
+                            case LUA_TNIL: {
+                                lua_pop(L, 1);
+                                goto end_for;
+                            }
+                            case LUA_TSTRING:
+                                break;
+                            default:
+                                return luaL_error(
+                                    L, "invalid LANDLOCK_CREATE_RULESET flag");
+                            }
+
+                            auto fkey = tostringview(L, -1);
+                            auto flag = EMILUA_GPERF_BEGIN(fkey)
+                                EMILUA_GPERF_PARAM(std::uint32_t action)
+                                EMILUA_GPERF_DEFAULT_VALUE(0)
+                                EMILUA_GPERF_PAIR("version", 1U << 0)
+                            EMILUA_GPERF_END(fkey);
+                            if (flag == 0) {
+                                return luaL_error(
+                                    L, "invalid LANDLOCK_CREATE_RULESET flag");
+                            }
+                            flags |= flag;
+                            lua_pop(L, 1);
+                        }
+                    end_for:;
+                    }
+
+                    int res = syscall(SYS_landlock_create_ruleset,
+                                      has_ruleset ? &ruleset_attr : NULL,
+                                      has_ruleset ? sizeof(ruleset_attr) : 0,
+                                      flags);
+
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_add_rule",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    lua_settop(L, 4);
+
+                    switch (lua_type(L, 1)) {
+                    case LUA_TNUMBER:
+                        break;
+                    default:
+                        return luaL_error(L, "integer expected for argument 1");
+                    }
+
+                    if (tostringview(L, 2) != "path_beneath") {
+                        return luaL_error(L, "invalid argument 2");
+                    }
+
+                    if (lua_type(L, 3) != LUA_TTABLE) {
+                        return luaL_error(L, "table expected for argument 3");
+                    }
+
+                    switch (lua_type(L, 4)) {
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        return luaL_error(L, "nil expected for argument 4");
+                    }
+
+                    struct landlock_path_beneath_attr path_beneath_attr;
+                    std::memset(
+                        &path_beneath_attr, 0, sizeof(path_beneath_attr));
+                    path_beneath_attr.parent_fd = -1;
+
+                    lua_pushnil(L);
+                    while (lua_next(L, 3) != 0) {
+                        if (lua_type(L, -2) != LUA_TSTRING) {
+                            return luaL_error(L, "invalid path_beneath attr");
+                        }
+
+                        auto hkey = tostringview(L, -2);
+                        auto errstr = EMILUA_GPERF_BEGIN(hkey)
+                            EMILUA_GPERF_PARAM(
+                                const char* (*action)(
+                                    lua_State*, landlock_path_beneath_attr&))
+                            EMILUA_GPERF_DEFAULT_VALUE(
+                                [](lua_State*, landlock_path_beneath_attr&) {
+                                    return "invalid path_beneath attr";
+                                })
+                            EMILUA_GPERF_PAIR(
+                                "allowed_access",
+                                [](
+                                    lua_State* L, landlock_path_beneath_attr& at
+                                ) {
+                                    if (lua_type(L, -1) != LUA_TTABLE) {
+                                        return "invalid allowed_access";
+                                    }
+
+                                    auto res = landlock_handled_access_fs(L);
+                                    if (res) {
+                                        at.allowed_access = res.value();
+                                        return (const char*)(NULL);
+                                    } else {
+                                        return res.error();
+                                    }
+                                })
+                            EMILUA_GPERF_PAIR(
+                                "parent_fd",
+                                [](
+                                    lua_State* L, landlock_path_beneath_attr& at
+                                ) {
+                                    if (lua_type(L, -1) != LUA_TNUMBER) {
+                                        return "invalid parent_fd";
+                                    }
+
+                                    at.parent_fd = lua_tointeger(L, -1);
+                                    return (const char*)(NULL);
+                                })
+                        EMILUA_GPERF_END(hkey)(L, path_beneath_attr);
+                        if (errstr) {
+                            lua_pushstring(L, errstr);
+                            return lua_error(L);
+                        }
+                        lua_pop(L, 1);
+                    }
+
+                    int res = syscall(
+                        SYS_landlock_add_rule,
+                        lua_tointeger(L, 1),
+                        /*LANDLOCK_RULE_PATH_BENEATH=*/1,
+                        &path_beneath_attr,
+                        /*flags=*/0);
+
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_restrict_self",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    lua_settop(L, 2);
+
+                    switch (lua_type(L, 1)) {
+                    case LUA_TNUMBER:
+                        break;
+                    default:
+                        return luaL_error(L, "integer expected for argument 1");
+                    }
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        return luaL_error(L, "nil expected for argument 2");
+                    }
+
+                    int res = syscall(
+                        SYS_landlock_restrict_self, lua_tointeger(L, 1), 0);
+
+                    int last_error = (res == -1) ? errno : 0;
                     check_last_error(L, last_error);
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);

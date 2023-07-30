@@ -527,3 +527,65 @@ These constants live inside the global table `C`.
 * `SECBIT_KEEP_CAPS_LOCKED`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED`.
+
+==== `landlock_create_ruleset(attr: table|nil, flags: table|nil) -> integer, integer`
+
+Parameters:
+
+* `attr.handled_access_fs: string[]`
+** `"execute"`
+** `"write_file"`
+** `"read_file"`
+** `"read_dir"`
+** `"remove_dir"`
+** `"remove_file"`
+** `"make_char"`
+** `"make_dir"`
+** `"make_reg"`
+** `"make_sock"`
+** `"make_fifo"`
+** `"make_block"`
+** `"make_sym"`
+** `"refer"`
+** `"truncate"`
+* `flags: string[]`
+** `"version"`
+
+Returns two values:
+
+1. `landlock_create_ruleset()` return.
+2. The errno value (or `0` on success).
+
+==== `landlock_add_rule(ruleset_fd: integer, rule_type: "path_beneath", attr: table) -> integer, integer`
+
+Parameters:
+
+* `attr.allowed_access: string[]`
+** `"execute"`
+** `"write_file"`
+** `"read_file"`
+** `"read_dir"`
+** `"remove_dir"`
+** `"remove_file"`
+** `"make_char"`
+** `"make_dir"`
+** `"make_reg"`
+** `"make_sock"`
+** `"make_fifo"`
+** `"make_block"`
+** `"make_sym"`
+** `"refer"`
+** `"truncate"`
+* `attr.parent_fd: integer`
+
+Returns two values:
+
+1. `landlock_add_rule()` return.
+2. The errno value (or `0` on success).
+
+==== `landlock_restrict_self(ruleset_fd: integer) -> integer, integer`
+
+Returns two values:
+
+1. `landlock_restrict_self()` return.
+2. The errno value (or `0` on success).
