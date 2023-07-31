@@ -1,4 +1,4 @@
-= Linux namespaces
+= Sandboxes
 
 :_:
 
@@ -13,10 +13,10 @@ Emilua - Lua execution engine
 endif::[]
 
 Emilua provides support for creating actors in isolated processes using Linux
-namespaces. The idea is to prevent potentially exploitable code from accessing
-resources beyond what has been explicitly handed to them. That's the basis for
-capability-based security systems, and it maps pretty well to APIs implementing
-the actor model such as Emilua.
+namespaces or Landlock. The idea is to prevent potentially exploitable code from
+accessing resources beyond what has been explicitly handed to them. That's the
+basis for capability-based security systems, and it maps pretty well to APIs
+implementing the actor model such as Emilua.
 
 .XKCD 1200: Authorization
 image::authorization.png["If someone steals my laptop while I'm logged in, they can read my email, take my money, and impersonate me to my friends, but at least they can't install drivers without my permission.",link=https://xkcd.com/1200/]
@@ -34,21 +34,16 @@ medical history, manage their banking accounts, and much more... all without
 ever leaving the browser. In such scenario, any protection offered by the OS to
 protect programs from each other is rendered useless! Only a single program
 exists. If a hacker exploits the right vulnerability, all of the user's data
-will be stolen.
+will be stolen. There is no real compartmentalisation.
 
 The browser is part of a special class of programs. The browser is a shell. A
 shell is any interface that acts as a layer between the user and the world. The
 web browser is the shell for the www world. Www browser or not, any shell will
 face similar problems and has to be consciously designed to safely isolate
-contexts that distrust each other. I'm not aware of *anything* better than
-FreeBSD's Capsicum to do just this. In the absence of Capsicum, we have Linux
-namespaces which can be used to build something close (and that's what browsers
-use).
-
-Unfortunately the cost for building such sandboxes is too high, and require
-specialized teams of experts. Emilua attempts to democratize this technology by
-hiding it behind simple APIs. Right now the API is very crude indeed, but the
-support will only improve in future releases.
+contexts that distrust each other. The Emilua team is not aware of *anything*
+better than FreeBSD's Capsicum to do just this. In the absence of Capsicum, we
+have Linux Landlock which can be used to build something close. Browsers
+actually use Linux namespaces which are older.
 
 == The API
 
@@ -67,10 +62,10 @@ call:
 local my_channel = spawn_vm(module)
 ----
 
-Check the manual elsewhere to understand the details. As for Linux namespaces,
-the idea is to spawn an actor where no system resources are available (e.g. the
-filesystem is empty, no network interfaces are available, no PIDs from other
-processes can be seen, global wide IPC has been unshared, ...).
+Check the manual elsewhere to understand the details. As for sandboxes, the idea
+is to spawn an actor where no system resources are available (e.g. the
+filesystem is mostly empty, no network interfaces are available, no PIDs from
+other processes can be seen, ...).
 
 Consider the hypothetical `sandbox` class:
 
@@ -105,9 +100,11 @@ Do notice that line count is not the only metric of interest. The original paper
 accompanies a very interesting discussion detailing applicability, risks, and
 levels of security offered by each approach. Just a few years after the paper
 was released, user namespaces was merged to Linux and yet a new option for
-sandboxing is now available. Within this discussion, we can discard most of the
-approaches -- DAC-based, MAC-based, or too intrusive to be even possible to
-abstract away as a reusable component -- as inadequate to our endeavour.
+sandboxing is now available. Fast-forward a few more years and we also have
+Linux Landlock which is even better than Linux namespaces. Within this
+discussion, we can discard most of the approaches -- DAC-based, MAC-based, or
+too intrusive to be even possible to abstract away as a reusable component -- as
+inadequate to our endeavour.
 
 Out of them, Capsicum wins hands down. It's just as capable to isolate parts of
 an application, but with much less chance to error (for the Chromium patchset,
@@ -141,203 +138,38 @@ to actually initialize the sandbox.
 
 == The `init.script`
 
-Unless you execute the process as root, Linux will deny the creation of all
-namespaces except for the user namespace. The user namespace is the only
-namespace that an unprivileged process can create. However it's fine to pair the
-user namespace with any combination of the other ones. Let's start by isolating
-the network resources as that's the easiest one:
-
-[source,lua]
-----
-spawn_vm{
-    subprocess = {
-        newns_user = true,
-        newns_net = true
-    }
-}
-----
-
-The process will be created within a new network namespace where no interfaces
-besides the loopback device exist. And even the loopback device will be down! If
-you want to configure the loopback device so the process can at least bind
-sockets to it you can use the program `ip`. However the program `ip` needs to
-run within the new namespace. To spawn the program `ip` within the namespace of
-the new actor you need to acquire the file descriptors to its namespaces. There
-are two ways to do that. You can either use race-prone PID primitives (easy), or
-you can use a handshake protocol to ensure that there are no races related to
-PID dances. Below we show the race-free method.
+Every process carries associated credentials that enable operation on
+system-wide addressable objects such as filesystem objects and sockets. We setup
+a sandbox by disabling the ambient authority so the address space itself becomes
+inaccessible. Sandboxed code thus should be run only after such setup already
+completed successfully. The proper hook to perform this setup is
+`init.script`. `init.script` runs right after the process is created.
 
 [source,lua]
 ----
 local init_script = [[
-    local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
-    send_with_fd(arg, '.', userns)
-    local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
-    send_with_fd(arg, '.', netns)
-
-    -- sync point
-    C.read(arg, 1)
+    local rules = C.landlock_create_ruleset{ handled_access_fs = {
+        "execute", "write_file" "read_file", "read_dir", "remove_dir",
+        "remove_file", "make_char", "make_dir", "make_reg", "make_sock",
+        "make_fifo", "make_block", "make_sym", "refer", "truncate" } }
+    set_no_new_privs()
+    C.landlock_restrict_self(rules)
 ]]
-
-local shost, sguest = unix.seqpacket_socket.pair()
-sguest = sguest:release()
 
 spawn_vm{
     subprocess = {
-        newns_user = true,
-        newns_net = true,
-        init = { script = init_script, arg = sguest }
+        init = { script = init_script }
     }
 }
-sguest:close()
-local ignored_buf = byte_span.new(1)
-local userns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-local netns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-system.spawn{
-    program = 'ip',
-    arguments = {'ip', 'link', 'set', 'dev', 'lo', 'up'},
-    nsenter_user = userns,
-    nsenter_net = netns
-}:wait()
-shost:close()
 ----
 
-An `AF_UNIX`+`SOCK_SEQPACKET` socket is used to coordinate the parent and the
-child processes. This type of socket allows duplex communication between two
-parties with builtin framing for messages, disconnection detection (process
-reference counting if you will), and it also allows sending file descriptors
-back-and-forth.
+Landlock as of now can only control access to filesystem objects, but future
+versions will be more complete.
 
-We also close `sguest` from the host side as soon as we're done with it. This
-will ensure any operation on `shost` will fail if the child process aborts for
-any reason (i.e. no deadlocks happen here).
-
-TIP: You can use the same techniques taught here to initialize the UID/GID
-mapping for the user namespace.
-
-== Full example
-
-[source,lua]
-----
-local stream = require 'stream'
-local system = require 'system'
-local inbox = require 'inbox'
-local file = require 'file'
-local unix = require 'unix'
-
-local guest_code = [[
-    local inbox = require 'inbox'
-    local ip = require 'ip'
-
-    local ch = inbox:receive().dest
-    ch:send(ip.host_name())
-]]
-
-local init_script = [[
-    local uidmap = C.open('/proc/self/uid_map', C.O_WRONLY)
-    send_with_fd(arg, '.', uidmap)
-    C.write(C.open('/proc/self/setgroups', C.O_WRONLY), 'deny')
-    local gidmap = C.open('/proc/self/gid_map', C.O_WRONLY)
-    send_with_fd(arg, '.', gidmap)
-
-    -- sync point #1 as tmpfs will fail on mkdir()
-    -- with EOVERFLOW if no UID/GID mapping exists
-    -- https://bugzilla.kernel.org/show_bug.cgi?id=183461
-    C.read(arg, 1)
-
-    local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
-    send_with_fd(arg, '.', userns)
-    local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
-    send_with_fd(arg, '.', netns)
-
-    -- unshare propagation events
-    C.mount(nil, '/', nil, C.MS_PRIVATE)
-
-    C.umask(0)
-    C.mount(nil, '/mnt', 'tmpfs', 0)
-    C.mkdir('/mnt/proc', mode(7, 5, 5))
-    C.mount(nil, '/mnt/proc', 'proc', 0)
-    C.mkdir('/mnt/tmp', mode(7, 7, 7))
-
-    -- pivot root
-    C.mkdir('/mnt/mnt', mode(7, 5, 5))
-    C.chdir('/mnt')
-    C.pivot_root('.', '/mnt/mnt')
-    C.chroot('.')
-    C.umount2('/mnt', C.MNT_DETACH)
-
-    local modulefd = C.open(
-        '/app.lua',
-        bit.bor(C.O_WRONLY, C.O_CREAT),
-        mode(6, 0, 0))
-    send_with_fd(arg, '.', modulefd)
-
-    -- sync point #2 as we must await for
-    --
-    -- * loopback net device
-    -- * `/app.lua`
-    --
-    -- before we run the guest
-    C.read(arg, 1)
-
-    C.sethostname('mycoolhostname')
-    C.setdomainname('mycooldomainname')
-
-    -- drop all root privileges
-    C.cap_set_proc('=')
-]]
-
-local shost, sguest = unix.seqpacket_socket.pair()
-sguest = sguest:release()
-
-local my_channel = spawn_vm{
-    module = '/app.lua',
-    subprocess = {
-        newns_user = true,
-        newns_net = true,
-        newns_mount = true,
-        newns_pid = true,
-        newns_uts = true,
-        newns_ipc = true,
-        init = { script = init_script, arg = sguest }
-    }
-}
-sguest:close()
-
-local ignored_buf = byte_span.new(1)
-
-local uidmap = ({system.getresuid()})[2]
-uidmap = byte_span.append('0 ', tostring(uidmap), ' 1\n')
-local uidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-file.stream.new(uidmapfd):write_some(uidmap)
-
-local gidmap = ({system.getresgid()})[2]
-gidmap = byte_span.append('0 ', tostring(gidmap), ' 1\n')
-local gidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-file.stream.new(gidmapfd):write_some(gidmap)
-
--- sync point #1
-shost:send(ignored_buf)
-
-local userns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-local netns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-system.spawn{
-    program = 'ip',
-    arguments = {'ip', 'link', 'set', 'dev', 'lo', 'up'},
-    nsenter_user = userns,
-    nsenter_net = netns
-}:wait()
-
-local module = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
-module = file.stream.new(module)
-stream.write_all(module, guest_code)
-
--- sync point #2
-shost:close()
-
-my_channel:send{ dest = inbox }
-print(inbox:receive())
-----
+After the sandboxed actor is up it can receive access to new resources through
+its inbox. If any security exploit is performed on the sandboxed code, then only
+the objects it has access to are rendered vulnerable (the damage is thus
+contained in its compartment).
 
 == Implementation details
 

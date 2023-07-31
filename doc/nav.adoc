@@ -10,7 +10,7 @@
 ** xref:tutorial:lua51.adoc[]
 ** xref:tutorial:modules.adoc[]
 ** xref:tutorial:errors.adoc[]
-** xref:tutorial:linux_namespaces.adoc[]
+** xref:tutorial:sandboxes.adoc[]
 * Reference
 ** xref:ref:generic_error.adoc[]
 ** xref:ref:asio_error.adoc[]
