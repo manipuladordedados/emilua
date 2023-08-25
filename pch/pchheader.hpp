@@ -1,5 +1,6 @@
 #include <condition_variable>
 #include <unordered_map>
+#include <shared_mutex>
 #include <system_error>
 #include <string_view>
 #include <filesystem>

@@ -37,6 +37,7 @@
 
 #include <condition_variable>
 #include <unordered_map>
+#include <shared_mutex>
 #include <system_error>
 #include <string_view>
 #include <filesystem>
@@ -387,7 +388,7 @@ public:
         native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
-    std::mutex modules_cache_registry_mtx;
+    std::shared_mutex modules_cache_registry_mtx;
 
     std::size_t extra_threads_count = 0;
     std::mutex extra_threads_count_mtx;

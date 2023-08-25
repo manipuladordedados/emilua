@@ -1796,7 +1796,21 @@ static int spawn_vm(lua_State* L)
             module_path = module_path.parent_path();
         }
         try {
-            if (fs::exists(module_path / (std::string{module} + ".lua"))) {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
                 module_path /= std::string{module} + ".lua";
             } else if (fs::exists(module_path / module / "init.lua")) {
                 module_path /= module;
@@ -1835,7 +1849,21 @@ static int spawn_vm(lua_State* L)
 
         module_path = import_root;
         try {
-            if (fs::exists(module_path / (std::string{module} + ".lua"))) {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
                 module_path /= std::string{module} + ".lua";
             } else if (fs::exists(module_path / module / "init.lua")) {
                 module_path /= module;
