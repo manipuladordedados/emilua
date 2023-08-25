@@ -149,7 +149,6 @@ int main(int argc, char *argv[], char *envp[])
     }
 #endif // BOOST_OS_UNIX
 
-    LUAJIT_VERSION_SYM();
     try {
         std::locale native_locale{""};
         std::locale::global(native_locale);

@@ -1046,7 +1046,6 @@ We use some C functions found only on Lua 5.2+ and/or LuaJIT:
 * `luaopen_bit()`
 * `luaopen_jit()`
 * `luaopen_ffi()`
-* `LUAJIT_VERSION_SYM()`
 
 https://github.com/keplerproject/lua-compat-5.2[There are projects such as
 Kepler that offer a port of these functions to Lua 5.1].
