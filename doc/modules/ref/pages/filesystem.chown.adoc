@@ -1,0 +1,24 @@
+= filesystem.chown
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.chown(p: fs.path, owner: integer, group: integer)
+fs.lchown(p: fs.path, owner: integer, group: integer)
+----
+
+== Description
+
+Changes POSIX owner and group of the file to which p resolves.
+
+If the owner or group is specified as `-1`, then that ID is not changed.

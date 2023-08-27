@@ -52,6 +52,8 @@ include::pages/filesystem.clock.adoc[]
 
 include::pages/filesystem.last_write_time.adoc[]
 
+include::pages/filesystem.chown.adoc[]
+
 include::pages/filesystem.chmod.adoc[]
 
 include::pages/filesystem.read_symlink.adoc[]

@@ -41,6 +41,7 @@
 *** xref:ref:filesystem.hard_link_count.adoc[hard_link_count]
 *** xref:ref:filesystem.clock.adoc[clock]
 *** xref:ref:filesystem.last_write_time.adoc[last_write_time]
+*** xref:ref:filesystem.chown.adoc[chown]
 *** xref:ref:filesystem.chmod.adoc[chmod]
 *** xref:ref:filesystem.read_symlink.adoc[read_symlink]
 *** xref:ref:filesystem.remove.adoc[remove]

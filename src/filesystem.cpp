@@ -13,6 +13,10 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/scope_exit.hpp>
 
+#if BOOST_OS_UNIX
+#include <unistd.h>
+#endif // BOOST_OS_UNIX
+
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
 #endif // BOOST_OS_LINUX
@@ -3332,6 +3336,64 @@ static int hard_link_count(lua_State* L)
     return 1;
 }
 
+#if BOOST_OS_UNIX
+static int chown(lua_State* L)
+{
+    lua_settop(L, 3);
+
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    int res = ::chown(
+        path->string().data(), luaL_checkinteger(L, 2),
+        luaL_checkinteger(L, 3));
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+    return 0;
+}
+
+static int lchown(lua_State* L)
+{
+    lua_settop(L, 3);
+
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    int res = ::lchown(
+        path->string().data(), luaL_checkinteger(L, 2),
+        luaL_checkinteger(L, 3));
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+    return 0;
+}
+#endif // BOOST_OS_UNIX
+
 static int chmod(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
@@ -4127,6 +4189,16 @@ void init_filesystem(lua_State* L)
         lua_pushliteral(L, "hard_link_count");
         lua_pushcfunction(L, hard_link_count);
         lua_rawset(L, -3);
+
+#if BOOST_OS_UNIX
+        lua_pushliteral(L, "chown");
+        lua_pushcfunction(L, chown);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "lchown");
+        lua_pushcfunction(L, lchown);
+        lua_rawset(L, -3);
+#endif // BOOST_OS_UNIX
 
         lua_pushliteral(L, "chmod");
         lua_pushcfunction(L, chmod);
