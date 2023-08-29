@@ -120,12 +120,24 @@ struct ipc_actor_start_vm_request
         USE_PIPE
     };
 
+    enum : std::uint8_t
+    {
+        CREATE_PROCESS,
+        SETRESUID,
+        SETRESGID,
+        SETGROUPS
+    } type;
+
     int clone_flags;
     action stdin_action;
     action stdout_action;
     action stderr_action;
     std::uint8_t stderr_has_color;
     std::uint8_t has_lua_hook;
+
+    uid_t resuid[3];
+    gid_t resgid[3];
+    int setgroups_ngroups;
 };
 
 struct ipc_actor_start_vm_reply

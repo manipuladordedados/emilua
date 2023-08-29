@@ -22,6 +22,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
+#include <emilua/actor.hpp>
 
 #if BOOST_OS_WINDOWS
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
@@ -40,6 +41,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <linux/securebits.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #include <grp.h>
 #endif // BOOST_OS_LINUX
@@ -1205,6 +1207,19 @@ static int system_setresuid(lua_State* L)
         return lua_error(L);
     }
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
     uid_t ruid = lua_tointeger(L, 1);
     uid_t euid = lua_tointeger(L, 2);
     uid_t suid = lua_tointeger(L, 3);
@@ -1212,6 +1227,50 @@ static int system_setresuid(lua_State* L)
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::SETRESUID;
+        request.resuid[0] = ruid;
+        request.resuid[1] = euid;
+        request.resuid[2] = suid;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -1224,6 +1283,19 @@ static int system_setresgid(lua_State* L)
         return lua_error(L);
     }
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
     gid_t rgid = lua_tointeger(L, 1);
     gid_t egid = lua_tointeger(L, 2);
     gid_t sgid = lua_tointeger(L, 3);
@@ -1231,6 +1303,50 @@ static int system_setresgid(lua_State* L)
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::SETRESGID;
+        request.resgid[0] = rgid;
+        request.resgid[1] = egid;
+        request.resgid[2] = sgid;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -1269,11 +1385,7 @@ static int system_setgroups(lua_State* L)
         lua_rawgeti(L, 1, i + 1);
         switch (lua_type(L, -1)) {
         case LUA_TNIL:
-            if (setgroups(groups.size(), groups.data()) == -1) {
-                push(L, std::error_code{errno, std::system_category()});
-                return lua_error(L);
-            }
-            return 0;
+            goto input_ready;
         case LUA_TNUMBER:
             groups.emplace_back(lua_tointeger(L, -1));
             lua_pop(L, 1);
@@ -1283,6 +1395,101 @@ static int system_setgroups(lua_State* L)
             return lua_error(L);
         }
     }
+
+ input_ready:
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+
+    int mfd = -1;
+    BOOST_SCOPE_EXIT_ALL(&) { if (mfd != -1) close(mfd); };
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        if (groups.size() != 0) {
+            mfd = memfd_create("emilua/setgroups", /*flags=*/0);
+            if (mfd == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+
+            if (ftruncate(mfd, sizeof(gid_t) * groups.size()) == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+
+            write(mfd, groups.data(), sizeof(gid_t) * groups.size());
+        }
+    }
+
+    if (setgroups(groups.size(), groups.data()) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::SETGROUPS;
+        request.setgroups_ngroups = static_cast<int>(groups.size());
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int) * 2)];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = (
+            (groups.size() != 0) ?
+            CMSG_SPACE(sizeof(int) * 2) : CMSG_SPACE(sizeof(int)));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = (
+            (groups.size() != 0) ?
+            CMSG_LEN(sizeof(int) * 2) : CMSG_LEN(sizeof(int)));
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            if (groups.size() != 0)
+                std::memcpy(it, &mfd, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
+    return 0;
 }
 
 static int system_getpid(lua_State* L)

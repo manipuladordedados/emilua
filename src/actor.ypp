@@ -1121,6 +1121,7 @@ static int spawn_vm(lua_State* L)
     int proc_stderr = -1;
     ipc_actor_start_vm_request request;
     std::memset(&request, 0, sizeof(request));
+    request.type = ipc_actor_start_vm_request::CREATE_PROCESS;
 #endif // BOOST_OS_UNIX
 
     if (module.size() == 0) {

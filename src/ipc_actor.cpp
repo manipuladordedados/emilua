@@ -1,4 +1,5 @@
 #include <sys/prctl.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 
 #include <linux/close_range.h>
@@ -20,6 +21,10 @@
 #include <emilua/file_descriptor.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
+
+#if BOOST_OS_LINUX
+#include <grp.h>
+#endif // BOOST_OS_LINUX
 
 #define EMILUA_LUA_HOOK_BUFFER_SIZE (1024 * 1024)
 static_assert(EMILUA_LUA_HOOK_BUFFER_SIZE % alignof(std::max_align_t) == 0);
@@ -1235,6 +1240,96 @@ int app_context::ipc_actor_service_main(int sockfd)
             return 0;
         }
         assert(nread == sizeof(request));
+
+        switch (request.type) {
+        case ipc_actor_start_vm_request::CREATE_PROCESS:
+            break;
+        case ipc_actor_start_vm_request::SETRESUID: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+            if (setresuid(
+                request.resuid[0], request.resuid[1], request.resuid[2]
+            ) == -1) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::SETRESGID: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+            if (setresgid(
+                request.resgid[0], request.resgid[1], request.resgid[2]
+            ) == -1) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::SETGROUPS: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            void* groups = NULL;
+            if (request.setgroups_ngroups != 0) {
+                groups = mmap(
+                    /*addr=*/NULL, sizeof(gid_t) * request.setgroups_ngroups,
+                    PROT_READ, MAP_SHARED, fds[1], /*offset=*/0);
+                close(fds[1]);
+                if (groups == MAP_FAILED) {
+                    close(fds[0]);
+                    while (wait(NULL) > 0);
+                    return 1;
+                }
+            }
+
+            if (setgroups(
+                request.setgroups_ngroups, reinterpret_cast<gid_t*>(groups)
+            ) == -1) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            if (groups) {
+                munmap(groups, sizeof(gid_t) * request.setgroups_ngroups);
+            }
+            continue;
+        }
+        }
 
         int fds[4] = {-1, -1, -1, -1};
         for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
