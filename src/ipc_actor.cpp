@@ -1456,6 +1456,57 @@ int app_context::ipc_actor_service_main(int sockfd)
             close(pout);
             continue;
         }
+        case ipc_actor_start_vm_request::CHDIR: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) == cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            void* path = mmap(
+                /*addr=*/NULL, request.chdir_mfd_size, PROT_READ, MAP_SHARED,
+                fds[1], /*offset=*/0);
+            close(fds[1]);
+            if (path == MAP_FAILED) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+
+            if (chdir(reinterpret_cast<char*>(path)) == -1) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            munmap(path, request.chdir_mfd_size);
+            continue;
+        }
+        case ipc_actor_start_vm_request::UMASK: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+            umask(request.umask_mask);
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
         }
 
         int fds[4] = {-1, -1, -1, -1};

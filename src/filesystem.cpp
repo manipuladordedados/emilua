@@ -9,11 +9,13 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/filesystem.hpp>
 #include <emilua/windows.hpp>
 #include <emilua/system.hpp>
+#include <emilua/actor.hpp>
 #include <emilua/time.hpp>
 
 #include <boost/scope_exit.hpp>
 
 #if BOOST_OS_UNIX
+#include <sys/mman.h>
 #include <unistd.h>
 #endif // BOOST_OS_UNIX
 
@@ -3662,6 +3664,43 @@ static int current_working_directory(lua_State* L)
         return lua_error(L);
     }
 
+#if BOOST_OS_UNIX
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+
+    int mfd = -1;
+    BOOST_SCOPE_EXIT_ALL(&) { if (mfd != -1) close(mfd); };
+
+    std::string::size_type mfd_size;
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        auto as_str = path->string();
+        mfd_size = as_str.size() + 1; //< include nul terminator
+
+        mfd = memfd_create("emilua/current_working_directory", /*flags=*/0);
+        if (mfd == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        if (ftruncate(mfd, mfd_size) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        write(mfd, as_str.data(), mfd_size);
+    }
+#endif // BOOST_OS_UNIX
+
     std::error_code ec;
     fs::current_path(*path, ec);
     if (ec) {
@@ -3671,6 +3710,59 @@ static int current_working_directory(lua_State* L)
         lua_rawset(L, -3);
         return lua_error(L);
     }
+
+#if BOOST_OS_UNIX
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CHDIR;
+        request.chdir_mfd_size = mfd_size;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int) * 2)];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            std::memcpy(it, &mfd, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+#endif // BOOST_OS_UNIX
+
     return 0;
 }
 
@@ -3807,8 +3899,69 @@ static int filesystem_umask(lua_State* L)
         return lua_error(L);
     }
 
-    mode_t res = umask(luaL_checkinteger(L, 1));
+    mode_t mask = luaL_checkinteger(L, 1);
+
+#if BOOST_OS_UNIX
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+#endif // BOOST_OS_UNIX
+
+    mode_t res = umask(mask);
     lua_pushinteger(L, res);
+
+#if BOOST_OS_UNIX
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::UMASK;
+        request.umask_mask = mask;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+#endif // BOOST_OS_UNIX
+
     return 1;
 }
 #endif // BOOST_OS_UNIX

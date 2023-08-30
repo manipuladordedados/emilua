@@ -131,7 +131,9 @@ struct ipc_actor_start_vm_request
         CAP_DROP_BOUND,
         CAP_SET_AMBIENT,
         CAP_RESET_AMBIENT,
-        CAP_SET_SECBITS
+        CAP_SET_SECBITS,
+        CHDIR,
+        UMASK
     } type;
 
     int clone_flags;
@@ -148,6 +150,9 @@ struct ipc_actor_start_vm_request
     cap_value_t cap_value;
     cap_flag_value_t cap_flag_value;
     unsigned cap_set_secbits_value;
+
+    std::string::size_type chdir_mfd_size;
+    mode_t umask_mask;
 };
 
 struct ipc_actor_start_vm_reply
