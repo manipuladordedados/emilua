@@ -75,7 +75,11 @@ else
 endif
 
 if host_machine.system() == 'linux'
-    libcap = [dependency('libcap'), dependency('libpsx')]
+    if get_option('thread_support_level') >= 1
+        libcap = [dependency('libcap'), dependency('libpsx')]
+    else
+        libcap = dependency('libcap')
+    endif
 else
     libcap = dependency('', required : false)
 endif
