@@ -8,6 +8,7 @@
 #include <emilua/core.hpp>
 
 #if BOOST_OS_LINUX
+#include <sys/capability.h>
 #include <sys/syscall.h>
 #endif // BOOST_OS_LINUX
 
@@ -125,7 +126,12 @@ struct ipc_actor_start_vm_request
         CREATE_PROCESS,
         SETRESUID,
         SETRESGID,
-        SETGROUPS
+        SETGROUPS,
+        CAP_SET_PROC,
+        CAP_DROP_BOUND,
+        CAP_SET_AMBIENT,
+        CAP_RESET_AMBIENT,
+        CAP_SET_SECBITS
     } type;
 
     int clone_flags;
@@ -138,6 +144,10 @@ struct ipc_actor_start_vm_request
     uid_t resuid[3];
     gid_t resgid[3];
     int setgroups_ngroups;
+    ssize_t cap_set_proc_mfd_size;
+    cap_value_t cap_value;
+    cap_flag_value_t cap_flag_value;
+    unsigned cap_set_secbits_value;
 };
 
 struct ipc_actor_start_vm_reply

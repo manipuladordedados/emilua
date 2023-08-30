@@ -1,3 +1,4 @@
+#include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -1327,6 +1328,132 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (groups) {
                 munmap(groups, sizeof(gid_t) * request.setgroups_ngroups);
             }
+            continue;
+        }
+        case ipc_actor_start_vm_request::CAP_SET_PROC: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) == cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            void* text = mmap(
+                /*addr=*/NULL, request.cap_set_proc_mfd_size, PROT_READ,
+                MAP_SHARED, fds[1], /*offset=*/0);
+            close(fds[1]);
+            if (text == MAP_FAILED) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+
+            cap_t caps = cap_from_text(reinterpret_cast<char*>(text));
+            munmap(text, request.cap_set_proc_mfd_size);
+            if (caps == NULL) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+
+            if (cap_set_proc(caps) == -1) {
+                close(fds[0]);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            cap_free(caps);
+            continue;
+        }
+        case ipc_actor_start_vm_request::CAP_DROP_BOUND: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+
+            if (cap_drop_bound(request.cap_value) == -1) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::CAP_SET_AMBIENT: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+
+            if (
+                cap_set_ambient(request.cap_value, request.cap_flag_value) == -1
+            ) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::CAP_RESET_AMBIENT: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+
+            if (cap_reset_ambient() == -1) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::CAP_SET_SECBITS: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+
+            if (cap_set_secbits(request.cap_set_secbits_value) == -1) {
+                close(pout);
+                while (wait(NULL) > 0);
+                return 1;
+            }
+            write(pout, buf, 1);
+            close(pout);
             continue;
         }
         }

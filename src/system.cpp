@@ -3510,10 +3510,103 @@ static int linux_capabilities_set_proc(lua_State* L)
         return lua_error(L);
     }
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+
+    int mfd = -1;
+    BOOST_SCOPE_EXIT_ALL(&) { if (mfd != -1) close(mfd); };
+
+    ssize_t mfd_size;
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        char* str = cap_to_text(*caps, &mfd_size);
+        BOOST_SCOPE_EXIT_ALL(&) { cap_free(str); };
+
+        if (!str) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        ++mfd_size; //< include nul terminator
+
+        mfd = memfd_create("emilua/cap_set_proc", /*flags=*/0);
+        if (mfd == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        if (ftruncate(mfd, mfd_size) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        write(mfd, str, mfd_size);
+    }
+
     if (cap_set_proc(*caps) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CAP_SET_PROC;
+        request.cap_set_proc_mfd_size = mfd_size;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int) * 2)];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            std::memcpy(it, &mfd, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -3772,10 +3865,65 @@ static int system_cap_drop_bound(lua_State* L)
         return lua_error(L);
     }
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
     if (cap_drop_bound(cap) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CAP_DROP_BOUND;
+        request.cap_value = cap;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -3816,10 +3964,66 @@ static int system_cap_set_ambient(lua_State* L)
 
     cap_flag_value_t value = lua_toboolean(L, 2) ? CAP_SET : CAP_CLEAR;
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
     if (cap_set_ambient(cap, value) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CAP_SET_AMBIENT;
+        request.cap_value = cap;
+        request.cap_flag_value = value;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -3831,10 +4035,64 @@ static int system_cap_reset_ambient(lua_State* L)
         return lua_error(L);
     }
 
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
     if (cap_reset_ambient() == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CAP_RESET_AMBIENT;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 
@@ -3852,10 +4110,67 @@ static int system_cap_set_secbits(lua_State* L)
         return lua_error(L);
     }
 
-    if (cap_set_secbits(luaL_checkinteger(L, 1)) == -1) {
+    unsigned bits = luaL_checkinteger(L, 1);
+
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
+    if (cap_set_secbits(bits) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::CAP_SET_SECBITS;
+        request.cap_set_secbits_value = bits;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
     return 0;
 }
 #endif // BOOST_OS_LINUX
