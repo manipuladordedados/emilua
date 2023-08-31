@@ -139,15 +139,11 @@ else
     )
 endif
 
-emilua_gperf = find_program(
-    'emilua_gperf.awk',
-    dirs : [meson.current_source_dir() / 'src'],
-)
-
 gperf_gen = generator(
-    emilua_gperf,
+    gawk,
     output : 'bc2_@BASENAME@.cpp',
     arguments: [
+        '--file', meson.current_source_dir() / 'src' / 'emilua_gperf.awk',
         '--assign', 'GPERF_BIN=' + find_program('gperf').full_path(),
         '@INPUT@', '@OUTPUT@',
     ],
@@ -289,7 +285,8 @@ pp_state = custom_target(
     output : 'bc2_state.cpp',
     input : re2c_gen.process('src/state.ypp'),
     command : [
-        emilua_gperf,
+        gawk,
+        '--file', meson.current_source_dir() / 'src' / 'emilua_gperf.awk',
         '--assign', 'GPERF_BIN=' + find_program('gperf').full_path(),
         '@INPUT@', '@OUTPUT@',
     ],
