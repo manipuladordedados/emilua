@@ -1162,6 +1162,7 @@ static int spawn_vm(lua_State* L)
 #endif
         lua_getfield(L, 1, "subprocess");
         if (lua_type(L, -1) == LUA_TTABLE) {
+#if BOOST_OS_UNIX
             if (host_type_already_defined) {
                 push(L, std::errc::invalid_argument, "arg", 1);
                 return lua_error(L);
@@ -1176,14 +1177,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_uts");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWUTS;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1197,14 +1198,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_ipc");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWIPC;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1218,14 +1219,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_pid");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWPID;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1239,14 +1240,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_user");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWUSER;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1260,14 +1261,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_net");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWNET;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1281,14 +1282,14 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/newns_mount");
                 return lua_error(L);
             case LUA_TBOOLEAN:
-#if BOOST_OS_LINUX
+# if BOOST_OS_LINUX
                 if (lua_toboolean(L, -1)) {
                     request.clone_flags |= CLONE_NEWNS;
                 }
-#else // BOOST_OS_LINUX
+# else // BOOST_OS_LINUX
                 push(L, std::errc::not_supported);
                 return lua_error(L);
-#endif // BOOST_OS_LINUX
+# endif // BOOST_OS_LINUX
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1509,6 +1510,10 @@ static int spawn_vm(lua_State* L)
                 lua_pop(L, 1);
                 break;
             }
+#else // BOOST_OS_UNIX
+            push(L, std::errc::not_supported);
+            return lua_error(L);
+#endif // BOOST_OS_UNIX
         }
     }
 
