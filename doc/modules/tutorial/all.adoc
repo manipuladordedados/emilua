@@ -23,4 +23,6 @@ include::pages/errors.adoc[]
 
 include::pages/sandboxes.adoc[]
 
+include::pages/linux_namespaces.adoc[]
+
 :leveloffset: -1

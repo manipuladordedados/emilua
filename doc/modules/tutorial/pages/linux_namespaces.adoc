@@ -1,0 +1,461 @@
+= Linux namespaces
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+== Description
+
+endif::[]
+
+Here we show a few recipes on how to deal with Linux namespaces from Emilua.
+
+TIP: https://lwn.net/Articles/531114/#series_index[LWN.net has a good overview
+on Linux namespaces].
+
+== The user namespace
+
+Unless you execute the process as root, Linux will deny the creation of all
+namespaces except for the user namespace. The user namespace is the only
+namespace that an unprivileged process can create. However it's fine to pair the
+user namespace with any combination of the other ones.
+
+When a user namespace is created, it starts out without a mapping of user IDs
+and group IDs to the parent user namespace. One can fill the mapping directly as
+shown in the example that follows:
+
+[source,lua]
+----
+local init_script = [[
+    local uidmap = C.open('/proc/self/uid_map', C.O_WRONLY)
+    send_with_fd(arg, '.', uidmap)
+    C.write(C.open('/proc/self/setgroups', C.O_WRONLY), 'deny')
+    local gidmap = C.open('/proc/self/gid_map', C.O_WRONLY)
+    send_with_fd(arg, '.', gidmap)
+
+    -- sync point
+    C.read(arg, 1)
+]]
+
+local shost, sguest = unix.seqpacket_socket.pair()
+sguest = sguest:release()
+
+spawn_vm{
+    subprocess = {
+        newns_user = true,
+        init = { script = init_script, arg = sguest }
+    }
+}
+sguest:close()
+local ignored_buf = byte_span.new(1)
+
+local uidmap = ({system.getresuid()})[2]
+uidmap = byte_span.append('0 ', tostring(uidmap), ' 1\n')
+local uidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+file.stream.new(uidmapfd):write_some(uidmap)
+
+local gidmap = ({system.getresgid()})[2]
+gidmap = byte_span.append('0 ', tostring(gidmap), ' 1\n')
+local gidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+file.stream.new(gidmapfd):write_some(gidmap)
+
+-- sync point #1
+shost:send(ignored_buf)
+
+shost:close()
+----
+
+An `AF_UNIX`+`SOCK_SEQPACKET` socket is used to coordinate the parent and the
+child processes. This type of socket allows duplex communication between two
+parties with builtin framing for messages, disconnection detection (process
+reference counting if you will), and it also allows sending file descriptors
+back-and-forth.
+
+We also close `sguest` from the host side as soon as we're done with it. This
+will ensure any operation on `shost` will fail if the child process aborts for
+any reason (i.e. no deadlocks happen here).
+
+[TIP]
+====
+Even if it's a sandbox, and root inside the sandbox doesn't mean root outside
+it, maybe you still want to drop all root privileges at the end of the
+`subprocess.init.script`:
+
+[source,lua]
+----
+C.cap_set_proc('=')
+----
+
+It won't be particularly useful for most people, but that technique is still
+useful to -- for instance -- create alternative LXC/FlatPak front-ends to run a
+few programs (if the program can't update its own binary files, new
+possibilities for sandboxing practice open up).
+====
+
+Alternatively, one can fill the mapping indirectly. Below we show how to do it
+using the suid-helper `newuidmap`:
+
+[source,lua]
+----
+local init_script = [[
+    local pidfd = C.open('/proc/self', C.O_RDONLY)
+    send_with_fd(arg, '.', pidfd)
+
+    -- sync point
+    C.read(arg, 1)
+]]
+
+local shost, sguest = unix.seqpacket_socket.pair()
+sguest = sguest:release()
+
+spawn_vm{
+    subprocess = {
+        newns_user = true,
+        init = { script = init_script, arg = sguest }
+    }
+}
+sguest:close()
+local ignored_buf = byte_span.new(1)
+local pidfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+
+system.spawn{
+    program = 'newuidmap',
+    stdout = 'share',
+    stderr = 'share',
+    arguments = {
+        'newuidmap',
+        'fd:3', '0', '100000', '1001'
+    },
+    extra_fds = {
+        [3] = pidfd
+    }
+}:wait()
+
+system.spawn{
+    program = 'newgidmap',
+    stdout = 'share',
+    stderr = 'share',
+    arguments = {
+        'newgidmap',
+        'fd:3', '0', '100000', '1001'
+    },
+    extra_fds = {
+        [3] = pidfd
+    }
+}:wait()
+
+-- sync point #1
+shost:send(ignored_buf)
+
+shost:close()
+----
+
+NOTE: You need to configure `/etc/subuid` to have `newuidmap` working.
+
+== The network namespace
+
+Let's start by isolating the network resources as that's the easiest one:
+
+[source,lua]
+----
+spawn_vm{ subprocess = {
+    newns_user = true,
+    newns_net = true
+} }
+----
+
+The process will be created within a new network namespace where no interfaces
+besides the loopback device exist. And even the loopback device will be down! If
+you want to configure the loopback device so the process can at least bind
+sockets to it you can use the program `ip`. However the program `ip` needs to
+run within the new namespace. To spawn the program `ip` within the namespace of
+the new actor you need to acquire the file descriptors to its namespaces. There
+are two ways to do that. You can either use race-prone PID primitives (easy), or
+you can use a handshake protocol to ensure that there are no races related to
+PID dances. Below we show the race-free method.
+
+[source,lua]
+----
+local init_script = [[
+    local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
+    send_with_fd(arg, '.', userns)
+    local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
+    send_with_fd(arg, '.', netns)
+
+    -- sync point
+    C.read(arg, 1)
+]]
+
+local shost, sguest = unix.seqpacket_socket.pair()
+sguest = sguest:release()
+
+spawn_vm{
+    subprocess = {
+        newns_user = true,
+        newns_net = true,
+        init = { script = init_script, arg = sguest }
+    }
+}
+sguest:close()
+local ignored_buf = byte_span.new(1)
+local userns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+local netns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+system.spawn{
+    program = 'ip',
+    arguments = {'ip', 'link', 'set', 'dev', 'lo', 'up'},
+    nsenter_user = userns,
+    nsenter_net = netns
+}:wait()
+shost:close()
+----
+
+== The PID namespace
+
+When a new PID namespace is created, the process inside the new namespace ceases
+to see processes from the parent namespace. Your process still can see new
+processes created in the child's namespace, so invisibility only happens in one
+direction. PID namespaces are hierarchically nested in parent-child
+relationships.
+
+The first process in a PID namespace is PID1 within that namespace. PID1 has a
+few special responsibilities. After `subprocess.init.script` exits, the Emilua
+runtime will fork if it’s running as PID1. This new child will assume the role
+of starting your module (the Lua VM).
+
+[TIP]
+.The controlling terminal
+====
+If you want to set up a pty in `init.script`, the PID1 will be the session
+leader. That way, the actor running in PID2 wouldn't accidentally acquire a new
+ctty if it happens to `open()` a tty that isn't currently controlling any
+session.
+====
+
+If the PID1 dies, all processes from that namespace (including further
+descendant PID namespaces) will be killed. This behavior allows you to fully
+dispose of a container when no longer needed by sending `SIGKILL` to PID1. No
+process will escape.
+
+Communication topology may be arbitrarily defined as per the actor model, but
+the processes always assume a topology of a tree (supervision trees), and no PID
+namespace ever “re-parents”.
+
+The Emilua runtime automatically sends `SIGKILL` to every process spawned using
+the Linux namespaces API when the actor that spawned them exits. If you want
+fine control over these processes, you can use a few extra methods that are
+available to the channel object that represents them.
+
+== The mount namespace
+
+Let's build up on our previous knowledge and build a sandbox with an empty `"/"`
+(that's right!).
+
+[source,lua]
+----
+local init_script = [[
+    ...
+
+    -- unshare propagation events
+    C.mount(nil, '/', nil, C.MS_PRIVATE)
+
+    C.umask(0)
+    C.mount(nil, '/mnt', 'tmpfs', 0)
+    C.mkdir('/mnt/proc', mode(7, 5, 5))
+    C.mount(nil, '/mnt/proc', 'proc', 0)
+    C.mkdir('/mnt/tmp', mode(7, 7, 7))
+
+    -- pivot root
+    C.mkdir('/mnt/mnt', mode(7, 5, 5))
+    C.chdir('/mnt')
+    C.pivot_root('.', '/mnt/mnt')
+    C.chroot('.')
+    C.umount2('/mnt', C.MNT_DETACH)
+
+    -- sync point
+    C.read(arg, 1)
+]]
+
+spawn_vm{
+    subprocess = {
+        ...,
+        newns_mount = true,
+
+        -- let's go ahead and create a new
+        -- PID namespace as well
+        newns_pid = true
+    }
+}
+----
+
+We could certainly create a better initial `"/"`. We could certainly do away
+with a few of the lines by cleverly reordering them. However the example is
+still nice to just illustrate a few of the syscalls exposed to the Lua
+script. There's nothing particularly hard about mount namespaces. We just call a
+few syscalls, and no fd-dance between host and guest is really necessary.
+
+One technique that we should mention is how `module` in `spawn_vm(module)` is
+interpreted when you use Linux namespaces. This argument no longer means an
+actual module when namespaces are involved. It'll just be passed along to the
+new process. The following snippet shows you how to actually get the new actor
+in the container by finding a proper module to start.
+
+[source,lua]
+----
+local guest_code = [[
+    local inbox = require 'inbox'
+    local ip = require 'ip'
+
+    local ch = inbox:receive().dest
+    ch:send(ip.host_name())
+]]
+
+local init_script = [[
+    ...
+
+    local modulefd = C.open(
+        '/app.lua',
+        bit.bor(C.O_WRONLY, C.O_CREAT),
+        mode(6, 0, 0))
+    send_with_fd(arg, '.', modulefd)
+]]
+
+local my_channel = spawn_vm{ module = '/app.lua', ... }
+
+...
+
+local module = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+module = file.stream.new(module)
+stream.write_all(module, guest_code)
+shost:close()
+
+my_channel:send{ dest = inbox }
+print(inbox:receive())
+----
+
+== Full example
+
+[source,lua]
+----
+local stream = require 'stream'
+local system = require 'system'
+local inbox = require 'inbox'
+local file = require 'file'
+local unix = require 'unix'
+
+local guest_code = [[
+    local inbox = require 'inbox'
+    local ip = require 'ip'
+
+    local ch = inbox:receive().dest
+    ch:send(ip.host_name())
+]]
+
+local init_script = [[
+    local uidmap = C.open('/proc/self/uid_map', C.O_WRONLY)
+    send_with_fd(arg, '.', uidmap)
+    C.write(C.open('/proc/self/setgroups', C.O_WRONLY), 'deny')
+    local gidmap = C.open('/proc/self/gid_map', C.O_WRONLY)
+    send_with_fd(arg, '.', gidmap)
+
+    -- sync point #1 as tmpfs will fail on mkdir()
+    -- with EOVERFLOW if no UID/GID mapping exists
+    -- https://bugzilla.kernel.org/show_bug.cgi?id=183461
+    C.read(arg, 1)
+
+    local userns = C.open('/proc/self/ns/user', C.O_RDONLY)
+    send_with_fd(arg, '.', userns)
+    local netns = C.open('/proc/self/ns/net', C.O_RDONLY)
+    send_with_fd(arg, '.', netns)
+
+    -- unshare propagation events
+    C.mount(nil, '/', nil, C.MS_PRIVATE)
+
+    C.umask(0)
+    C.mount(nil, '/mnt', 'tmpfs', 0)
+    C.mkdir('/mnt/proc', mode(7, 5, 5))
+    C.mount(nil, '/mnt/proc', 'proc', 0)
+    C.mkdir('/mnt/tmp', mode(7, 7, 7))
+
+    -- pivot root
+    C.mkdir('/mnt/mnt', mode(7, 5, 5))
+    C.chdir('/mnt')
+    C.pivot_root('.', '/mnt/mnt')
+    C.chroot('.')
+    C.umount2('/mnt', C.MNT_DETACH)
+
+    local modulefd = C.open(
+        '/app.lua',
+        bit.bor(C.O_WRONLY, C.O_CREAT),
+        mode(6, 0, 0))
+    send_with_fd(arg, '.', modulefd)
+
+    -- sync point #2 as we must await for
+    --
+    -- * loopback net device
+    -- * `/app.lua`
+    --
+    -- before we run the guest
+    C.read(arg, 1)
+
+    C.sethostname('mycoolhostname')
+    C.setdomainname('mycooldomainname')
+
+    -- drop all root privileges
+    C.cap_set_proc('=')
+]]
+
+local shost, sguest = unix.seqpacket_socket.pair()
+sguest = sguest:release()
+
+local my_channel = spawn_vm{
+    module = '/app.lua',
+    subprocess = {
+        newns_user = true,
+        newns_net = true,
+        newns_mount = true,
+        newns_pid = true,
+        newns_uts = true,
+        newns_ipc = true,
+        init = { script = init_script, arg = sguest }
+    }
+}
+sguest:close()
+
+local ignored_buf = byte_span.new(1)
+
+local uidmap = ({system.getresuid()})[2]
+uidmap = byte_span.append('0 ', tostring(uidmap), ' 1\n')
+local uidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+file.stream.new(uidmapfd):write_some(uidmap)
+
+local gidmap = ({system.getresgid()})[2]
+gidmap = byte_span.append('0 ', tostring(gidmap), ' 1\n')
+local gidmapfd = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+file.stream.new(gidmapfd):write_some(gidmap)
+
+-- sync point #1
+shost:send(ignored_buf)
+
+local userns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+local netns = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+system.spawn{
+    program = 'ip',
+    arguments = {'ip', 'link', 'set', 'dev', 'lo', 'up'},
+    nsenter_user = userns,
+    nsenter_net = netns
+}:wait()
+
+local module = ({shost:receive_with_fds(ignored_buf, 1)})[2][1]
+module = file.stream.new(module)
+stream.write_all(module, guest_code)
+
+-- sync point #2
+shost:close()
+
+my_channel:send{ dest = inbox }
+print(inbox:receive())
+----
