@@ -530,7 +530,7 @@ These constants live inside the global table `C`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED`.
 
-==== `landlock_create_ruleset(attr: table|nil, flags: table|nil) -> integer, integer`
+=== `C.landlock_create_ruleset(attr: table|nil, flags: table|nil) -> integer, integer`
 
 Parameters:
 
@@ -558,7 +558,7 @@ Returns two values:
 1. `landlock_create_ruleset()` return.
 2. The errno value (or `0` on success).
 
-==== `landlock_add_rule(ruleset_fd: integer, rule_type: "path_beneath", attr: table) -> integer, integer`
+=== `C.landlock_add_rule(ruleset_fd: integer, rule_type: "path_beneath", attr: table) -> integer, integer`
 
 Parameters:
 
@@ -585,7 +585,7 @@ Returns two values:
 1. `landlock_add_rule()` return.
 2. The errno value (or `0` on success).
 
-==== `landlock_restrict_self(ruleset_fd: integer) -> integer, integer`
+=== `C.landlock_restrict_self(ruleset_fd: integer) -> integer, integer`
 
 Returns two values:
 
