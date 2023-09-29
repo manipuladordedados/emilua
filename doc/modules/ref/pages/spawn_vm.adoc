@@ -353,6 +353,8 @@ as the second result):
 * `open()`.
 * `mkdir()`.
 * `chdir()`.
+* `link()`.
+* `symlink()`.
 * `umask()`.
 * `mount()`.
 * `umount()`.
