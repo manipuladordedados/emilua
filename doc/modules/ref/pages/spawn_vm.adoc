@@ -355,6 +355,8 @@ as the second result):
 * `chdir()`.
 * `link()`.
 * `symlink()`.
+* `chown()`.
+* `chmod()`.
 * `umask()`.
 * `mount()`.
 * `umount()`.

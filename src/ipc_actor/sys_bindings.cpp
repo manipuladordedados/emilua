@@ -423,6 +423,37 @@ int posix_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "chown",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    uid_t owner = luaL_checkinteger(L, 2);
+                    gid_t group = luaL_checkinteger(L, 3);
+                    int res = chown(path, owner, group);
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "chmod",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    mode_t mode = luaL_checkinteger(L, 2);
+                    int res = chmod(path, mode);
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "chdir",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {
