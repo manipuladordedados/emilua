@@ -205,7 +205,13 @@ static int promise_mt_gc(lua_State* L)
 
     state->state = future_shared_state::broken;
 
-    auto vm_ctx2 = vm_ctx->shared_from_this();
+    std::shared_ptr<vm_context> vm_ctx2;
+    try {
+        vm_ctx2 = vm_ctx->shared_from_this();
+    } catch (const std::bad_weak_ptr&) {
+        // reached here from VM shutdown, so just ignore waiters
+        return 0;
+    }
     for (auto& fiber : state->waiters) {
         vm_ctx->strand().post([vm_ctx2,fiber]() {
             vm_ctx2->fiber_resume(
