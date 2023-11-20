@@ -1,9 +1,5 @@
-#include <sys/capability.h>
-#include <sys/prctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
-
-#include <linux/close_range.h>
 
 #include <iostream>
 #include <charconv>
@@ -18,14 +14,26 @@
 #include <boost/scope_exit.hpp>
 #include <boost/hana/less.hpp>
 #include <boost/hana/plus.hpp>
+#include <boost/predef/os/bsd.h>
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
 
 #if BOOST_OS_LINUX
+#include <linux/close_range.h>
+#include <sys/capability.h>
+#include <sys/prctl.h>
 #include <grp.h>
 #endif // BOOST_OS_LINUX
+
+#if BOOST_OS_BSD_FREE || BOOST_OS_BSD_DRAGONFLY
+#include <sys/procctl.h>
+#endif // BOOST_OS_BSD_FREE || BOOST_OS_BSD_DRAGONFLY
+
+#if BOOST_OS_BSD_FREE
+#include <sys/procdesc.h>
+#endif // BOOST_OS_BSD_FREE
 
 #define EMILUA_LUA_HOOK_BUFFER_SIZE (1024 * 1024)
 static_assert(EMILUA_LUA_HOOK_BUFFER_SIZE % alignof(std::max_align_t) == 0);
@@ -228,7 +236,15 @@ static void init_hookstate(lua_State* L)
     lua_setglobal(L, "mode");
 
     lua_pushcfunction(L, [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
         int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+#elif BOOST_OS_BSD_FREE
+        int data = PROC_NO_NEW_PRIVS_ENABLE;
+        int res = procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data);
+#else
+        int res = -1;
+        errno = ENOSYS;
+#endif // BOOST_OS_LINUX
         int last_error = (res == -1) ? errno : 0;
         if (last_error != 0) {
             lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
@@ -831,7 +847,16 @@ static int child_main(void*)
     // processor (an unsafe operation in itself). The parent-death signal
     // setting is also cleared upon changes to effective user ID, effective
     // group ID, filesystem user ID, or filesystem group ID.
+#if BOOST_OS_LINUX
     prctl(PR_SET_PDEATHSIG, SIGKILL);
+#elif BOOST_OS_BSD_FREE || BOOST_OS_BSD_DRAGONFLY
+    {
+        int signo = SIGKILL;
+        procctl(P_PID, 0, PROC_PDEATHSIG_CTL, &signo);
+    }
+#else
+# error "OS not supported"
+#endif // BOOST_OS_LINUX
 
     std::string buffer;
     buffer.resize(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE);
@@ -1330,6 +1355,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             }
             continue;
         }
+#if BOOST_OS_LINUX
         case ipc_actor_start_vm_request::CAP_SET_PROC: {
             int fds[2] = { -1, -1 };
             char buf[1];
@@ -1456,6 +1482,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             close(pout);
             continue;
         }
+#endif // BOOST_OS_LINUX
         case ipc_actor_start_vm_request::CHDIR: {
             int fds[2] = { -1, -1 };
             char buf[1];
@@ -1596,10 +1623,18 @@ int app_context::ipc_actor_service_main(int sockfd)
 
         ipc_actor_start_vm_reply reply;
         int pidfd = -1;
+#if BOOST_OS_LINUX
         request.clone_flags |= CLONE_PIDFD | SIGCHLD;
         reply.childpid = clone(child_main, clone_stack_address,
                                request.clone_flags, /*arg=*/nullptr, &pidfd);
         reply.error = (reply.childpid == -1) ? errno : 0;
+#else
+        pid_t childpid = pdfork(&pidfd, /*flags=*/0);
+        if (childpid == 0) {
+            return child_main(nullptr);
+        }
+        reply.error = (childpid == -1) ? errno : 0;
+#endif // BOOST_OS_LINUX
 
         switch (proc_stdin) {
         case -1:

@@ -7,6 +7,8 @@
 
 #include <emilua/core.hpp>
 
+#include <boost/predef/os/bsd.h>
+
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
 #include <sys/syscall.h>
@@ -15,6 +17,10 @@
 #if BOOST_OS_UNIX
 #include <boost/asio/local/datagram_protocol.hpp>
 #endif // BOOST_OS_UNIX
+
+#if BOOST_OS_BSD_FREE
+#include <sys/procdesc.h>
+#endif // BOOST_OS_BSD_FREE
 
 namespace emilua {
 
@@ -127,16 +133,20 @@ struct ipc_actor_start_vm_request
         SETRESUID,
         SETRESGID,
         SETGROUPS,
+#if BOOST_OS_LINUX
         CAP_SET_PROC,
         CAP_DROP_BOUND,
         CAP_SET_AMBIENT,
         CAP_RESET_AMBIENT,
         CAP_SET_SECBITS,
+#endif // BOOST_OS_LINUX
         CHDIR,
         UMASK
     } type;
 
+#if BOOST_OS_LINUX
     int clone_flags;
+#endif // BOOST_OS_LINUX
     action stdin_action;
     action stdout_action;
     action stderr_action;
@@ -147,9 +157,11 @@ struct ipc_actor_start_vm_request
     gid_t resgid[3];
     int setgroups_ngroups;
     ssize_t cap_set_proc_mfd_size;
+#if BOOST_OS_LINUX
     cap_value_t cap_value;
     cap_flag_value_t cap_flag_value;
     unsigned cap_set_secbits_value;
+#endif // BOOST_OS_LINUX
 
     std::string::size_type chdir_mfd_size;
     mode_t umask_mask;
@@ -157,7 +169,9 @@ struct ipc_actor_start_vm_request
 
 struct ipc_actor_start_vm_reply
 {
+#if BOOST_OS_LINUX
     pid_t childpid;
+#endif // BOOST_OS_LINUX
     int error;
 };
 
@@ -170,21 +184,22 @@ inline bool is_snan(std::uint64_t as_i)
 
 struct ipc_actor_reaper : public pending_operation
 {
+#if BOOST_OS_LINUX
     ipc_actor_reaper(int childpidfd, pid_t childpid)
         : pending_operation{/*shared_ownership=*/false}
-#if BOOST_OS_LINUX
         , childpidfd{childpidfd}
-#endif // BOOST_OS_LINUX
         , childpid{childpid}
     {}
+#else
+    ipc_actor_reaper(int childpidfd)
+        : pending_operation{/*shared_ownership=*/false}
+        , childpidfd{childpidfd}
+    {}
+#endif // BOOST_OS_LINUX
 
     ~ipc_actor_reaper()
     {
-#if BOOST_OS_LINUX
         close(childpidfd);
-#else // BOOST_OS_LINUX
-        // TODO
-#endif // BOOST_OS_LINUX
     }
 
     void cancel() noexcept override
@@ -192,15 +207,15 @@ struct ipc_actor_reaper : public pending_operation
 #if BOOST_OS_LINUX
         syscall(SYS_pidfd_send_signal, childpidfd, SIGKILL, /*info=*/NULL,
                 /*flags=*/0);
-#else // BOOST_OS_LINUX
-        // TODO
+#else
+        pdkill(childpidfd, SIGKILL);
 #endif // BOOST_OS_LINUX
     }
 
-#if BOOST_OS_LINUX
     int childpidfd;
-#endif // BOOST_OS_LINUX
+#if BOOST_OS_LINUX
     pid_t childpid;
+#endif // BOOST_OS_LINUX
 };
 
 struct ipc_actor_address

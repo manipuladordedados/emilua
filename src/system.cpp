@@ -36,12 +36,15 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 # include <boost/asio/posix/stream_descriptor.hpp>
 #endif // BOOST_OS_WINDOWS
 
+#if BOOST_OS_UNIX
+#include <sys/mman.h>
+#endif // BOOST_OS_UNIX
+
 #if BOOST_OS_LINUX
 #include <linux/close_range.h>
 #include <linux/securebits.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
-#include <sys/mman.h>
 #include <sys/wait.h>
 #include <grp.h>
 #endif // BOOST_OS_LINUX
@@ -1414,7 +1417,11 @@ static int system_setgroups(lua_State* L)
         }
 
         if (groups.size() != 0) {
+#if BOOST_OS_LINUX
             mfd = memfd_create("emilua/setgroups", /*flags=*/0);
+#else
+            mfd = shm_open(SHM_ANON, O_RDWR | O_CREAT, 0600);
+#endif // BOOST_OS_LINUX
             if (mfd == -1) {
                 push(L, std::error_code{errno, std::system_category()});
                 return lua_error(L);

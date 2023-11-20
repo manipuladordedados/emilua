@@ -1724,7 +1724,11 @@ static int spawn_vm(lua_State* L)
             }
         }
 
+#if BOOST_OS_LINUX
         auto reaper = new ipc_actor_reaper{pidfd, reply.childpid};
+#else
+        auto reaper = new ipc_actor_reaper{pidfd};
+#endif // BOOST_OS_LINUX
         vm_ctx.pending_operations.push_back(*reaper);
         pidfd = -1;
 
@@ -2466,7 +2470,17 @@ inline int ipc_actor_chan_child_pid(lua_State* L)
         push(L, std::errc::invalid_argument);
         return lua_error(L);
     }
+#if BOOST_OS_LINUX
     lua_pushinteger(L, channel->reaper->childpid);
+#else
+    pid_t childpid;
+    int res = pdgetpid(channel->reaper->childpidfd, &childpid);
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+    lua_pushinteger(L, childpid);
+#endif // BOOST_OS_LINUX
     return 1;
 }
 
@@ -2561,8 +2575,12 @@ static int ipc_actor_chan_kill(lua_State* L)
             break;
         }
 
+#if BOOST_OS_LINUX
         int res = syscall(SYS_pidfd_send_signal, channel->reaper->childpidfd,
                           signo, /*info=*/NULL, /*flags=*/0);
+#else
+        int res = pdkill(channel->reaper->childpidfd, signo);
+#endif // BOOST_OS_LINUX
         if (res == -1) {
             push(L, std::error_code{errno, std::system_category()});
             return lua_error(L);

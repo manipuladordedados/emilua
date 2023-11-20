@@ -273,7 +273,7 @@ endif
 
 if host_machine.system() != 'windows' # POSIX systems
     src += 'src/ipc_actor.cpp'
-    src += 'src/ipc_actor/sys_bindings.cpp'
+    src += 'src/ipc_actor/sys_bindings' / host_machine.system() + '.cpp'
 endif
 
 # Meson doesn't have the ability to chain generators, so instead of
