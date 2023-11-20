@@ -23,10 +23,6 @@ if host_machine.system() == 'linux'
     boost_modules += 'context'
 endif
 
-if host_machine.system() != 'windows' # POSIX systems
-    boost_modules += 'serialization'
-endif
-
 luajit = dependency('luajit', version : '>=2.0.5')
 boost = dependency(
     'boost',
@@ -37,6 +33,7 @@ fmt = dependency('fmt', version : '>=8.0')
 serd = dependency('serd-0')
 sord = dependency('sord-0')
 trial_protocol = dependency('trial-protocol')
+cereal = dependency('cereal')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
 find_program('xxd')
@@ -307,6 +304,7 @@ libemilua = library(
         serd,
         sord,
         trial_protocol,
+        cereal,
         http_dep,
         ssl,
         curses,

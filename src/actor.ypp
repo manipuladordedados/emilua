@@ -21,8 +21,9 @@
 #if BOOST_OS_UNIX
 #include <emilua/file_descriptor.hpp>
 
-#include <boost/serialization/unordered_map.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/archives/binary.hpp>
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
@@ -1526,11 +1527,8 @@ static int spawn_vm(lua_State* L)
 
         std::string body;
         {
-            constexpr unsigned int aflags = boost::archive::no_header |
-                boost::archive::no_codecvt |
-                boost::archive::no_xml_tag_checking;
             std::ostringstream os;
-            boost::archive::binary_oarchive oa{os, aflags};
+            cereal::BinaryOutputArchive oa{os};
             oa << concurrency_hint << std::string{module} << newenv;
             body = os.str();
         }

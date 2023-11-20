@@ -7,14 +7,16 @@
 #include <fmt/ostream.h>
 #include <fmt/format.h>
 
-#include <boost/serialization/unordered_map.hpp>
-#include <boost/archive/binary_iarchive.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/nowide/iostream.hpp>
 #include <boost/scope_exit.hpp>
 #include <boost/hana/less.hpp>
 #include <boost/hana/plus.hpp>
 #include <boost/predef/os/bsd.h>
+
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/archives/binary.hpp>
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/actor.hpp>
@@ -1060,11 +1062,8 @@ static int child_main(void*)
     appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
 
     {
-        constexpr unsigned int aflags = boost::archive::no_header |
-            boost::archive::no_codecvt |
-            boost::archive::no_xml_tag_checking;
         std::istringstream is{buffer};
-        boost::archive::binary_iarchive ia{is, aflags};
+        cereal::BinaryInputArchive ia{is};
 
         std::string str;
 
