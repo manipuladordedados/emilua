@@ -189,7 +189,7 @@ if get_option('enable_tests')
         )
     else
         # GNU Coreutils binaries are not specified explicitly, but expected too
-        shell = find_program('bash', 'ksh')
+        shell = find_program('bash', 'ksh93', 'ksh')
     endif
 endif
 
