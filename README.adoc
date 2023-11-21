@@ -27,8 +27,11 @@ Features:
 
 == Install
 
-* https://aur.archlinux.org/packages/emilua/[ArchLinux].
+* https://aur.archlinux.org/packages/emilua/[ArchLinux]: Emilua is available on AUR. 
 * https://guix.gnu.org/[GUIX]: Emilua is available from the main repository.
+* https://nixos.org/[NixOS]: Emilua is available from the unstable repository.
+* https://launchpad.net/~manipuladordedados/+archive/ubuntu/emilua[Ubuntu]: Emilua is available for Ubuntu via this PPA repository.
+* https://www.freebsd.org/[FreeBSD]: Emilua is available from the main repository and ports.
 
 == LICENSE
 
