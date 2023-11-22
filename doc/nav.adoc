@@ -15,7 +15,7 @@
 * Reference
 ** xref:ref:generic_error.adoc[]
 ** xref:ref:asio_error.adoc[]
-** Actor system
+** actor system
 *** xref:ref:inbox.adoc[]
 *** xref:ref:spawn_vm.adoc[]
 *** xref:ref:spawn_context_threads.adoc[]
