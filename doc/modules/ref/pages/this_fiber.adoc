@@ -1,4 +1,6 @@
-= Fibers
+= this_fiber
+
+:_:
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -10,53 +12,24 @@ Emilua - Lua execution engine
 
 endif::[]
 
-Fibers are the primitive of choice to represent concurrency. Every time you need
-to increase the concurrency level, just spawn a fiber. Fibers are
-https://en.wikipedia.org/wiki/Cooperative_multitasking[cooperative] and only
-transfer control to other fibers in well-defined points (sync primitives, IO
-functions and any suspending function such as `this_fiber.yield()`). These
-points are also used by the interruption API.
+Object referring to current fiber.
 
-No two fibers from the same Lua VM run in parallel (even when the underlying
-VM's thread pool has threads available).
+NOTE: `this_fiber` is a global so it doesn't need to be ``require()``d.
 
 == Functions
 
-=== `spawn(f: function) -> fiber`
-
-Spawns a new fiber to run `f`. Post semantics are used, so the current fiber
-(the one calling `spawn()`) continues to run until it reaches a suspension
-point.
-
-=== `join(self: fiber)`
-
-Read `pthread_join()`.
-
-Returns the values returned by the fiber's start function. If that fiber exits
-with an error, that error is re-raised here (and fiber is considered joined).
-
-=== `detach(self: fiber)`
-
-Read `pthread_detach()`.
-
-If the GC collects the fiber handle, it'll be detached.
-
-=== `interrupt(self: fiber)`
-
-Read `pthread_cancel()`.
-
-=== `this_fiber.yield()`
+=== `yield()`
 
 Reschedule current fiber to be executed in the next round so other ready fibers
 have a chance to run now. You usually don't need to call this function as any
 suspending function already do that.
 
-=== `this_fiber.{forbid,allow}_suspend()`
+=== `{forbid,allow}_suspend()`
 
 [source,lua]
 ----
-this_fiber.forbid_suspend()
-this_fiber.allow_suspend()
+forbid_suspend()
+allow_suspend()
 ----
 
 A call to `forbid_suspend()` will put the fiber in the state of
@@ -84,31 +57,23 @@ to understand these blocks and do some simple static analysis.
 
 [source,lua]
 ----
-this_fiber.disable_interruption()
-this_fiber.restore_interruption()
+disable_interruption()
+restore_interruption()
 ----
 
 Check the interruption tutorial to see what it does.
 
-== Attributes
+== Properties
 
-=== `interruption_caught: boolean`
-
-Read `PTHREAD_CANCELED`.
-
-=== `joinable: boolean`
-
-Whether joinable.
-
-=== `this_fiber.is_main: boolean`
+=== `is_main: boolean`
 
 Whether this is the main fiber of the program.
 
-=== `this_fiber.local_: table`
+=== `local_: table`
 
 Fiber-local storage.
 
-=== `this_fiber.id: string`
+=== `id: string`
 
 An id string for debugging purposes.
 

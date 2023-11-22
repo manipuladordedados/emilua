@@ -4,7 +4,6 @@
 ** xref:tutorial:getting-started.adoc[]
 ** xref:tutorial:streams.adoc[]
 ** xref:tutorial:alternatives.adoc[]
-** xref:tutorial:fiber.adoc[]
 ** xref:tutorial:internals.adoc[]
 ** xref:tutorial:interruption.adoc[]
 ** xref:tutorial:lua51.adoc[]
@@ -55,6 +54,13 @@
 *** xref:ref:filesystem.umask.adoc[umask]
 *** xref:ref:filesystem.cap_get_file.adoc[cap_get_file]
 *** xref:ref:filesystem.cap_set_file.adoc[cap_set_file]
+** fiber
+*** xref:ref:spawn.adoc[]
+*** xref:ref:this_fiber.adoc[]
+*** xref:ref:mutex.adoc[]
+*** xref:ref:recursive_mutex.adoc[]
+*** xref:ref:condition_variable.adoc[]
+*** xref:ref:future.adoc[]
 ** file
 *** xref:ref:file.open_flag.adoc[open_flag]
 *** xref:ref:file.random_access.adoc[random_access]
@@ -102,11 +108,6 @@
 *** xref:ref:stream.read_all.adoc[read_all]
 *** xref:ref:stream.read_at_least.adoc[read_at_least]
 *** xref:ref:stream.scanner.adoc[scanner]
-** sync primitives
-*** xref:ref:mutex.adoc[]
-*** xref:ref:recursive_mutex.adoc[]
-*** xref:ref:condition_variable.adoc[]
-*** xref:ref:future.adoc[]
 ** system
 *** xref:ref:system.arguments.adoc[arguments]
 *** xref:ref:system.environment.adoc[environment]

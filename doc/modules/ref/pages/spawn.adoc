@@ -1,0 +1,65 @@
+= spawn
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+spawn(f: function) -> fiber
+----
+
+== Description
+
+Spawns a new fiber to run `f`. Post semantics are used, so the current fiber
+(the one calling `spawn()`) continues to run until it reaches a suspension
+point.
+
+Fibers are the primitive of choice to represent concurrency. Every time you need
+to increase the concurrency level, just spawn a fiber. Fibers are
+https://en.wikipedia.org/wiki/Cooperative_multitasking[cooperative] and only
+transfer control to other fibers in well-defined points (sync primitives, IO
+functions and any suspending function such as `this_fiber.yield()`). These
+points are also used by the interruption API.
+
+No two fibers from the same Lua VM run in parallel (even when the underlying
+VM's thread pool has threads available).
+
+NOTE: `spawn()` is a global so it doesn't need to be ``require()``d.
+
+== `fiber` functions
+
+=== `join(self)`
+
+Read `pthread_join()`.
+
+Returns the values returned by the fiber's start function. If that fiber exits
+with an error, that error is re-raised here (and fiber is considered joined).
+
+=== `detach(self)`
+
+Read `pthread_detach()`.
+
+If the GC collects the fiber handle, it'll be detached.
+
+=== `interrupt(self)`
+
+Read `pthread_cancel()`.
+
+== `fiber` properties
+
+=== `interruption_caught: boolean`
+
+Read `PTHREAD_CANCELED`.
+
+=== `joinable: boolean`
+
+Whether joinable.

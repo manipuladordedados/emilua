@@ -156,6 +156,10 @@ include::pages/time.system_timer.adoc[]
 
 include::pages/time.high_resolution_clock.adoc[]
 
+include::pages/spawn.adoc[]
+
+include::pages/this_fiber.adoc[]
+
 include::pages/inbox.adoc[]
 
 include::pages/spawn_vm.adoc[]

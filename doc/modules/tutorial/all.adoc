@@ -9,8 +9,6 @@ include::pages/streams.adoc[]
 
 include::pages/alternatives.adoc[]
 
-include::pages/fiber.adoc[]
-
 include::pages/internals.adoc[]
 
 include::pages/interruption.adoc[]
