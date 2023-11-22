@@ -36,6 +36,108 @@ See cap_get_fd(3).
 
 See cap_set_fd(3).
 
+=== `cap_rights_limit(self, rights: string[])`
+
+See cap_rights_limit(2).
+
+Parameters:
+
+* `rights: string[]`
+** `"accept"`
+** `"acl_check"`
+** `"acl_delete"`
+** `"acl_get"`
+** `"acl_set"`
+** `"bind"`
+** `"bindat"`
+** `"chflagsat"`
+** `"connect"`
+** `"connectat"`
+** `"create"`
+** `"event"`
+** `"extattr_delete"`
+** `"extattr_get"`
+** `"extattr_list"`
+** `"extattr_set"`
+** `"fchdir"`
+** `"fchflags"`
+** `"fchmod"`
+** `"fchmodat"`
+** `"fchown"`
+** `"fchownat"`
+** `"fcntl"`
+** `"fexecve"`
+** `"flock"`
+** `"fpathconf"`
+** `"fsck"`
+** `"fstat"`
+** `"fstatat"`
+** `"fstatfs"`
+** `"fsync"`
+** `"ftruncate"`
+** `"futimes"`
+** `"futimesat"`
+** `"getpeername"`
+** `"getsockname"`
+** `"getsockopt"`
+** `"ioctl"`
+** `"kqueue"`
+** `"kqueue_change"`
+** `"kqueue_event"`
+** `"linkat_source"`
+** `"linkat_target"`
+** `"listen"`
+** `"lookup"`
+** `"mac_get"`
+** `"mac_set"`
+** `"mkdirat"`
+** `"mkfifoat"`
+** `"mknodat"`
+** `"mmap"`
+** `"mmap_r"`
+** `"mmap_rw"`
+** `"mmap_rwx"`
+** `"mmap_rx"`
+** `"mmap_w"`
+** `"mmap_wx"`
+** `"mmap_x"`
+** `"pdgetpid"`
+** `"pdkill"`
+** `"peeloff"`
+** `"pread"`
+** `"pwrite"`
+** `"read"`
+** `"recv"`
+** `"renameat_source"`
+** `"renameat_target"`
+** `"seek"`
+** `"sem_getvalue"`
+** `"sem_post"`
+** `"sem_wait"`
+** `"send"`
+** `"setsockopt"`
+** `"shutdown"`
+** `"symlinkat"`
+** `"ttyhook"`
+** `"unlinkat"`
+** `"write"`
+
+=== `cap_ioctls_limit(self, cmds: integer[])`
+
+See cap_ioctls_limit(2).
+
+=== `cap_fcntls_limit(self, fcntlrights: string[])`
+
+See cap_fcntls_limit(2).
+
+Parameters:
+
+* `fcntlrights: string[]`
+** `"getfl"`
+** `"setfl"`
+** `"getown"`
+** `"setown"`
+
 == Metamethods
 
 === `__tostring()`

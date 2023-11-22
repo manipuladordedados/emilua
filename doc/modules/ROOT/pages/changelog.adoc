@@ -13,6 +13,7 @@
   means it's possible to use root-imports from spawn_vm().
 * spawn_vm() parameters refactored (API break).
 * Add Linux Landlock support.
+* Add FreeBSD Capsicum support.
 
 == 0.4
 

@@ -371,6 +371,7 @@ as the second result):
 * `cap_set_secbits()`.
 * `unshare()`.
 * `setns()`.
+* `cap_enter()`.
 
 === Constants
 

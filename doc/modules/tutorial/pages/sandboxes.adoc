@@ -12,11 +12,11 @@ Emilua - Lua execution engine
 
 endif::[]
 
-Emilua provides support for creating actors in isolated processes using Linux
-namespaces or Landlock. The idea is to prevent potentially exploitable code from
-accessing resources beyond what has been explicitly handed to them. That's the
-basis for capability-based security systems, and it maps pretty well to APIs
-implementing the actor model such as Emilua.
+Emilua provides support for creating actors in isolated processes using
+Capsicum, Linux namespaces or Landlock. The idea is to prevent potentially
+exploitable code from accessing resources beyond what has been explicitly handed
+to them. That's the basis for capability-based security systems, and it maps
+pretty well to APIs implementing the actor model such as Emilua.
 
 .XKCD 1200: Authorization
 image::authorization.png["If someone steals my laptop while I'm logged in, they can read my email, take my money, and impersonate me to my friends, but at least they can't install drivers without my permission.",link=https://xkcd.com/1200/]
@@ -145,6 +145,13 @@ inaccessible. Sandboxed code thus should be run only after such setup already
 completed successfully. The proper hook to perform this setup is
 `init.script`. `init.script` runs right after the process is created.
 
+After the sandboxed actor is up it can receive access to new resources through
+its inbox. If any security exploit is performed on the sandboxed code, then only
+the objects it has access to are rendered vulnerable (the damage is thus
+contained in its compartment).
+
+=== Landlock (Linux)
+
 [source,lua]
 ----
 local init_script = [[
@@ -166,10 +173,16 @@ spawn_vm{
 Landlock as of now can only control access to filesystem objects, but future
 versions will be more complete.
 
-After the sandboxed actor is up it can receive access to new resources through
-its inbox. If any security exploit is performed on the sandboxed code, then only
-the objects it has access to are rendered vulnerable (the damage is thus
-contained in its compartment).
+=== Capsicum
+
+[source,lua]
+----
+spawn_vm{
+    subprocess = {
+        init = { script = "C.cap_enter()" }
+    }
+}
+----
 
 == Implementation details
 

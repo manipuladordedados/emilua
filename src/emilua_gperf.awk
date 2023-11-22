@@ -31,7 +31,7 @@ function gperf(context_index    , i, proc, input, out) {
     close(proc, "to")
     proc |& getline out
     if (close(proc) != 0) {
-        print "gperf exited with failuren" >"/dev/stderr"
+        print "gperf exited with failure" >"/dev/stderr"
         exit 1
     }
     if (out !~ /duplicates = 0/) {
@@ -43,9 +43,18 @@ function gperf(context_index    , i, proc, input, out) {
             context["pairs"][context[context_index, "pairs"][i]], out)
     }
 
-    output_header = output_header \
-        "namespace emilua::gperf::detail {\n" out \
-        "} // namespace emilua::gperf::detail\n"
+    if (length(context[context_index, "ppguard"]) > 0) {
+        output_header = output_header \
+            "#if " context[context_index, "ppguard"] "\n" \
+            "namespace emilua::gperf::detail {\n" out \
+            "} // namespace emilua::gperf::detail\n" \
+            "#endif // " context[context_index, "ppguard"] "\n"
+    } else {
+        output_header = output_header \
+            "namespace emilua::gperf::detail {\n" out \
+            "} // namespace emilua::gperf::detail\n"
+    }
+
     if (length(context[context_index, "default_value"]) > 0) {
         return sprintf( \
             " ::emilua::gperf::detail::value_or(::emilua::gperf::detail::" \
@@ -129,6 +138,10 @@ function process_pair(context_index    , saved_input, value, matches) {
     ++context["next_value"]
 }
 
+function process_ppguard(context_index) {
+    context[context_index, "ppguard"] = process_arguments()
+}
+
 function process_decls_block(    symbol, idx, saved_input, value, matches) {
     symbol = "EMILUA_GPERF_DECLS_END(" process_arguments() ")"
     idx = index($0, symbol)
@@ -173,7 +186,8 @@ function process_gperf_block(    context_index, symbol, matches) {
     context[context_index, "symbol"] = symbol
 
     while (match( \
-        $0, /EMILUA_GPERF_(BEGIN|END|PARAM|DEFAULT_VALUE|PAIR)/, matches \
+        $0, /EMILUA_GPERF_(BEGIN|END|PARAM|DEFAULT_VALUE|PAIR|PPGUARD)/, \
+        matches \
     )) {
         $0 = substr($0, RSTART + RLENGTH)
         if (matches[1] == "BEGIN") {
@@ -192,6 +206,8 @@ function process_gperf_block(    context_index, symbol, matches) {
             process_default_value(context_index)
         } else if (matches[1] == "PAIR") {
             process_pair(context_index)
+        } else if (matches[1] == "PPGUARD") {
+            process_ppguard(context_index)
         }
     }
 }
