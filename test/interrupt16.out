@@ -2,7 +2,7 @@ foo
 false
 false
 baz
-Fiber 0x1 panicked: 'Invalid argument'
+Fiber 0x1 panicked: 'EINVAL'
 stack traceback:
 	[string "?"]: in function 'join'
 	input.lua:22: in function <input.lua:3>

@@ -61,7 +61,7 @@ std::string json_category_impl::message(int value) const noexcept
 {
     switch (value) {
     case static_cast<int>(json_errc::result_out_of_range):
-        return "Numerical result out of range";
+        return "ERANGE on json";
     case static_cast<int>(json_errc::too_many_levels):
         return "Too many levels";
     case static_cast<int>(json_errc::array_too_long):

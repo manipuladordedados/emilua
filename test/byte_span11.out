@@ -1,4 +1,4 @@
-Main fiber from VM 0x1 panicked: 'Numerical result out of range'
+Main fiber from VM 0x1 panicked: 'ERANGE'
 stack traceback:
 	input.lua:1: in main chunk
 	[C]: in function ''

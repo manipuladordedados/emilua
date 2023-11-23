@@ -1,4 +1,4 @@
-Main fiber from VM 0x1 panicked: 'Input/output error'
+Main fiber from VM 0x1 panicked: 'EIO'
 stack traceback:
 	[string "?"]: in function 'require'
 	input.lua:3: in main chunk

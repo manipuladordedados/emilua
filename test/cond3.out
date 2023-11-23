@@ -1,4 +1,4 @@
-Main fiber from VM 0x1 panicked: 'Operation not permitted'
+Main fiber from VM 0x1 panicked: 'EPERM'
 stack traceback:
 	[string "?"]: in function 'wait'
 	input.lua:9: in main chunk

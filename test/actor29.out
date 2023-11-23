@@ -1,4 +1,4 @@
-Main fiber from VM 0x1 panicked: 'Operation not supported'
+Main fiber from VM 0x1 panicked: 'ENOTSUP'
 stack traceback:
 	input.lua:5: in main chunk
 	[C]: in function ''

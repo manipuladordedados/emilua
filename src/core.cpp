@@ -773,7 +773,7 @@ std::string category_impl::message(int value) const noexcept
     case static_cast<int>(errc::interruption_already_allowed):
         return "Interrupt-ability already allowed";
     case static_cast<int>(errc::forbid_suspend_block):
-        return "Operation not permitted within a forbid-suspend block";
+        return "EPERM within a forbid-suspend block";
     case static_cast<int>(errc::interrupted):
         return "Fiber interrupted";
     case static_cast<int>(errc::unmatched_scope_cleanup):

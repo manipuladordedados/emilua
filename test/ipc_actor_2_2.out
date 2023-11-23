@@ -1,4 +1,4 @@
-Main fiber from VM 0x1 panicked: 'Invalid argument'
+Main fiber from VM 0x1 panicked: 'EINVAL'
 stack traceback:
 	[string "?"]: in function 'send'
 	input.lua:13: in main chunk

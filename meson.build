@@ -421,6 +421,12 @@ if get_option('enable_tests')
         implicit_include_directories : false,
     )
 
+    errno_sed_bin = executable(
+        'errno_sed',
+        'tool/errno_sed.cpp',
+        implicit_include_directories : false,
+    )
+
     tests_env = [
         # Test must override this env so non-colored terminal output will be
         # auto-detected (this is, in itself, another test)
@@ -428,6 +434,7 @@ if get_option('enable_tests')
 
         'EMILUA_BIN=' + emilua_bin.full_path(),
         'NORMALIZE_PATH_BIN=' + normalize_path_bin.full_path(),
+        'ERRNO_SED_BIN=' + errno_sed_bin.full_path(),
         'AWK_BIN=' + gawk.full_path(),
 
         # Make output strings for perror(), strerror(), and others predictable

@@ -1,6 +1,17 @@
 BEGIN {
     FS = "\n"
 
+    errno_sed_bin = ENVIRON["ERRNO_SED_BIN"]
+    if (PROCINFO["platform"] == "mingw") {
+        gsub(/\\/, "/", errno_sed_bin)
+    }
+    while ((errno_sed_bin | getline) > 0) {
+        errnos[0] += 1
+        i = index($0, ":")
+        errnos[errnos[0], "k"] = substr($0, 1, i - 1)
+        errnos[errnos[0], "v"] = substr($0, i + 1)
+    }
+
     normalize_path_bin = ENVIRON["NORMALIZE_PATH_BIN"]
     if (PROCINFO["platform"] == "mingw") {
         gsub(/\\/, "/", normalize_path_bin)
@@ -17,10 +28,6 @@ BEGIN {
         printf "`normalize_path` not working: %s\n", ERRNO >"/dev/stderr"
         err = 1
         exit
-    }
-
-    if (PROCINFO["platform"] == "posix") {
-        "uname -s" | getline uname_output
     }
 }
 !got_seed && NR == 1 && /^SEED=[0-9]+$/ {
@@ -86,16 +93,8 @@ END {
 function sanitize_record(    i, pattern, captures, input, output)
 {
     # Normalize errno strings
-    if (PROCINFO["platform"] == "mingw") {
-        sub(/invalid argument/, "Invalid argument")
-        sub(/operation not permitted/, "Operation not permitted")
-        sub(/not supported/, "Operation not supported")
-        sub(/device or resource busy/, "Device or resource busy")
-        sub(/resource deadlock would occur/, "Resource deadlock avoided")
-        sub(/'result out of range/, "'Numerical result out of range")
-    } else if (uname_output == "Darwin") {
-        sub(/Resource busy/, "Device or resource busy")
-        sub(/Result too large/, "Numerical result out of range")
+    for (i = 1; i <= errnos[0]; i++) {
+        sub(errnos[i, "v"], errnos[i, "k"])
     }
 
     # Normalize runtime paths

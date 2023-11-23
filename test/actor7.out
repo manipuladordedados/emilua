@@ -1,4 +1,4 @@
-Fiber 0x1 panicked: 'Device or resource busy'
+Fiber 0x1 panicked: 'EBUSY'
 stack traceback:
 	[string "?"]: in function 'receive'
 	input.lua:12: in function <input.lua:11>

@@ -15,5 +15,5 @@ table: 0x1
 true
 true
 --
-false	Invalid argument
-false	Invalid argument
+false	EINVAL
+false	EINVAL
