@@ -2,28 +2,160 @@
 
 :_:
 
-A cross-platform execution engine for LuaJIT with support for async IO and
-flexible threading layout.
+[ditaa, emilua_overview]
+....
+  +-----+  +-----+   +-----+
+  | Lua |  | Lua |   | Lua |
+  |  VM |  |  VM |   |  VM |
+  +--+--+  +--+--+   +--+--+
+     |        |         |
+     +------+ |  +------+
+            | |  |
+          +-+-+--+-+
+          |        |
+     +----+ Emilua +--+-----+
+     |    |        |  |     |
+     |    +--+--+--+  |     |
+     |       |  |     |     |
+     |       |  | +---+---+ |
+     |       |  | | async | |
++----+----+  |  | |   IO  | |
+| threads |  |  | +-------+ |
++---------+  |  |           |
+             |  |    +------+-+
+             |  |    | fibers |
+       +-----+  |    +--------+
+       |        |
+  +----+----+   +----+
+  | sandbox |        |
+  +----+----+   +----+----+
+       |        | process |
+   +---+----+   +----+----+
+   | Emilua |        |
+   +---+----+   +----+---+
+       |        | Emilua |
+    +--+--+     +-+--+-+-+
+    | Lua |       |  | |
+    |  VM |     +-+  | +-+
+    +-----+     |    |   |
+             +--+--+ | +-+---+
+             | Lua | | | Lua |
+             |  VM | | |  VM |
+             +-----+ | +-----+
+                     |
+                +----+----+
+                | threads |
+                +---------+
+....
 
-== Execution engine
+Emilua is an execution engine. As a runtime for your Lua programs, it'll
+orchestrate concurrent systems by providing proper primitives you can build
+upon.
 
-Emilua strives to be the most complete execution engine for Lua. Whether you
-want single-VM concurrency support to exploit complex async IO interactions or
-multi-VM support to exploit possible parallelism your needs should be covered.
+[ditaa, emilua_simple]
+....
+  +-----+
+  | Lua |
+  |  VM |
+  +--+--+
+     |
++----+---+
+| Emilua |
++----+---+
+     |
+   +-+--+
+   | IO |
+   +----+
+....
+
+Emilua is not a framework. You don't design the structure of your software by
+extending a complex concurrency framework. On the contrary, you start *simple*
+and only makes use of primitives your application needs. Should you only have
+the need for simple serial programs, you'll have access to plenty of IO
+abstractions that work across a broad range of platforms.
 
 == Fibers
 
-Avoid the callback-hell syndrome, and enjoy tried-and-true sync primitives when
-you opt for shared-memory concurrency. Emilua offers a complete fiber API
-(bonus: you don’t need to migrate to Lua 5.4 to enjoy to-be-closed specifier
-benefits -- use cleanup handlers directly from LuaJIT instead).
+[ditaa, emilua_simple]
+....
++---------+
+| fiber 1 |
++----+----+
+     |
+  +--+--+  +---------+
+  | Lua +--+ fiber 2 |
+  |  VM |  +---------+
+  +--+--+
+     |
++----+----+
+| fiber 3 |
++---------+
+....
+
+When your software grows and the need to increase the concurrency level a notch
+arises, just spawn fibers. The same IO abstractions that work on serial programs
+will work on concurrent programs as well. You don't need to pay an extra huge
+cost by completely refactoring your program during this
+transition{_}footnote:[Emilua doesn't suffer from
+https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/[Bob
+Nystrom' two colors problem].].
+
+== Sandboxes
+
+[ditaa, emilua_simple]
+....
++---------------------+ +------------+
+| limited system view | | supervisor |
+|                     | |   Lua VM   |
+|       +-----------+ | +-+----------+
+|       | sandboxed | |   |
+|       |  process  +-----+
+|       |           | |
+|       |   +-----+ | |
+|       |   | Lua | | |
+|       |   |  VM | | |
+|       |   +-----+ | |
+|       |           | |
+|       +-----------+ |
++---------------------+
+....
+
+Emilua has first-class support for modern sandboxing technologies.
+
+* Linux namespaces.
+* Linux's Landlock.
+* FreeBSD's Capsicum.
+
+Mitigate risks by creating disposable cheap sandboxes to parse untrusted input
+data.
+
+https://en.wikipedia.org/wiki/Capability-based_security[Sandboxing support on
+Emilua is based around capabilities] and elegantly integrates with the same
+machinery that is used to implement the actor model.
+
+[quote,Capsicum: practical capabilities for UNIX, 'Robert N. M. Watson, Jonathan Anderson, Ben Laurie, and Kris Kennaway']
+____
+Compartmentalised application development is, of necessity, distributed
+application development, with software components running in different processes
+and communicating via message passing.
+____
+
+The only resource a sandbox starts with is `inbox` and its only method:
+`receive()`. In this initial state, a sandbox _can't even ask_ for new resources
+(i.e. it's a push model). The Lua VM on the host system can then selectively
+choose which resources are safe to hand over (e.g. read-only access to a file
+and a pipe).
 
 == Cross-platform
+
+* Windows.
+* Linux.
+* FreeBSD.
 
 Emilua is powered by the battle-tested and scar-accumulating Boost.Asio library
 to drive IO and it’ll make use of
 https://www.boost.org/doc/libs/1_81_0/doc/html/boost_asio/overview/implementation.html[native
-APIs in a long list of supported platforms]. Moreover processor ISA
+APIs in a long list of supported platforms]. However processor ISA
 compatibility will be http://luajit.org/install.html[limited by LuaJIT
 availability].
 
@@ -77,5 +209,4 @@ availability].
 * A basic regex module.
 * Native JSON module.
 * Portable error code comparison.
-* Powerful interface to interact with Linux namespaces.
 * And much more.
