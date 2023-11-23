@@ -15,7 +15,7 @@ endif::[]
 
 .General concurrency models
 |===
-| |Fibers |Threads |Local actors |Distributed actors |Sandboxed actors{_}footnote:[Linux namespaces]
+| |Fibers |Threads |Local actors |Distributed actors |Sandboxed actors{_}footnote:[Linux namespaces, Landlock, or Capsicum]
 
 |cqueues{_}footnote:[link:https://github.com/wahern/cqueues[]: Designed “to be unintrusive, composable, and embeddable within existing applications” [sic\].] | |✔ | | |
 |Tarantool{_}footnote:[<https://www.tarantool.io/en/doc/2.1/reference/reference_lua/fiber/>] |✔ | | | |
