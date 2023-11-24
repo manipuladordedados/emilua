@@ -763,11 +763,14 @@ template<class T>
 void push(lua_State* L, std::string_view key, T v)
 {
     static constexpr auto arg_pusher = hana::overload(
-        [](lua_State* L, int v) { lua_pushinteger(L, v); },
-        [](lua_State* L, lua_Integer v) { lua_pushinteger(L, v); },
-        [](lua_State* L, lua_Number v) { lua_pushnumber(L, v); },
+        [](lua_State* L, auto v)
+            -> std::enable_if_t<std::is_integral_v<decltype(v)>> {
+                lua_pushinteger(L, v); },
+        [](lua_State* L, auto v)
+            -> std::enable_if_t<std::is_floating_point_v<decltype(v)>> {
+                lua_pushnumber(L, v); },
         [](lua_State* L, bool v) { lua_pushboolean(L, v ? 1 : 0); },
-        [](lua_State* L, const char* v) {lua_pushstring(L, v); },
+        [](lua_State* L, const char* v) { lua_pushstring(L, v); },
         [](lua_State* L, std::string_view v) {
             lua_pushlstring(L, v.data(), v.size());
         }
