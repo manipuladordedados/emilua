@@ -6,4 +6,4 @@ TEST="$2"
 
 set -o pipefail
 
-"$EMILUA_BIN" "$TEST.lua" 2>&1 | "$AWK_BIN" -v TEST="$TEST" -f "$AWKSCRIPT"
+"$EMILUA_BIN" "$TEST.lua" 2>&1 | "$AWK_BIN" -v TEST="$TEST" -f "$ERRNO_SED" -f "$AWKSCRIPT"

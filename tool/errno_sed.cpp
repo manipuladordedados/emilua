@@ -115,7 +115,15 @@ int main()
     std::sort(errors.begin(), errors.end(), [](auto& a, auto& b) {
         return a.second.size() > b.second.size(); });
 
+    cout << "BEGIN {\n" <<
+        "    errnos[0] = " << errors.size() << "\n";
+
+    std::size_t i = 0;
     for (auto& x : errors) {
-        cout << x.first << ':' << x.second << endl;
+        ++i;
+        cout <<
+            "    errnos[" << i << ", \"k\"] = \"" << x.first << "\"\n" <<
+            "    errnos[" << i << ", \"v\"] = \"" << x.second << "\"\n";
     }
+    cout << "}\n";
 }

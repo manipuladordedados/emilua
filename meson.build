@@ -464,10 +464,18 @@ if get_option('enable_tests')
         implicit_include_directories : false,
     )
 
-    errno_sed_bin = executable(
-        'errno_sed',
-        'tool/errno_sed.cpp',
-        implicit_include_directories : false,
+    errno_sed = custom_target(
+        'errnos.awk',
+        build_by_default : true,
+        command : [
+            executable(
+                'errno_sed',
+                'tool/errno_sed.cpp',
+                implicit_include_directories : false,
+            ),
+        ],
+        capture : true,
+        output : 'errnos.awk',
     )
 
     tests_env = [
@@ -477,7 +485,7 @@ if get_option('enable_tests')
 
         'EMILUA_BIN=' + emilua_bin.full_path(),
         'NORMALIZE_PATH_BIN=' + normalize_path_bin.full_path(),
-        'ERRNO_SED_BIN=' + errno_sed_bin.full_path(),
+        'ERRNO_SED=' + errno_sed.full_path(),
         'AWK_BIN=' + gawk.full_path(),
 
         # Make output strings for perror(), strerror(), and others predictable

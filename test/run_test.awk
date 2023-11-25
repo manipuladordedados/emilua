@@ -1,17 +1,6 @@
 BEGIN {
     FS = "\n"
 
-    errno_sed_bin = ENVIRON["ERRNO_SED_BIN"]
-    if (PROCINFO["platform"] == "mingw") {
-        gsub(/\\/, "/", errno_sed_bin)
-    }
-    while ((errno_sed_bin | getline) > 0) {
-        errnos[0] += 1
-        i = index($0, ":")
-        errnos[errnos[0], "k"] = substr($0, 1, i - 1)
-        errnos[errnos[0], "v"] = substr($0, i + 1)
-    }
-
     normalize_path_bin = ENVIRON["NORMALIZE_PATH_BIN"]
     if (PROCINFO["platform"] == "mingw") {
         gsub(/\\/, "/", normalize_path_bin)
