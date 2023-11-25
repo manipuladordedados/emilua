@@ -19,8 +19,6 @@ conf.set10(
 )
 conf.set10('ENABLE_FILE_IO', get_option('enable_file_io'))
 conf.set('THREAD_SUPPORT_LEVEL',  get_option('thread_support_level'))
-
-conf.set('IPC_ACTOR_MSG_SIZE', get_option('ipc_actor_msg_size'))
 conf.set('IPC_ACTOR_MSG_MAX_MEMBERS_NUMBER',
          get_option('ipc_actor_msg_max_members_number'))
 

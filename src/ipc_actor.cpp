@@ -861,7 +861,7 @@ static int child_main(void*)
 #endif // BOOST_OS_LINUX
 
     std::string buffer;
-    buffer.resize(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE);
+    buffer.resize(sizeof(ipc_actor_message));
 
     {
         auto nread = read(inboxfd, buffer.data(), buffer.size());

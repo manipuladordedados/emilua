@@ -1567,7 +1567,7 @@ static int spawn_vm(lua_State* L)
             request.stderr_action = ipc_actor_start_vm_request::USE_PIPE;
         }
 
-        if (body.size() > EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE) {
+        if (body.size() > sizeof(ipc_actor_message)) {
             push(L, std::errc::message_size);
             return lua_error(L);
         }

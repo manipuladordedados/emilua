@@ -54,13 +54,13 @@ struct ipc_actor_message
         double as_double;
         std::uint64_t as_int;
     } members[EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER];
+
+    // 512 = 256 for the maximum key string + 256 for the maximum value.
+    // 256 = 1 byte for size member + maximum 255 bytes following.
+    // 255 = the maximum value of an uint8 field (the size parameter preceding).
     unsigned char strbuf[
-        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE - sizeof(members)];
+        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER * 512];
 };
-static_assert(sizeof(ipc_actor_message) ==
-              EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE);
-static_assert(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER *
-              512 == sizeof(std::declval<ipc_actor_message>().strbuf));
 static_assert(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER > 2);
 
 struct ipc_actor_inbox_service;
