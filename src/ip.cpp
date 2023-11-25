@@ -35,8 +35,8 @@ EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
 
-extern unsigned char stream_connect_bytecode[];
-extern std::size_t stream_connect_bytecode_size;
+extern unsigned char ip_connect_bytecode[];
+extern std::size_t ip_connect_bytecode_size;
 
 char ip_key;
 char ip_address_mt_key;
@@ -6294,8 +6294,8 @@ void init_ip(lua_State* L)
 
         lua_pushliteral(L, "connect");
         int res = luaL_loadbuffer(
-            L, reinterpret_cast<char*>(stream_connect_bytecode),
-            stream_connect_bytecode_size, nullptr);
+            L, reinterpret_cast<char*>(ip_connect_bytecode),
+            ip_connect_bytecode_size, nullptr);
         assert(res == 0); boost::ignore_unused(res);
         rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
         rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);

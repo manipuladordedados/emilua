@@ -17,8 +17,8 @@ extern unsigned char read_all_bytecode[];
 extern std::size_t read_all_bytecode_size;
 extern unsigned char read_at_least_bytecode[];
 extern std::size_t read_at_least_bytecode_size;
-extern unsigned char get_line_bytecode[];
-extern std::size_t get_line_bytecode_size;
+extern unsigned char scanner_get_line_bytecode[];
+extern std::size_t scanner_get_line_bytecode_size;
 extern unsigned char scanner_buffer_bytecode[];
 extern std::size_t scanner_buffer_bytecode_size;
 extern unsigned char scanner_set_buffer_bytecode[];
@@ -122,8 +122,9 @@ void init_stream(lua_State* L)
                     lua_pushliteral(L, "get_line");
                     {
                         res = luaL_loadbuffer(
-                            L, reinterpret_cast<char*>(get_line_bytecode),
-                            get_line_bytecode_size, nullptr);
+                            L,
+                            reinterpret_cast<char*>(scanner_get_line_bytecode),
+                            scanner_get_line_bytecode_size, nullptr);
                         assert(res == 0); boost::ignore_unused(res);
                         rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
                         rawgetp(L, LUA_REGISTRYINDEX, &raw_getmetatable_key);

@@ -27,7 +27,7 @@ install:
   - vcpkg install --triplet x64-windows-static-release luajit
   - vcpkg install --triplet x64-windows-release fmt
   - set PATH=%PATH%;C:\Tools\vcpkg\packages\luajit_x64-windows-static-release\tools
-  - choco install pkgconfiglite xxd re2c gperf gawk
+  - choco install pkgconfiglite re2c gperf gawk
   - choco install boost-msvc-14.3 --version=1.81.0
 
 build_script:

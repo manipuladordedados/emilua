@@ -36,7 +36,6 @@ trial_protocol = dependency('trial-protocol')
 cereal = dependency('cereal')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
-find_program('xxd')
 
 add_project_arguments(
     '-DBOOST_DLL_USE_STD_FS',
@@ -89,15 +88,14 @@ else
 endif
 
 bytecode_gen = generator(
-    find_program(
-        'luajit',
-        dirs: [
-            luajit.get_variable(pkgconfig : 'prefix', default_value : '') /
-            'bin'
-        ]
+    executable(
+        'luabcxxd',
+        'tool/luabcxxd.cpp',
+        dependencies : [ luajit ],
+        implicit_include_directories : false,
     ),
     output: 'bc_@BASENAME@.cpp',
-    arguments: ['--', '@INPUT@', '@OUTPUT@']
+    arguments: ['@INPUT@', '@OUTPUT@']
 )
 
 re2c = find_program('re2c')
@@ -223,17 +221,62 @@ src = [
 ]
 
 bytecode_src = [
-    'bytecode/async_base.lua',
-    'bytecode/lua_shim.lua',
-    'bytecode/stream.lua',
-    'bytecode/actor.lua',
-    'bytecode/fiber.lua',
+    # async base
+    'bytecode/var_args__retval1_to_error_.lua',
+    'bytecode/var_args__retval1_to_error__fwd_retval2_.lua',
+    'bytecode/var_args__retval1_to_error__fwd_retval23_.lua',
+    'bytecode/var_args__retval1_to_error__fwd_retval234_.lua',
+
+    # lua shim
+    'bytecode/coroutine_create.lua',
+    'bytecode/coroutine_resume.lua',
+    'bytecode/coroutine_wrap.lua',
+    'bytecode/pcall.lua',
+    'bytecode/xpcall.lua',
+
+    # stream
+    'bytecode/read_all.lua',
+    'bytecode/read_at_least.lua',
+    'bytecode/write_all.lua',
+    'bytecode/write_at_least.lua',
+    'bytecode/scanner_get_line.lua',
+    'bytecode/scanner_buffered_line.lua',
+    'bytecode/scanner_buffer.lua',
+    'bytecode/scanner_new.lua',
+    'bytecode/scanner_remove_line.lua',
+    'bytecode/scanner_set_buffer.lua',
+    'bytecode/scanner_with_awk_defaults.lua',
+
+    # actor
+    'bytecode/chan_op.lua',
+
+    # fiber
+    'bytecode/spawn_start_fn.lua',
+    'bytecode/fiber_join.lua',
+
+    # scope
+    'bytecode/scope_cleanup_pop.lua',
     'bytecode/scope.lua',
-    'bytecode/state.lua',
-    'bytecode/condition_variable.lua',
-    'bytecode/file.lua',
-    'bytecode/json.lua',
-    'bytecode/ip.lua',
+
+    # state
+    'bytecode/start_fn.lua',
+    'bytecode/module_start_fn.lua',
+    'bytecode/require.lua',
+
+    # condition_variable
+    'bytecode/cond_wait.lua',
+
+    # file
+    'bytecode/read_all_at.lua',
+    'bytecode/read_at_least_at.lua',
+    'bytecode/write_all_at.lua',
+    'bytecode/write_at_least_at.lua',
+
+    # json
+    'bytecode/json_encode.lua',
+
+    # ip
+    'bytecode/ip_connect.lua',
 ]
 
 re2c_src = [
