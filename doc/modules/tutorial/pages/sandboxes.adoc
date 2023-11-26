@@ -224,7 +224,7 @@ enum kind
     nil             = 6
 };
 
-struct linux_container_message
+struct ipc_actor_message
 {
     union
     {
@@ -232,7 +232,7 @@ struct linux_container_message
         uint64_t as_int;
     } members[EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER];
     unsigned char strbuf[
-        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_SIZE - sizeof(members)];
+        EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER * 512];
 };
 ----
 
@@ -390,9 +390,13 @@ with nested containers:
 
 === Work lifetime management
 
-PID1 eases our life a lot. As soon as any container starts to act suspiciously
-we can safely kill the whole subtree of processes by sending `SIGKILL` to the
-PID1 that started it.
+For Linux namespaces, PID1 eases our life a lot. As soon as any container starts
+to act suspiciously we can safely kill the whole subtree of processes by sending
+`SIGKILL` to the PID1 that started it.
+
+For FreeBSD's Capsicum, `PD_DAEMON` is not permitted in subprocesses that were
+placed into capability mode. If all references to a procdesc file descriptor are
+closed, the associated process will be automatically terminated by the kernel.
 
 `AF_UNIX`+`SOCK_SEQPACKET` sockets are connection-oriented and simplify our work
 even further. We `shutdown()` the ends of each pair such that they'll act
