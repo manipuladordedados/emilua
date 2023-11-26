@@ -289,6 +289,7 @@ if host_machine.system() != 'windows'
         'src/unix.cpp',
         'src/ipc_actor.cpp',
         'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
+        'src' / host_machine.system() / 'system/spawn.cpp',
     ]
 endif
 
