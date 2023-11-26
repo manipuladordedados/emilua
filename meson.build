@@ -287,6 +287,8 @@ if host_machine.system() != 'windows'
     src += [
         'src/file_descriptor.cpp',
         'src/unix.cpp',
+        'src/ipc_actor.cpp',
+        'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
     ]
 endif
 
@@ -309,11 +311,6 @@ endif
 
 if get_option('enable_file_io')
     src += 'src/file.cpp'
-endif
-
-if host_machine.system() != 'windows' # POSIX systems
-    src += 'src/ipc_actor.cpp'
-    src += 'src/ipc_actor/sys_bindings' / host_machine.system() + '.cpp'
 endif
 
 # Meson doesn't have the ability to chain generators, so instead of
