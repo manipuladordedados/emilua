@@ -90,6 +90,21 @@ before awaiting for the child.
 +
 NOTE: Ideally the system kernel would expose some re-parent syscall, but until
 then (if ever), `signal_on_gcreaper` will be necessary.
++
+
+NOTE: Only available on Linux.
+
+`pd_daemon: boolean = see-below`::
+
+Instead of the default terminate-on-close behaviour, allow the process to live
+until it is explicitly killed with kill(2).
++
+
+By default, it's `true` unless the parent process is in capability mode (see
+cap_enter(2)).
++
+
+NOTE: Only available on FreeBSD.
 
 `scheduler.policy: string|nil`::
 
@@ -195,22 +210,37 @@ VMs are using it.
 
 Enter in this Linux user namespace. When `nsenter_user` is specified, Emilua
 always enter in the user namespace before any other namespace.
++
+
+NOTE: Only available on Linux.
 
 `nsenter_mount: file_descriptor|nil`::
 
 Enter in this Linux mount namespace.
++
+
+NOTE: Only available on Linux.
 
 `nsenter_uts: file_descriptor|nil`::
 
 Enter in this Linux UTS namespace.
++
+
+NOTE: Only available on Linux.
 
 `nsenter_ipc: file_descriptor|nil`::
 
 Enter in this Linux IPC namespace.
++
+
+NOTE: Only available on Linux.
 
 `nsenter_net: file_descriptor|nil`::
 
 Enter in this Linux net namespace.
++
+
+NOTE: Only available on Linux.
 
 == `subprocess` functions
 
