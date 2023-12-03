@@ -31,10 +31,10 @@ Currently it has support for:
 * `"extended"`.
 * `"ecma"`.
 
-`ignore_case: boolean`:: Whether to ignore casing.
-`nosubs: boolean`:: When performing matches, all marked sub-expressions are
-  treated as non-marking sub-expressions.
-`optimize: boolean`:: Whether to optimize the regex.
+`ignore_case: boolean = false`:: Whether to ignore casing.
+`nosubs: boolean = false`:: When performing matches, all marked sub-expressions
+  are treated as non-marking sub-expressions.
+`optimize: boolean = false`:: Whether to optimize the regex.
 
 == Functions
 
