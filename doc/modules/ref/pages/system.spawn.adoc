@@ -64,6 +64,9 @@ descriptors numbered from `3` to `9` are acceptable (i.e. the same limitations
 of low fds that you're likely to face on older UNIX shells). If you need to pass
 more than 10 file descriptors -- stdin, stdout, stderr, plus these extra 7 file
 descriptors -- use another interface (e.g. `SCM_RIGHTS`).
++
+
+NOTE: *Not* available on Windows.
 
 `signal_on_gcreaper: integer = system.signal.SIGTERM`::
 
@@ -125,21 +128,32 @@ Values acceptable on Linux for real-time policies are:
 
 `"rr"`::: See `SCHED_RR`. Must also set `scheduler.priority`.
 --
++
+NOTE: *Not* available on Windows.
 
 `scheduler.priority: integer|nil`::
 
 The interpretation of this parameter is dependant on `scheduler.policy`.
++
+
+NOTE: *Not* available on Windows.
 
 `scheduler.reset_on_fork: boolean = false`::
 
 If `true`, grandchildren created as a result of a call to fork(2) from the
 direct child will not inherit privileged scheduling policies. If set, must also
 set `scheduler.policy`.
++
+
+NOTE: *Not* available on Windows.
 
 `start_new_session: boolean = false`::
 
 Whether to create a new session and become the session leader. On `true`, calls
 `setsid()` on the child.
++
+
+NOTE: *Not* available on Windows.
 
 `set_ctty: file_descriptor|nil`::
 
@@ -147,11 +161,16 @@ Set the controlling terminal for the child. It is an error to specify
 `set_ctty`, but omit `start_new_session`.
 +
 NOTE: It's an error to specify both `set_ctty` and `foreground`.
++
+NOTE: *Not* available on Windows.
 
 `process_group: integer|nil`::
 
 Set the process group (it calls `setpgid()` on the child). On 0, the child's
 process group ID is made the same as its process ID.
++
+
+NOTE: *Not* available on Windows.
 
 `foreground: "stdin"|"stdout"|"stderr"|file_descriptor|nil`::
 
@@ -163,32 +182,52 @@ NOTE: `"stdin"`, `"stdout"`, and `"stderr"` can only be specified if parent and
 child share the same file for the specified standard handle.
 +
 NOTE: It's an error to specify both `foreground` and `set_ctty`.
++
+NOTE: *Not* available on Windows.
 
 `ruid: integer|nil`::
 
 Set the real user ID.
++
+
+NOTE: *Not* available on Windows.
 
 `euid: integer|nil`::
 
 Set the effective user ID. If the set-user-ID permission bit is enabled on the
 executable file, its effect will override this setting (see execve(2)).
++
+
+NOTE: *Not* available on Windows.
 
 `rgid: integer|nil`::
 
 Set the real group ID.
++
+
+NOTE: *Not* available on Windows.
 
 `egid: integer|nil`::
 
 Set the effective group ID. If the set-group-ID permission bit is enabled on the
 executable file, its effect will override this setting (see execve(2)).
++
+
+NOTE: *Not* available on Windows.
 
 `extra_groups: integer[]|nil`::
 
 Set the supplementary group IDs.
++
+
+NOTE: *Not* available on Windows.
 
 `umask: integer|nil`::
 
 See umask(3p).
++
+
+NOTE: *Not* available on Windows.
 
 `working_directory: filesystem.path|file_descriptor|nil`::
 
@@ -205,6 +244,8 @@ process, but the thread. For Emilua, the thread will exist for at least as long
 as the calling Lua VM exists (even if the Lua VM might jump between
 threads). The thread will also exist for even longer, for as long as other Lua
 VMs are using it.
++
+NOTE: *Not* available on Windows.
 
 `nsenter_user: file_descriptor|nil`::
 

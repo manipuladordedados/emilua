@@ -65,10 +65,8 @@ static char system_err_key;
 char linux_capabilities_mt_key;
 #endif // BOOST_OS_LINUX
 
-#if !BOOST_OS_WINDOWS
 int system_spawn(lua_State* L);
 void init_system_spawn(lua_State* L);
-#endif // !BOOST_OS_WINDOWS
 EMILUA_GPERF_DECLS_END(system);
 
 #if BOOST_OS_WINDOWS
@@ -2460,11 +2458,7 @@ static int system_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "spawn",
             [](lua_State* L) -> int {
-#if BOOST_OS_WINDOWS
-                lua_pushcfunction(L, throw_enosys);
-#else // BOOST_OS_WINDOWS
                 lua_pushcfunction(L, system_spawn);
-#endif // BOOST_OS_WINDOWS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -3055,9 +3049,7 @@ void init_system(lua_State* L)
     lua_rawset(L, LUA_REGISTRYINDEX);
 #endif // BOOST_OS_LINUX
 
-#if !BOOST_OS_WINDOWS
     init_system_spawn(L);
-#endif // !BOOST_OS_WINDOWS
 }
 
 } // namespace emilua
