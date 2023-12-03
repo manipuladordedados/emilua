@@ -1,0 +1,102 @@
+= C++ embedder API
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+== Description
+
+endif::[]
+
+If you want to embed Emilua in your own Boost.Asio-based programs, this is the
+list of steps you need to do:
+
+1. Compile and link against Emilua (use Meson or pkg-config to have the
+   appropriate compiler flags filled automatically).
+
+2. `#include <emilua/state.hpp>`
+
+3. Instantiate `emilua::app_context`. This object needs to stay alive for as
+   long as at least one Lua VM is alive. If you want to be sure, just make sure
+   it outlives `boost::asio::io_context` and you're good to go.
+
+4. Call `emilua::make_vm()` (see `src/main.ypp` for an example).
+
+5. Call `emilua::vm_context::fiber_resume()` inside the strand returned by
+   `emilua::vm_context::strand()` to start the Lua VM created in the previous
+   step (see `src/main.ypp` for an example).
+
+6. Optionally synchronize against other threads before you exit the
+   application. If you're going to spawn actors in foreign
+   `boost::asio::io_context` objects in your Lua programs then it's a good idea
+   to include this step. See below.
+
+WARNING: Emilua is not designed to work properly with
+`boost::asio::io_context::stop()`. Many cleanup steps will be missed if you call
+this function. If you need to use it, then spawn Emilua programs in their own
+`boost::asio::io_context` instances.
+
+== `emilua::app_context`
+
+This type stores process-wide info that is shared among all Lua VMs
+(e.g. process arguments, environment, module paths, module caches, default
+logger, which VM is the master VM, ...).
+
+If you want to embed the Lua programs in your binary as well you should
+pre-populate the module cache here with the contents of all Lua files you intend
+to ship in the binary. `modules_cache_registry` is the member you're looking
+for. Do this before you start the first Lua VM.
+
+== Master VM
+
+If you want to allow your Lua programs to change process state that is shared
+among all program threads (e.g. current working directory, signal handlers, ...)
+then you need to elect one Lua VM to be the master VM.
+
+The 1-one snippet that follows is enough to finish this setup. This step must be
+done before you call `fiber_resume()`.
+
+[source,cpp]
+----
+appctx.master_vm = vm_ctx;
+----
+
+== Cleanup at exit
+
+First make sure `emilua::app_context` outlives `boost::asio::io_context`.
+
+After `boost::asio::io_context::run()` returns you can use the following snippet
+to synchronize against extra threads and `boost::asio::io_context` objects your
+Lua scripts created{_}footnote:[Emilua only instantiates new threads and
+`boost::asio::io_context` objects if your Lua programs explicitly ask for that
+when it calls `spawn_vm()`. You can also disable this feature altogether at
+build time.].
+
+[source,cpp]
+----
+{
+    std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
+    while (appctx.extra_threads_count > 0)
+        appctx.extra_threads_count_empty_cond.wait(lk);
+}
+----
+
+== Actors spawned in different processes
+
+Emilua has the ability to spawn Lua VMs in their own processes for isolation or
+sandboxing purposes. To enable this feature, a supervisor process must be
+created while the program is still single-threaded.
+
+For communication with the supervisor process, Emilua uses an UNIX socket. The
+file descriptor for this process is stored in
+`app_context::ipc_actor_service_sockfd`. See `src/main.ypp` for an example on
+how to initialize this variable.
+
+On Linux, you also need to initialize `emilua::clone_stack_address`.
+
+If you don't intend to have Lua VMs tied to their own processes triggered by Lua
+programs then you can skip this step.

@@ -23,4 +23,6 @@ include::pages/sandboxes.adoc[]
 
 include::pages/linux_namespaces.adoc[]
 
+include::pages/embedding.adoc[]
+
 :leveloffset: -1
