@@ -118,8 +118,20 @@ static int subprocess_kill(lua_State* L)
         return lua_error(L);
     }
 
+    UINT uExitCode = lua_tointeger(L, 2);
+
+    // TerminateProcess() and kill() are different beasts. kill() sends an UNIX
+    // signal. TerminateProcess() doesn't send an UNIX
+    // signal. TerminateProcess() directly sets the process' exit code. For
+    // consistency with other platforms supported by Emilua, we use 128 + signo
+    // as the exit code. User is not calling TerminateProcess(). User is calling
+    // kill() so kill() semantics are expected. Also subprocess is a direct
+    // descendent of the calling process so we have more freedom to define its
+    // conventions.
+    uExitCode += 128;
+
     if (
-        TerminateProcess(p->process.native_handle(), lua_tointeger(L, 2)) == -1
+        TerminateProcess(p->process.native_handle(), uExitCode) == -1
     ) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
