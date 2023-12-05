@@ -130,9 +130,7 @@ static int subprocess_kill(lua_State* L)
     // conventions.
     uExitCode += 128;
 
-    if (
-        TerminateProcess(p->process.native_handle(), uExitCode) == -1
-    ) {
+    if (!TerminateProcess(p->process.native_handle(), uExitCode)) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
