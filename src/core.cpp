@@ -132,8 +132,8 @@ void app_context::init_log_domain(std::string_view name, int& log_level)
     log_level = level;
 }
 
-void app_context::log(int priority, std::string_view domain,
-                      fmt::string_view format_str, fmt::format_args args)
+void app_context::vlog(int priority, std::string_view domain,
+                       fmt::string_view format_str, fmt::format_args args)
 {
     thread_local fmt::memory_buffer buf;
     buf.clear();

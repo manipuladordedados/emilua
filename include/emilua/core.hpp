@@ -357,13 +357,14 @@ public:
         init_log_domain(log_domain<Dom>::name, log_domain<Dom>::log_level);
     }
 
-    template<class Domain>
-    void log(int priority, fmt::string_view format_str, fmt::format_args args)
+    template<class Domain, class... T>
+    void log(int priority, fmt::format_string<T...> format, T&&... args)
     {
         if (priority > log_domain<Domain>::log_level)
             return;
 
-        log(priority, log_domain<Domain>::name, format_str, std::move(args));
+        vlog(priority, log_domain<Domain>::name, format,
+             fmt::make_format_args(args...));
     }
 
 #if BOOST_OS_UNIX
@@ -404,8 +405,9 @@ public:
 
 private:
     void init_log_domain(std::string_view name, int& log_level);
-    void log(int priority, std::string_view domain, fmt::string_view format_str,
-             fmt::format_args args);
+
+    void vlog(int priority, std::string_view domain,
+              fmt::string_view format_str, fmt::format_args args);
 };
 
 class properties_service : public asio::execution_context::service
