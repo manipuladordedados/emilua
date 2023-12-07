@@ -974,7 +974,7 @@ static int child_main(void*)
             struct sigaction sa;
             sa.sa_handler = sighandler;
             sigemptyset(&sa.sa_mask);
-            sa.sa_flags = 0;
+            sa.sa_flags = SA_RESTART;
 
             // It'd be futile to re-route every signal (e.g. SIGSTOP) so we
             // don't even try it. Only re-route signals that are useful for
