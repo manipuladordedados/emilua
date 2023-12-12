@@ -65,7 +65,7 @@ section will be prefixed by "emilua-".
 * LuaJIT.
 * Boost.Asio (and other Boost libraries as well).
 * https://fmt.dev/[fmt] 8.0 or later.
-* `re2c` 1.3 or later.
+* `re2c` 2.1 or later.
 * `gperf` 3.1 or later (maybe it'll work on older versions as well).
 * GNU AWK 5.1 or later.
 

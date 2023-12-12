@@ -98,41 +98,27 @@ bytecode_gen = generator(
     arguments: ['@INPUT@', '@OUTPUT@']
 )
 
-re2c = find_program('re2c')
-re2c_version = run_command([re2c, '--version'], check : true).stdout().split('\n')[0].split(' ')[-1].strip()
 extra_re2c_args = []
 
-if meson.get_compiler('cpp').get_id() == 'gcc' and re2c_version.version_compare('>=2.0')
+if meson.get_compiler('cpp').get_id() == 'gcc'
     extra_re2c_args += '--case-ranges'
 endif
 
-re2c_args = [
-    '-W', # Turn on all warnings
-    '--flex-syntax',
-    '--empty-class', 'match-none',
-    '--input-encoding', 'ascii',
-    extra_re2c_args,
-    '-I', '@CURRENT_SOURCE_DIR@/include',
-    '@INPUT@', '-o', '@OUTPUT@'
-]
-
-if re2c_version.version_compare('>=2.1')
-    re2c_gen = generator(
-        re2c,
-        output: '@BASENAME@.cpp',
-        depfile : '@PLAINNAME@.d',
-        arguments: [
-            '--depfile', '@DEPFILE@',
-            re2c_args,
-        ],
-    )
-else
-    re2c_gen = generator(
-        re2c,
-        output: '@BASENAME@.cpp',
-        arguments: re2c_args,
-    )
-endif
+re2c_gen = generator(
+    find_program('re2c'),
+    output: '@BASENAME@.cpp',
+    depfile : '@PLAINNAME@.d',
+    arguments: [
+        '--depfile', '@DEPFILE@',
+        '-W', # Turn on all warnings
+        '--flex-syntax',
+        '--empty-class', 'match-none',
+        '--input-encoding', 'ascii',
+        extra_re2c_args,
+        '-I', '@CURRENT_SOURCE_DIR@/include',
+        '@INPUT@', '-o', '@OUTPUT@',
+    ],
+)
 
 gperf_gen = generator(
     gawk,
