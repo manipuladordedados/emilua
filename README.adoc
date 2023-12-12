@@ -60,7 +60,7 @@ section will be prefixed by "emilua-".
 
 == Dependencies
 
-* Meson 0.62.0 or later.
+* Meson 1.2.0 or later.
 * {cpp}20 compiler (GCC 12.1 or newer should work).
 * LuaJIT.
 * Boost.Asio (and other Boost libraries as well).

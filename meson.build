@@ -1,7 +1,7 @@
 project(
     'emilua', 'cpp',
     default_options : ['cpp_std=c++20'],
-    meson_version : '>=0.62.0',
+    meson_version : '>=1.2.0',
     license : 'BSL-1.0',
     version : '0.6.0',
 )
@@ -283,6 +283,7 @@ bytecode_src = [
 
 re2c_src = [
     'src/actor.ypp',
+    'src/state.ypp',
 ]
 
 if host_machine.system() != 'windows'
@@ -315,28 +316,11 @@ if get_option('enable_file_io')
     src += 'src/file.cpp'
 endif
 
-# Meson doesn't have the ability to chain generators, so instead of
-# just calling gperf_gen.process(re2c_gen.process(re2c_src)), we have
-# to manually write each target that needs a pipeline of generators
-# https://github.com/mesonbuild/meson/issues/1141
-pp_state = custom_target(
-    'bc2_state.cpp',
-    output : 'bc2_state.cpp',
-    input : re2c_gen.process('src/state.ypp'),
-    command : [
-        gawk,
-        '--file', meson.current_source_dir() / 'src' / 'emilua_gperf.awk',
-        '--assign', 'GPERF_BIN=' + find_program('gperf').full_path(),
-        '@INPUT@', '@OUTPUT@',
-    ],
-)
-
 libemilua = library(
     'emilua',
     gperf_gen.process(src),
     bytecode_gen.process(bytecode_src),
-    re2c_gen.process(re2c_src),
-    pp_state,
+    gperf_gen.process(re2c_gen.process(re2c_src)),
     cpp_pch : 'pch/pchheader.hpp',
     dependencies : [
         thread_dep,
