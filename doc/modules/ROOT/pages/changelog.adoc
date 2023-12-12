@@ -3,6 +3,8 @@
 :_:
 :cpp: C++
 
+== 0.6
+
 == 0.5
 
 * Add `mutex.try_lock()`.
