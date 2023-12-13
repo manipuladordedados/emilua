@@ -118,13 +118,18 @@ static int path_iterator(lua_State* L)
         if (*iter == path->end())
             return 0;
 
-        auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-        rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-        setmetatable(L, -2);
-        new (ret) fs::path{};
-        *ret = **iter;
-        ++*iter;
-        return 1;
+        try {
+            auto ret = (*iter)->u8string();
+            ++*iter;
+            lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+            return 1;
+        } catch (const std::system_error& e) {
+            push(L, e.code());
+            return lua_error(L);
+        } catch (const std::exception& e) {
+            lua_pushstring(L, e.what());
+            return lua_error(L);
+        }
     };
 
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));

@@ -43,7 +43,8 @@ Returns the path in the generic format encoded in UTF-8.
 
 === `iterator(self) -> function`
 
-Returns an iterator to the path components. The iteration order follows:
+Returns an iterator to the path components (as strings). The iteration order
+follows:
 
 1. The root name, if any.
 2. The root directory, if any.
