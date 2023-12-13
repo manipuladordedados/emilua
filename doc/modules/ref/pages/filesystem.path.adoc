@@ -85,17 +85,17 @@ Same as above if the return is non empty. Same as `self`, otherwise.
 
 == Properties
 
-=== `root_name: path`
+=== `root_name: string`
 
 Returns the root name, or an empty path.
 
-=== `root_directory: path`
+=== `root_directory: string`
 
 Returns the root directory, or an empty path.
 
 === `root_path: path`
 
-Returns `root_name / root_directory`.
+Returns `path.new(root_name) / root_directory`.
 
 === `relative_path: path`
 
@@ -105,15 +105,15 @@ Returns path relative to `root_path`.
 
 Returns the path to the parent directory.
 
-=== `filename: path`
+=== `filename: string`
 
 Returns filename component.
 
-=== `stem: path`
+=== `stem: string`
 
 Returns filename component stripped of its extension.
 
-=== `extension: path`
+=== `extension: string`
 
 Returns the extension of the filename component.
 

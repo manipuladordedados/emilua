@@ -494,13 +494,10 @@ inline int path_root_name(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
 
-    auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    setmetatable(L, -2);
-    new (ret) fs::path{};
-
     try {
-        *ret = path->root_name();
+        auto ret = path->root_name().u8string();
+        lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+        return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
         return lua_error(L);
@@ -508,21 +505,16 @@ inline int path_root_name(lua_State* L)
         lua_pushstring(L, e.what());
         return lua_error(L);
     }
-
-    return 1;
 }
 
 inline int path_root_directory(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
 
-    auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    setmetatable(L, -2);
-    new (ret) fs::path{};
-
     try {
-        *ret = path->root_directory();
+        auto ret = path->root_directory().u8string();
+        lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+        return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
         return lua_error(L);
@@ -530,8 +522,6 @@ inline int path_root_directory(lua_State* L)
         lua_pushstring(L, e.what());
         return lua_error(L);
     }
-
-    return 1;
 }
 
 inline int path_root_path(lua_State* L)
@@ -604,13 +594,10 @@ inline int path_filename(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
 
-    auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    setmetatable(L, -2);
-    new (ret) fs::path{};
-
     try {
-        *ret = path->filename();
+        auto ret = path->filename().u8string();
+        lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+        return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
         return lua_error(L);
@@ -618,21 +605,16 @@ inline int path_filename(lua_State* L)
         lua_pushstring(L, e.what());
         return lua_error(L);
     }
-
-    return 1;
 }
 
 inline int path_stem(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
 
-    auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    setmetatable(L, -2);
-    new (ret) fs::path{};
-
     try {
-        *ret = path->stem();
+        auto ret = path->stem().u8string();
+        lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+        return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
         return lua_error(L);
@@ -640,21 +622,16 @@ inline int path_stem(lua_State* L)
         lua_pushstring(L, e.what());
         return lua_error(L);
     }
-
-    return 1;
 }
 
 inline int path_extension(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
 
-    auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    setmetatable(L, -2);
-    new (ret) fs::path{};
-
     try {
-        *ret = path->extension();
+        auto ret = path->extension().u8string();
+        lua_pushlstring(L, reinterpret_cast<char*>(ret.data()), ret.size());
+        return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
         return lua_error(L);
@@ -662,8 +639,6 @@ inline int path_extension(lua_State* L)
         lua_pushstring(L, e.what());
         return lua_error(L);
     }
-
-    return 1;
 }
 
 inline int path_empty(lua_State* L)
