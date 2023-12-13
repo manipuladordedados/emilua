@@ -5,6 +5,10 @@
 
 == 0.6
 
+* Convert decomposition functions from filesystem.path to properties:
+  `root_name`, `root_directory`, `root_path`, `relative_path`, `parent_path`,
+  `filename`, `stem`, `extension`.
+
 == 0.5
 
 * Add `mutex.try_lock()`.

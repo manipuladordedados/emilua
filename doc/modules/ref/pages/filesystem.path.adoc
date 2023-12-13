@@ -83,39 +83,39 @@ Returns a new path where `self` is made relative to `base`.
 
 Same as above if the return is non empty. Same as `self`, otherwise.
 
-=== `root_name(self) -> path`
+== Properties
+
+=== `root_name: path`
 
 Returns the root name, or an empty path.
 
-=== `root_directory(self) -> path`
+=== `root_directory: path`
 
 Returns the root directory, or an empty path.
 
-=== `root_path(self) -> path`
+=== `root_path: path`
 
-Returns `root_name(self) / root_directory(self)`.
+Returns `root_name / root_directory`.
 
-=== `relative_path(self) -> path`
+=== `relative_path: path`
 
-Returns path relative to `root_path()`.
+Returns path relative to `root_path`.
 
-=== `parent_path(self) -> path`
+=== `parent_path: path`
 
 Returns the path to the parent directory.
 
-=== `filename(self) -> path`
+=== `filename: path`
 
 Returns filename component.
 
-=== `stem(self) -> path`
+=== `stem: path`
 
 Returns filename component stripped of its extension.
 
-=== `extension(self) -> path`
+=== `extension: path`
 
 Returns the extension of the filename component.
-
-== Properties
 
 === `empty: boolean`
 

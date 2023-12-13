@@ -490,18 +490,9 @@ static int path_lexically_proximate(lua_State* L)
     return 1;
 }
 
-static int path_root_name(lua_State* L)
+inline int path_root_name(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -521,18 +512,9 @@ static int path_root_name(lua_State* L)
     return 1;
 }
 
-static int path_root_directory(lua_State* L)
+inline int path_root_directory(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -552,18 +534,9 @@ static int path_root_directory(lua_State* L)
     return 1;
 }
 
-static int path_root_path(lua_State* L)
+inline int path_root_path(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -583,18 +556,9 @@ static int path_root_path(lua_State* L)
     return 1;
 }
 
-static int path_relative_path(lua_State* L)
+inline int path_relative_path(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -614,18 +578,9 @@ static int path_relative_path(lua_State* L)
     return 1;
 }
 
-static int path_parent_path(lua_State* L)
+inline int path_parent_path(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -645,18 +600,9 @@ static int path_parent_path(lua_State* L)
     return 1;
 }
 
-static int path_filename(lua_State* L)
+inline int path_filename(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -676,18 +622,9 @@ static int path_filename(lua_State* L)
     return 1;
 }
 
-static int path_stem(lua_State* L)
+inline int path_stem(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -707,18 +644,9 @@ static int path_stem(lua_State* L)
     return 1;
 }
 
-static int path_extension(lua_State* L)
+inline int path_extension(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
 
     auto ret = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
@@ -959,54 +887,14 @@ static int path_mt_index(lua_State* L)
                 lua_pushcfunction(L, path_lexically_proximate);
                 return 1;
             })
-        EMILUA_GPERF_PAIR(
-            "root_name",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_root_name);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "root_directory",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_root_directory);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "root_path",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_root_path);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "relative_path",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_relative_path);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "parent_path",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_parent_path);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "filename",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_filename);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "stem",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_stem);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "extension",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, path_extension);
-                return 1;
-            })
+        EMILUA_GPERF_PAIR("root_name", path_root_name)
+        EMILUA_GPERF_PAIR("root_directory", path_root_directory)
+        EMILUA_GPERF_PAIR("root_path", path_root_path)
+        EMILUA_GPERF_PAIR("relative_path", path_relative_path)
+        EMILUA_GPERF_PAIR("parent_path", path_parent_path)
+        EMILUA_GPERF_PAIR("filename", path_filename)
+        EMILUA_GPERF_PAIR("stem", path_stem)
+        EMILUA_GPERF_PAIR("extension", path_extension)
         EMILUA_GPERF_PAIR("empty", path_empty)
         EMILUA_GPERF_PAIR("has_root_path", path_has_root_path)
         EMILUA_GPERF_PAIR("has_root_name", path_has_root_name)
