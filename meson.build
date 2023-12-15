@@ -285,19 +285,6 @@ if get_option('enable_plugins')
     src += 'src/plugin.cpp'
 endif
 
-if get_option('enable_http')
-    warning('HTTP support is still experimental.' +
-            ' Please report any bugs you find.')
-
-    http_dep = dependency('emilua-http')
-    src += [
-        'src/websocket.cpp',
-        'src/http.cpp',
-    ]
-else
-    http_dep = dependency('', required : false)
-endif
-
 if get_option('enable_file_io')
     src += 'src/file.cpp'
 endif
@@ -317,7 +304,6 @@ libemilua = library(
         sord,
         trial_protocol,
         cereal,
-        http_dep,
         ssl,
         curses,
         libdl,
@@ -686,18 +672,6 @@ if get_option('enable_tests')
         tests +=  {
             'actor' : tests['actor'] + [
                 'actor29',
-            ]
-        }
-    endif
-
-    if get_option('enable_http')
-        tests +=  {
-            'http' : [
-                'http1',
-                'http2',
-                'http3',
-                'http4',
-                'http5',
             ]
         }
     endif

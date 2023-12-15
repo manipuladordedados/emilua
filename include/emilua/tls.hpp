@@ -24,9 +24,6 @@ class TlsSocket
     , public boost::beast::ssl_stream<asio::ip::tcp::socket>
 {
 public:
-    // TODO: fix bug in Boost.Http and remove this workaround
-    using lowest_layer_type = asio::ip::tcp::socket;
-
     TlsSocket(asio::ip::tcp::socket& socket,
               std::shared_ptr<asio::ssl::context> tls_context)
         : std::shared_ptr<asio::ssl::context>{std::move(tls_context)}
@@ -36,18 +33,6 @@ public:
     {}
 
     TlsSocket(TlsSocket&&) = default;
-
-    // TODO: fix bug in Boost.Http and remove this workaround
-    lowest_layer_type& lowest_layer()
-    {
-        return next_layer();
-    }
-
-    // TODO: fix bug in Boost.Http and remove this workaround
-    bool is_open() const
-    {
-        return next_layer().is_open();
-    }
 
     std::shared_ptr<asio::ssl::context>& tls_context()
     {

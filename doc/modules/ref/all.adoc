@@ -92,14 +92,6 @@ include::pages/file.write_all_at.adoc[]
 
 include::pages/file.write_at_least_at.adoc[]
 
-include::pages/http.headers.adoc[]
-
-include::pages/http.request.adoc[]
-
-include::pages/http.response.adoc[]
-
-include::pages/http.socket.adoc[]
-
 include::pages/ip.address.adoc[]
 
 include::pages/ip.address_info_flag.adoc[]
@@ -247,8 +239,6 @@ include::pages/unix.stream_socket.adoc[]
 include::pages/unix.seqpacket_acceptor.adoc[]
 
 include::pages/unix.seqpacket_socket.adoc[]
-
-include::pages/websocket.adoc[]
 
 include::pages/file_descriptor.adoc[]
 

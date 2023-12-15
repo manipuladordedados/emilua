@@ -1,8 +1,0 @@
-GET
-/foobar
-foobar2
-100
-Continue
-200
-OK
-foobar

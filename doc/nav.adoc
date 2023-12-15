@@ -70,11 +70,6 @@
 *** xref:ref:file.read_at_least_at.adoc[read_at_least_at]
 *** xref:ref:file.write_all_at.adoc[write_all_at]
 *** xref:ref:file.write_at_least_at.adoc[write_at_least_at]
-** http
-*** xref:ref:http.headers.adoc[]
-*** xref:ref:http.request.adoc[]
-*** xref:ref:http.response.adoc[]
-*** xref:ref:http.socket.adoc[]
 ** ip
 *** xref:ref:ip.address.adoc[address]
 *** xref:ref:ip.address_info_flag.adoc[address_info_flag]
@@ -150,5 +145,4 @@
 *** xref:ref:unix.stream_socket.adoc[stream_socket]
 *** xref:ref:unix.seqpacket_acceptor.adoc[seqpacket_acceptor]
 *** xref:ref:unix.seqpacket_socket.adoc[seqpacket_socket]
-** xref:ref:websocket.adoc[]
 ** xref:ref:file_descriptor.adoc[]

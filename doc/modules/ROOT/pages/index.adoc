@@ -169,9 +169,6 @@ availability].
 * Cancellable operations transparently integrated into the fiber interruption
   API.
 * Several generic algorithms.
-* Experimental HTTP and WebSocket support. In later releases they should be
-  split into their own plugin so they can evolve and follow their own release
-  schedules without impacting core Emilua.
 
 == IPC
 

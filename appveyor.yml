@@ -33,7 +33,7 @@ install:
 build_script:
   - md build
   - cd build
-  - meson setup -Dbackend=ninja -Denable_file_io=true -Denable_http=true -Denable_manpages=false -Ddisable_color=true -Dcpp_args=['-DFMT_HEADER_ONLY','-D_WIN32_WINNT=0x0602'] -Dcpp_eh=a -Db_pch=false -Dbuildtype=release -Ddefault_library=static -Db_ndebug=true ..
+  - meson setup -Dbackend=ninja -Denable_file_io=true -Denable_manpages=false -Ddisable_color=true -Dcpp_args=['-DFMT_HEADER_ONLY','-D_WIN32_WINNT=0x0602'] -Dcpp_eh=a -Db_pch=false -Dbuildtype=release -Ddefault_library=static -Db_ndebug=true ..
   - meson compile
   - copy C:\Libraries\boost_1_83_0\lib64-msvc-14.3\boost_nowide-vc143-mt-x64-1_83.dll .
 

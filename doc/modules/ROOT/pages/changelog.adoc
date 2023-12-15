@@ -11,6 +11,7 @@
 * Convert some filesystem.path properties to string: `root_name`,
   `root_directory`, `filename`, `stem`, `extension`.
 * filesystem.path.iterator() will return strings at each iteration now.
+* Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 
 == 0.5
 

@@ -65,11 +65,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/dll.hpp>
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
-#if EMILUA_CONFIG_ENABLE_HTTP
-#include <emilua/http.hpp>
-#include <emilua/websocket.hpp>
-#endif // EMILUA_CONFIG_ENABLE_HTTP
-
 #if EMILUA_CONFIG_ENABLE_FILE_IO
 #include <emilua/file.hpp>
 #endif // EMILUA_CONFIG_ENABLE_FILE_IO
@@ -1284,32 +1279,6 @@ static int require(lua_State* L)
                     return 2;
                 })
             EMILUA_GPERF_PAIR(
-                "http",
-                [](std::shared_lock<std::shared_mutex>&,
-                   std::shared_ptr<vm_context>, ContextType, std::string_view,
-                   lua_State* L) -> int {
-#if EMILUA_CONFIG_ENABLE_HTTP
-                    lua_pushboolean(L, 1);
-                    rawgetp(L, LUA_REGISTRYINDEX, &http_key);
-                    return 2;
-#else // EMILUA_CONFIG_ENABLE_HTTP
-                    return throw_enosys(L);
-#endif // EMILUA_CONFIG_ENABLE_HTTP
-                })
-            EMILUA_GPERF_PAIR(
-                "websocket",
-                [](std::shared_lock<std::shared_mutex>&,
-                   std::shared_ptr<vm_context>, ContextType, std::string_view,
-                   lua_State* L) -> int {
-#if EMILUA_CONFIG_ENABLE_HTTP
-                    lua_pushboolean(L, 1);
-                    rawgetp(L, LUA_REGISTRYINDEX, &websocket_key);
-                    return 2;
-#else // EMILUA_CONFIG_ENABLE_HTTP
-                    return throw_enosys(L);
-#endif // EMILUA_CONFIG_ENABLE_HTTP
-                })
-            EMILUA_GPERF_PAIR(
                 "ip",
                 [](std::shared_lock<std::shared_mutex>&,
                    std::shared_ptr<vm_context>, ContextType, std::string_view,
@@ -1826,11 +1795,6 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
 #if BOOST_OS_UNIX
     init_unix(L);
 #endif // BOOST_OS_UNIX
-
-#if EMILUA_CONFIG_ENABLE_HTTP
-    init_http(L);
-    init_websocket(L);
-#endif // EMILUA_CONFIG_ENABLE_HTTP
 
 #if EMILUA_CONFIG_ENABLE_FILE_IO
     init_file(L);
