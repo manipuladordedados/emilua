@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 Vinícius dos Santos Oliveira
+/* Copyright (c) 2021, 2023 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -52,11 +52,14 @@ public:
     // true that plugin loading happens after main() is called, but this
     // assumption will break on static builds that compile the plugin as part of
     // the same binary.
-    virtual void init_appctx(app_context& appctx) noexcept;
+    virtual void init_appctx(
+        const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+        app_context& appctx) noexcept;
 
     // It may be called multiple times on the same `ioctx` object. Use it to
     // register new services in the execution loop.
     virtual std::error_code init_ioctx_services(
+        std::shared_lock<std::shared_mutex>& modules_cache_registry_rlock,
         asio::io_context& ioctx) noexcept;
 
     // Called only once per VM. It should push the Lua module (table) on the
@@ -72,7 +75,9 @@ public:
     // implement that. Just apply "lazy loading" techniques on the next layer if
     // you need such a thing (e.g. a function that checks if the module is ready
     // and suspend until so otherwise).
-    virtual std::error_code init_lua_module(vm_context& vm_ctx, lua_State* L);
+    virtual std::error_code init_lua_module(
+        std::shared_lock<std::shared_mutex>& modules_cache_registry_rlock,
+        vm_context& vm_ctx, lua_State* L);
 
     virtual ~plugin() = 0;
 };

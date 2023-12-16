@@ -16,12 +16,16 @@ public:
         std::cout << "Plugin unloaded\n" << std::flush;
     }
 
-    void init_appctx(emilua::app_context&) noexcept override
+    void init_appctx(
+        const std::unique_lock<std::shared_mutex>&,
+        emilua::app_context&) noexcept override
     {
         std::cout << "Plugin initialized\n" << std::flush;
     }
 
-    std::error_code init_ioctx_services(asio::io_context&) noexcept override
+    std::error_code init_ioctx_services(
+        std::shared_lock<std::shared_mutex>&,
+        asio::io_context&) noexcept override
     {
         std::cout <<
             "Plugin (re-)installed io services into current execution"
@@ -30,7 +34,9 @@ public:
         return {};
     }
 
-    std::error_code init_lua_module(emilua::vm_context&, lua_State* L) override
+    std::error_code init_lua_module(
+        std::shared_lock<std::shared_mutex>&, emilua::vm_context&,
+        lua_State* L) override
     {
         std::cout << "Plugin imported\n" << std::flush;
         lua_newtable(L);

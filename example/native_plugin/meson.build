@@ -1,4 +1,4 @@
-project('my_plugin', 'cpp', default_options : ['cpp_std=c++17'])
+project('my_plugin', 'cpp', default_options : ['cpp_std=c++20'])
 
 emilua = dependency('emilua')
 boost = dependency('boost', version : '>=1.72')

@@ -16,10 +16,13 @@ namespace emilua {
 class ipc_actor_badinjector_plugin : plugin
 {
 public:
-    void init_appctx(app_context&) noexcept override;
+    void init_appctx(
+        const std::unique_lock<std::shared_mutex>&,
+        app_context&) noexcept override;
 
     std::error_code init_lua_module(
-        emilua::vm_context& /*vm_ctx*/, lua_State* L) override
+        std::shared_lock<std::shared_mutex>&, emilua::vm_context& /*vm_ctx*/,
+        lua_State* L) override
     {
         lua_newtable(L);
 
@@ -164,7 +167,8 @@ inline void set_as_blocking(int fd)
     }
 }
 
-void ipc_actor_badinjector_plugin::init_appctx(app_context&) noexcept
+void ipc_actor_badinjector_plugin::init_appctx(
+    const std::unique_lock<std::shared_mutex>&, app_context&) noexcept
 {
     leaf_t_dist.param(decltype(leaf_t_dist)::param_type{1, 5});
     bool_dist.param(decltype(bool_dist)::param_type{0, 1});

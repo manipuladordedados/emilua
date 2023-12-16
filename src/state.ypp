@@ -388,7 +388,7 @@ static boost::shared_ptr<plugin> load_native_module(
     cache_registry.emplace(
         std::piecewise_construct, std::forward_as_tuple(module_id),
         std::forward_as_tuple(native_module));
-    native_module->init_appctx(appctx);
+    native_module->init_appctx(modules_cache_registry_wlock, appctx);
     return native_module;
 }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -687,12 +687,13 @@ static int on_external_package(
         if (native_module) {
             assert(!already_loaded);
             auto ec = native_module->init_ioctx_services(
-                vm_ctx->strand().context());
+                modules_cache_registry_rlock, vm_ctx->strand().context());
             if (ec) {
                 push(L, ec, "module", module_id);
                 return lua_error(L);
             }
-            ec = native_module->init_lua_module(*vm_ctx, L);
+            ec = native_module->init_lua_module(
+                modules_cache_registry_rlock, *vm_ctx, L);
             if (ec) {
                 push(L, ec, "module", module_id);
                 return lua_error(L);
