@@ -29,12 +29,13 @@ namespace emilua {
 EMILUA_GPERF_DECLS_BEGIN(filesystem)
 EMILUA_GPERF_NAMESPACE(emilua)
 namespace fs = std::filesystem;
-EMILUA_GPERF_DECLS_END(filesystem)
 
 char filesystem_key;
 char filesystem_path_mt_key;
 static char space_info_mt_key;
 static char directory_iterator_mt_key;
+static char path_ctors_key;
+static char clock_ctors_key;
 
 struct directory_iterator
 {
@@ -50,8 +51,6 @@ struct directory_iterator
     static int make(lua_State* L);
 };
 
-EMILUA_GPERF_DECLS_BEGIN(filesystem)
-EMILUA_GPERF_NAMESPACE(emilua)
 static char filesystem_path_iterator_mt_key;
 static char file_clock_time_point_mt_key;
 static char file_status_mt_key;
@@ -1224,6 +1223,8 @@ static int path_mt_concat(lua_State* L)
     return 1;
 }
 
+EMILUA_GPERF_DECLS_BEGIN(path_ctors)
+EMILUA_GPERF_NAMESPACE(emilua)
 static int path_new(lua_State* L)
 {
     lua_settop(L, 1);
@@ -1280,6 +1281,7 @@ static int path_from_generic(lua_State* L)
         return lua_error(L);
     }
 }
+EMILUA_GPERF_DECLS_END(path_ctors)
 
 EMILUA_GPERF_DECLS_BEGIN(clock)
 EMILUA_GPERF_NAMESPACE(emilua)
@@ -2287,6 +2289,8 @@ int recursive_directory_iterator::make(lua_State* L)
     return 2;
 }
 
+EMILUA_GPERF_DECLS_BEGIN(clock_ctors)
+EMILUA_GPERF_NAMESPACE(emilua)
 static int file_clock_from_system(lua_State* L)
 {
     auto tp = static_cast<std::chrono::system_clock::time_point*>(
@@ -2315,7 +2319,10 @@ static int file_clock_from_system(lua_State* L)
 #endif
     return 1;
 }
+EMILUA_GPERF_DECLS_END(clock_ctors)
 
+EMILUA_GPERF_DECLS_BEGIN(filesystem)
+EMILUA_GPERF_NAMESPACE(emilua)
 static int absolute(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
@@ -3922,6 +3929,322 @@ static int filesystem_cap_set_file(lua_State* L)
     return 0;
 }
 #endif // BOOST_OS_LINUX
+EMILUA_GPERF_DECLS_END(filesystem)
+
+static int path_ctors_mt_index(lua_State* L)
+{
+    auto key = tostringview(L, 2);
+    return EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(int (*action)(lua_State*))
+        EMILUA_GPERF_DEFAULT_VALUE([](lua_State* L) -> int {
+            push(L, errc::bad_index, "index", 2);
+            return lua_error(L);
+        })
+        EMILUA_GPERF_PAIR(
+            "new",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, path_new);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "from_generic",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, path_from_generic);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "preferred_separator",
+            [](lua_State* L) -> int {
+                fs::path::value_type sep = fs::path::preferred_separator;
+                push(L, narrow_on_windows(&sep, 1));
+                return 1;
+            })
+    EMILUA_GPERF_END(key)(L);
+}
+
+static int clock_ctors_mt_index(lua_State* L)
+{
+    auto key = tostringview(L, 2);
+    return EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(int (*action)(lua_State*))
+        EMILUA_GPERF_DEFAULT_VALUE([](lua_State* L) -> int {
+            push(L, errc::bad_index, "index", 2);
+            return lua_error(L);
+        })
+        EMILUA_GPERF_PAIR(
+            "from_system",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, file_clock_from_system);
+                return 1;
+            })
+    EMILUA_GPERF_END(key)(L);
+}
+
+static int filesystem_mt_index(lua_State* L)
+{
+    auto key = tostringview(L, 2);
+    return EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(int (*action)(lua_State*))
+        EMILUA_GPERF_DEFAULT_VALUE([](lua_State* L) -> int {
+            push(L, errc::bad_index, "index", 2);
+            return lua_error(L);
+        })
+        EMILUA_GPERF_PAIR(
+            "path",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX, &path_ctors_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "clock",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX, &clock_ctors_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "directory_iterator",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, directory_iterator::make);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "recursive_directory_iterator",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, recursive_directory_iterator::make);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "absolute",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, absolute);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "canonical",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, canonical);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "weakly_canonical",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, weakly_canonical);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "relative",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, relative);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "proximate",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, proximate);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "last_write_time",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, last_write_time);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "copy",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, copy);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "copy_file",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, copy_file);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "copy_symlink",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, copy_symlink);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "create_directory",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, create_directory);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "create_directories",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, create_directories);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "create_hard_link",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, create_hard_link);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "create_symlink",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, create_symlink);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "create_directory_symlink",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, create_directory_symlink);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "equivalent",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, equivalent);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "file_size",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, file_size);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "hard_link_count",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, hard_link_count);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "chown",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, chown);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "lchown",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, lchown);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "chmod",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, chmod);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "lchmod",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, lchmod);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "read_symlink",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, read_symlink);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "remove",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, remove);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "remove_all",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, remove_all);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "rename",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, rename);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "resize_file",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, resize_file);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_empty",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_empty);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "current_working_directory",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, current_working_directory);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "space",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, space);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "status",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, status);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "symlink_status",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, symlink_status);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "temp_directory_path",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, temp_directory_path);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "umask",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, filesystem_umask);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "cap_get_file",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, filesystem_cap_get_file);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "cap_set_file",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, filesystem_cap_set_file);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
+                return 1;
+            })
+    EMILUA_GPERF_END(key)(L);
+}
 
 void init_filesystem(lua_State* L)
 {
@@ -4100,195 +4423,52 @@ void init_filesystem(lua_State* L)
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
 
-    lua_pushlightuserdata(L, &filesystem_key);
+    lua_pushlightuserdata(L, &path_ctors_key);
+    lua_newuserdata(L, 1);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/37);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
-        lua_pushliteral(L, "path");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/3);
-
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, path_new);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "from_generic");
-            lua_pushcfunction(L, path_from_generic);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "preferred_separator");
-            {
-                fs::path::value_type sep = fs::path::preferred_separator;
-                push(L, narrow_on_windows(&sep, 1));
-            }
-            lua_rawset(L, -3);
-        }
+        lua_pushliteral(L, "__metatable");
+        lua_pushliteral(L, "filesystem.path");
         lua_rawset(L, -3);
 
-        lua_pushliteral(L, "clock");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/1);
-
-            lua_pushliteral(L, "from_system");
-            lua_pushcfunction(L, file_clock_from_system);
-            lua_rawset(L, -3);
-        }
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, path_ctors_mt_index);
         lua_rawset(L, -3);
-
-        lua_pushliteral(L, "directory_iterator");
-        lua_pushcfunction(L, directory_iterator::make);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "recursive_directory_iterator");
-        lua_pushcfunction(L, recursive_directory_iterator::make);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "absolute");
-        lua_pushcfunction(L, absolute);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "canonical");
-        lua_pushcfunction(L, canonical);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "weakly_canonical");
-        lua_pushcfunction(L, weakly_canonical);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "relative");
-        lua_pushcfunction(L, relative);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "proximate");
-        lua_pushcfunction(L, proximate);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "last_write_time");
-        lua_pushcfunction(L, last_write_time);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "copy");
-        lua_pushcfunction(L, copy);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "copy_file");
-        lua_pushcfunction(L, copy_file);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "copy_symlink");
-        lua_pushcfunction(L, copy_symlink);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "create_directory");
-        lua_pushcfunction(L, create_directory);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "create_directories");
-        lua_pushcfunction(L, create_directories);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "create_hard_link");
-        lua_pushcfunction(L, create_hard_link);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "create_symlink");
-        lua_pushcfunction(L, create_symlink);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "create_directory_symlink");
-        lua_pushcfunction(L, create_directory_symlink);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "equivalent");
-        lua_pushcfunction(L, equivalent);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "file_size");
-        lua_pushcfunction(L, file_size);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "hard_link_count");
-        lua_pushcfunction(L, hard_link_count);
-        lua_rawset(L, -3);
-
-#if BOOST_OS_UNIX
-        lua_pushliteral(L, "chown");
-        lua_pushcfunction(L, chown);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "lchown");
-        lua_pushcfunction(L, lchown);
-        lua_rawset(L, -3);
-#endif // BOOST_OS_UNIX
-
-        lua_pushliteral(L, "chmod");
-        lua_pushcfunction(L, chmod);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "lchmod");
-        lua_pushcfunction(L, lchmod);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "read_symlink");
-        lua_pushcfunction(L, read_symlink);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "remove");
-        lua_pushcfunction(L, remove);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "remove_all");
-        lua_pushcfunction(L, remove_all);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "rename");
-        lua_pushcfunction(L, rename);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "resize_file");
-        lua_pushcfunction(L, resize_file);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "is_empty");
-        lua_pushcfunction(L, is_empty);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "current_working_directory");
-        lua_pushcfunction(L, current_working_directory);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "space");
-        lua_pushcfunction(L, space);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "status");
-        lua_pushcfunction(L, status);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "symlink_status");
-        lua_pushcfunction(L, symlink_status);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "temp_directory_path");
-        lua_pushcfunction(L, temp_directory_path);
-        lua_rawset(L, -3);
-
-#if BOOST_OS_UNIX
-        lua_pushliteral(L, "umask");
-        lua_pushcfunction(L, filesystem_umask);
-        lua_rawset(L, -3);
-#endif // BOOST_OS_UNIX
-
-#if BOOST_OS_LINUX
-        lua_pushliteral(L, "cap_get_file");
-        lua_pushcfunction(L, filesystem_cap_get_file);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "cap_set_file");
-        lua_pushcfunction(L, filesystem_cap_set_file);
-        lua_rawset(L, -3);
-#endif // BOOST_OS_LINUX
     }
+    setmetatable(L, -2);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &clock_ctors_key);
+    lua_newuserdata(L, 1);
+    {
+        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushliteral(L, "filesystem.clock");
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, clock_ctors_mt_index);
+        lua_rawset(L, -3);
+    }
+    setmetatable(L, -2);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &filesystem_key);
+    lua_newuserdata(L, 1);
+    {
+        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushliteral(L, "filesystem");
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, filesystem_mt_index);
+        lua_rawset(L, -3);
+    }
+    setmetatable(L, -2);
     lua_rawset(L, LUA_REGISTRYINDEX);
 }
 
