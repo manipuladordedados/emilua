@@ -1,0 +1,21 @@
+= filesystem.exists
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.exists(p: fs.path) -> boolean
+----
+
+== Description
+
+Checks whether the given path refers to an existing file or directory.

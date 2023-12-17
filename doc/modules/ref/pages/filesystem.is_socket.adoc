@@ -1,0 +1,21 @@
+= filesystem.is_socket
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.is_socket(p: fs.path) -> boolean
+----
+
+== Description
+
+Checks whether the given path refers to a named IPC socket.

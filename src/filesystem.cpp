@@ -3641,6 +3641,249 @@ static int current_working_directory(lua_State* L)
     return 0;
 }
 
+static int exists(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::exists(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_block_file(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_block_file(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_character_file(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_character_file(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_directory(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_directory(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_fifo(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_fifo(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_other(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_other(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_regular_file(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_regular_file(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_socket(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_socket(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
+static int is_symlink(lua_State* L)
+{
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::error_code ec;
+    bool ret = fs::is_symlink(*path, ec);
+    if (ec) {
+        push(L, ec);
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, ret ? 1 : 0);
+    return 1;
+}
+
 static int space(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
@@ -4187,6 +4430,60 @@ static int filesystem_mt_index(lua_State* L)
             "current_working_directory",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, current_working_directory);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "exists",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, exists);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_block_file",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_block_file);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_character_file",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_character_file);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_directory",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_directory);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_fifo",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_fifo);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_other",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_other);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_regular_file",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_regular_file);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_socket",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_socket);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_symlink",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, is_symlink);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

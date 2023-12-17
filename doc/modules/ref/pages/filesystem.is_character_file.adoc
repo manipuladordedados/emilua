@@ -1,0 +1,21 @@
+= filesystem.is_character_file
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.is_character_file(p: fs.path) -> boolean
+----
+
+== Description
+
+Checks whether the given path refers to a character special file.

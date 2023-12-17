@@ -66,6 +66,24 @@ include::pages/filesystem.resize_file.adoc[]
 
 include::pages/filesystem.is_empty.adoc[]
 
+include::pages/filesystem.exists.adoc[]
+
+include::pages/filesystem.is_block_file.adoc[]
+
+include::pages/filesystem.is_character_file.adoc[]
+
+include::pages/filesystem.is_directory.adoc[]
+
+include::pages/filesystem.is_fifo.adoc[]
+
+include::pages/filesystem.is_other.adoc[]
+
+include::pages/filesystem.is_regular_file.adoc[]
+
+include::pages/filesystem.is_socket.adoc[]
+
+include::pages/filesystem.is_symlink.adoc[]
+
 include::pages/filesystem.space.adoc[]
 
 include::pages/filesystem.status.adoc[]

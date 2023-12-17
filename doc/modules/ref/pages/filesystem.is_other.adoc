@@ -1,0 +1,22 @@
+= filesystem.is_other
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.is_other(p: fs.path) -> boolean
+----
+
+== Description
+
+Checks whether the given path refers to a file of type other type. That is, the
+file exists, but is neither regular file, nor directory nor a symlink.
