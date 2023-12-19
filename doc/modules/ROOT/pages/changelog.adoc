@@ -16,6 +16,7 @@
   `is_regular_file()`, `is_socket()`, `is_symlink()`. It was already possible to
   query for these attributes. These functions were added as an extra
   convenience.
+* Add yet more functions to the module filesystem: `mkfifo()`.
 * Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 
 == 0.5

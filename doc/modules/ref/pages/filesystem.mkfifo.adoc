@@ -1,0 +1,21 @@
+= filesystem.mkfifo
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.mkfifo(p: fs.path, mode: integer)
+----
+
+== Description
+
+See mkfifo(3).

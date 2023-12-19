@@ -3116,6 +3116,38 @@ static int create_directory_symlink(lua_State* L)
     return 0;
 }
 
+#if BOOST_OS_UNIX
+static int mkfifo(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    mode_t mode = luaL_checkinteger(L, 2);
+
+    if (::mkfifo(path->c_str(), mode) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+
+        return lua_error(L);
+    }
+
+    return 0;
+}
+#endif // BOOST_OS_UNIX
+
 static int equivalent(lua_State* L)
 {
     lua_settop(L, 2);
@@ -4338,6 +4370,16 @@ static int filesystem_mt_index(lua_State* L)
             "create_directory_symlink",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, create_directory_symlink);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "mkfifo",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, mkfifo);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
