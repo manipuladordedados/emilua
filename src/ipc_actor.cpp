@@ -12,7 +12,6 @@
 #include <boost/scope_exit.hpp>
 #include <boost/hana/less.hpp>
 #include <boost/hana/plus.hpp>
-#include <boost/predef/os/bsd.h>
 
 #include <cereal/types/unordered_map.hpp>
 #include <cereal/types/string.hpp>

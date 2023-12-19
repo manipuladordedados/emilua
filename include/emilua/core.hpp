@@ -15,6 +15,7 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/predef/os/linux.h>
 #include <boost/predef/os/unix.h>
+#include <boost/predef/os/bsd.h>
 #include <boost/config.hpp>
 
 #include <boost/hana/functional/overload.hpp>

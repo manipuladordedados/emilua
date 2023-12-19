@@ -16,8 +16,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/scope_exit.hpp>
 
-#include <boost/predef/os/bsd.h>
-
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
 #include <emilua/system.hpp>
