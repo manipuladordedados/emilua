@@ -12,7 +12,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <cstdlib>
 
 #include <boost/preprocessor/control/iif.hpp>
-#include <boost/predef/os/windows.h>
 #include <boost/asio/signal_set.hpp>
 #include <boost/vmd/is_number.hpp>
 #include <boost/predef/os/macos.h>

@@ -7,8 +7,6 @@
 
 #include <emilua/core.hpp>
 
-#include <boost/predef/os/windows.h>
-
 #if BOOST_OS_WINDOWS
 #include <boost/nowide/convert.hpp>
 #endif

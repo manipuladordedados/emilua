@@ -9,7 +9,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/unicast.hpp>
 #include <boost/asio/ip/v6_only.hpp>
-#include <boost/predef/os/windows.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/scope_exit.hpp>
 

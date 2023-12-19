@@ -13,6 +13,7 @@
 #include <boost/core/ignore_unused.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/intrusive/list.hpp>
+#include <boost/predef/os/windows.h>
 #include <boost/predef/os/linux.h>
 #include <boost/predef/os/unix.h>
 #include <boost/predef/os/bsd.h>
