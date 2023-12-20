@@ -1,0 +1,21 @@
+= filesystem.mknod
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.mknod(p: fs.path, mode: integer, dev: integer)
+----
+
+== Description
+
+See mknod(3).

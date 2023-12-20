@@ -38,6 +38,8 @@
 *** xref:ref:filesystem.create_hard_link.adoc[create_hard_link]
 *** xref:ref:filesystem.create_symlink.adoc[create_symlink]
 *** xref:ref:filesystem.mkfifo.adoc[mkfifo]
+*** xref:ref:filesystem.mknod.adoc[mknod]
+*** xref:ref:filesystem.makedev.adoc[makedev]
 *** xref:ref:filesystem.equivalent.adoc[equivalent]
 *** xref:ref:filesystem.file_size.adoc[file_size]
 *** xref:ref:filesystem.hard_link_count.adoc[hard_link_count]

@@ -15,12 +15,14 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/scope_exit.hpp>
 
 #if BOOST_OS_UNIX
+#include <sys/types.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
+#include <sys/sysmacros.h>
 #endif // BOOST_OS_LINUX
 EMILUA_GPERF_DECLS_END(includes)
 
@@ -3146,6 +3148,46 @@ static int mkfifo(lua_State* L)
 
     return 0;
 }
+
+static int mknod(lua_State* L)
+{
+    lua_settop(L, 3);
+
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
+    if (!path || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    mode_t mode = luaL_checkinteger(L, 2);
+    dev_t dev = luaL_checkinteger(L, 3);
+
+    if (::mknod(path->c_str(), mode, dev) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+
+        lua_pushliteral(L, "path1");
+        lua_pushvalue(L, 1);
+        lua_rawset(L, -3);
+
+        return lua_error(L);
+    }
+
+    return 0;
+}
+
+static int fs_makedev(lua_State* L)
+{
+    int major = luaL_checkinteger(L, 1);
+    int minor = luaL_checkinteger(L, 2);
+
+    lua_pushinteger(L, makedev(major, minor));
+    return 1;
+}
 #endif // BOOST_OS_UNIX
 
 static int equivalent(lua_State* L)
@@ -4377,6 +4419,26 @@ static int filesystem_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_UNIX
                 lua_pushcfunction(L, mkfifo);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "mknod",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, mknod);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "makedev",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, fs_makedev);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_UNIX
