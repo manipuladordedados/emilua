@@ -265,6 +265,9 @@ bytecode_src = [
 
     # ip
     'bytecode/ip_connect.lua',
+
+    # filesystem
+    'bytecode/mode.lua',
 ]
 
 re2c_src = [

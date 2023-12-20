@@ -32,12 +32,16 @@ EMILUA_GPERF_DECLS_BEGIN(filesystem)
 EMILUA_GPERF_NAMESPACE(emilua)
 namespace fs = std::filesystem;
 
+extern unsigned char mode_bytecode[];
+extern std::size_t mode_bytecode_size;
+
 char filesystem_key;
 char filesystem_path_mt_key;
 static char space_info_mt_key;
 static char directory_iterator_mt_key;
 static char path_ctors_key;
 static char clock_ctors_key;
+static char mode_key;
 
 struct directory_iterator
 {
@@ -4313,6 +4317,12 @@ static int filesystem_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "mode",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX, &mode_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "clock",
             [](lua_State* L) -> int {
                 rawgetp(L, LUA_REGISTRYINDEX, &clock_ctors_key);
@@ -4870,6 +4880,14 @@ void init_filesystem(lua_State* L)
         lua_rawset(L, -3);
     }
     setmetatable(L, -2);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &mode_key);
+    int res = luaL_loadbuffer(
+        L, reinterpret_cast<char*>(mode_bytecode), mode_bytecode_size, nullptr);
+    assert(res == 0); boost::ignore_unused(res);
+    lua_getglobal(L, "bit");
+    lua_call(L, 1, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 }
 

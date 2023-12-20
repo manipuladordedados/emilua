@@ -1,0 +1,26 @@
+= filesystem.mode
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+
+fs.mode(user: integer, group: integer, other: integer) -> integer
+    return bit.bor(bit.lshift(user, 6), bit.lshift(group, 3), other)
+end
+----
+
+== Description
+
+A helper function to create POSIX mode permission bits.

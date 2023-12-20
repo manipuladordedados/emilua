@@ -12,6 +12,8 @@ include::pages/condition_variable.adoc[]
 
 include::pages/filesystem.path.adoc[]
 
+include::pages/filesystem.mode.adoc[]
+
 include::pages/filesystem.directory_entry.adoc[]
 
 include::pages/filesystem.directory_iterator.adoc[]

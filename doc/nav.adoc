@@ -22,6 +22,7 @@
 ** xref:ref:byte_span.adoc[]
 ** filesystem
 *** xref:ref:filesystem.path.adoc[path]
+*** xref:ref:filesystem.mode.adoc[mode]
 *** xref:ref:filesystem.directory_entry.adoc[directory_entry]
 *** xref:ref:filesystem.directory_iterator.adoc[directory_iterator]
 *** xref:ref:filesystem.recursive_directory_iterator.adoc[recursive_directory_iterator]
