@@ -226,6 +226,10 @@ Optionally one may pass an extra argument to `get_option()` with either a list
 of strings for the policies of interest, or just a single string in case there's
 only one policy of interest.
 
+`"remote_security_label": string`::
+(Linux only) Returns the SELinux security label associated with the remote
+process.
+
 == Properties
 
 === `is_open: boolean`

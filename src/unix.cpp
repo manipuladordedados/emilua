@@ -5,6 +5,7 @@
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/asio/local/connect_pair.hpp>
+#include <boost/container/small_vector.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <emilua/file_descriptor.hpp>
@@ -2950,6 +2951,40 @@ static int unix_stream_socket_get_option(lua_State* L)
                 return lua_error(L);
 #endif // BOOST_OS_BSD_FREE
             })
+        EMILUA_GPERF_PAIR(
+            "remote_security_label",
+            [](lua_State* L, unix_stream_socket* socket) -> int {
+#if BOOST_OS_LINUX
+                boost::container::small_vector<char, NAME_MAX> value;
+                value.resize(value.capacity());
+                for (;;) {
+                    socklen_t optlen = value.size();
+                    int res = getsockopt(
+                        socket->socket.native_handle(), SOL_SOCKET, SO_PEERSEC,
+                        value.data(), &optlen);
+                    if (res == -1 && errno == ERANGE) {
+                        value.resize(optlen);
+                        continue;
+                    }
+                    if (res == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    value.resize(optlen);
+                    break;
+                }
+
+                if (value.back() == '\0')
+                    value.pop_back();
+
+                lua_pushlstring(L, value.data(), value.size());
+                return 1;
+#else
+                push(L, std::errc::not_supported,
+                     "arg", "remote_security_label");
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
+            })
     EMILUA_GPERF_END(key)(L, socket);
 }
 
@@ -4732,6 +4767,40 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
                      "arg", "remote_security_labels");
                 return lua_error(L);
 #endif // BOOST_OS_BSD_FREE
+            })
+        EMILUA_GPERF_PAIR(
+            "remote_security_label",
+            [](lua_State* L, unix_seqpacket_socket* socket) -> int {
+#if BOOST_OS_LINUX
+                boost::container::small_vector<char, NAME_MAX> value;
+                value.resize(value.capacity());
+                for (;;) {
+                    socklen_t optlen = value.size();
+                    int res = getsockopt(
+                        socket->socket.native_handle(), SOL_SOCKET, SO_PEERSEC,
+                        value.data(), &optlen);
+                    if (res == -1 && errno == ERANGE) {
+                        value.resize(optlen);
+                        continue;
+                    }
+                    if (res == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    value.resize(optlen);
+                    break;
+                }
+
+                if (value.back() == '\0')
+                    value.pop_back();
+
+                lua_pushlstring(L, value.data(), value.size());
+                return 1;
+#else
+                push(L, std::errc::not_supported,
+                     "arg", "remote_security_label");
+                return lua_error(L);
+#endif // BOOST_OS_LINUX
             })
     EMILUA_GPERF_END(key)(L, socket);
 }
