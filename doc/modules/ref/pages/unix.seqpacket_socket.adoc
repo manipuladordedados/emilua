@@ -225,6 +225,14 @@ Boost.Asio documentation].
 https://www.boost.org/doc/libs/1_72_0/doc/html/boost_asio/reference/socket_base/receive_buffer_size.html[Check
 Boost.Asio documentation].
 
+`"remote_security_labels": { [string]: string }|string|nil`::
+(FreeBSD only) Returns the security labels associated with each policy for the
+remote process.
++
+Optionally one may pass an extra argument to `get_option()` with either a list
+of strings for the policies of interest, or just a single string in case there's
+only one policy of interest.
+
 === `io_control(self, command: string[, ...])`
 
 Perform an IO control command on the socket.

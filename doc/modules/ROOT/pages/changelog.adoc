@@ -18,6 +18,7 @@
   convenience.
 * Add yet more functions to the module filesystem: `mkfifo()`, `mknod()`,
   `makedev()`.
+* New socket options to retrieve security labels from UNIX sockets endpoints.
 * Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 
 == 0.5

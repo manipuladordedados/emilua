@@ -12,6 +12,10 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
 #include <emilua/unix.hpp>
+
+#if BOOST_OS_BSD_FREE
+#include <sys/mac.h>
+#endif // BOOST_OS_BSD_FREE
 EMILUA_GPERF_DECLS_END(includes)
 
 // Linux internally defines this to 255
@@ -2576,6 +2580,7 @@ static int unix_stream_socket_set_option(lua_State* L)
 
 static int unix_stream_socket_get_option(lua_State* L)
 {
+    lua_settop(L, 3);
     luaL_checktype(L, 2, LUA_TSTRING);
 
     auto socket = static_cast<unix_stream_socket*>(lua_touserdata(L, 1));
@@ -2661,6 +2666,134 @@ static int unix_stream_socket_get_option(lua_State* L)
                 }
                 lua_pushboolean(L, o.value());
                 return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "remote_security_labels",
+            [](lua_State* L, unix_stream_socket* socket) -> int {
+#if BOOST_OS_BSD_FREE
+                mac_t label;
+                bool single_policy;
+                switch (lua_type(L, 3)) {
+                default:
+                    push(L, std::errc::invalid_argument, "arg", 3);
+                    return lua_error(L);
+                case LUA_TNIL:
+                    if (mac_prepare_process_label(&label) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = false;
+                    break;
+                case LUA_TSTRING: {
+                    auto policy = tostringview(L, 3);
+                    if (policy.find(',') != std::string_view::npos) {
+                        push(L, std::errc::invalid_argument, "arg", 3);
+                        return lua_error(L);
+                    }
+                    if (mac_prepare(&label, policy.data()) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = true;
+                    break;
+                }
+                case LUA_TTABLE: {
+                    std::string policies;
+                    for (int i = 1 ;; ++i) {
+                        lua_rawgeti(L, 3, i);
+                        switch (lua_type(L, -1)) {
+                        default:
+                            push(L, std::errc::invalid_argument, "arg", 3);
+                            return lua_error(L);
+                        case LUA_TNIL:
+                            lua_pop(L, 1);
+                            goto end_for;
+                        case LUA_TSTRING:
+                            break;
+                        }
+                        auto policy = tostringview(L);
+                        if (policy.find(',') != std::string_view::npos) {
+                            push(L, std::errc::invalid_argument, "arg", 3);
+                            return lua_error(L);
+                        }
+                        if (!policies.empty())
+                            policies.push_back(',');
+
+                        policies.append(policy);
+                        lua_pop(L, 1);
+                    }
+                    end_for:
+                    if (policies.empty()) {
+                        push(L, std::errc::invalid_argument, "arg", 3);
+                        return lua_error(L);
+                    }
+                    if (mac_prepare(&label, policies.data()) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = false;
+                    break;
+                }
+                }
+                BOOST_SCOPE_EXIT_ALL(&) { mac_free(label); };
+                if (mac_get_peer(socket->socket.native_handle(), label) == -1) {
+                    push(L, std::error_code{errno, std::system_category()});
+                    return lua_error(L);
+                }
+
+                char* text = nullptr;
+                if (mac_to_text(label, &text) == -1) {
+                    push(L, std::error_code{errno, std::system_category()});
+                    return lua_error(L);
+                }
+                BOOST_SCOPE_EXIT_ALL(&) { free(text); };
+
+                std::string_view textview = text;
+
+                if (single_policy) {
+                    if (textview.size() == 0) {
+                        lua_pushnil(L);
+                        return 1;
+                    }
+
+                    auto idx = textview.find('/');
+                    if (idx != std::string_view::npos) {
+                        textview.remove_prefix(idx + 1);
+                    }
+
+                    push(L, textview);
+                    return 1;
+                }
+
+                lua_newtable(L);
+                while (!textview.empty()) {
+                    auto idx = textview.find('/');
+                    if (idx == std::string_view::npos) {
+                        break;
+                    }
+
+                    auto policy = textview.substr(0, idx);
+                    std::string_view value;
+
+                    textview.remove_prefix(idx + 1);
+                    idx = textview.find(',');
+                    if (idx == std::string_view::npos) {
+                        swap(textview, value);
+                    } else {
+                        value = textview.substr(0, idx);
+                        textview.remove_prefix(idx + 1);
+                    }
+
+                    push(L, policy);
+                    push(L, value);
+                    lua_rawset(L, -3);
+                }
+                return 1;
+#else
+                push(L, std::errc::not_supported,
+                     "arg", "remote_security_labels");
+                return lua_error(L);
+#endif // BOOST_OS_BSD_FREE
             })
     EMILUA_GPERF_END(key)(L, socket);
 }
@@ -4190,6 +4323,7 @@ static int unix_seqpacket_socket_set_option(lua_State* L)
 
 static int unix_seqpacket_socket_get_option(lua_State* L)
 {
+    lua_settop(L, 3);
     luaL_checktype(L, 2, LUA_TSTRING);
 
     auto socket = static_cast<unix_seqpacket_socket*>(lua_touserdata(L, 1));
@@ -4249,6 +4383,134 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
                 }
                 lua_pushboolean(L, o.value());
                 return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "remote_security_labels",
+            [](lua_State* L, unix_seqpacket_socket* socket) -> int {
+#if BOOST_OS_BSD_FREE
+                mac_t label;
+                bool single_policy;
+                switch (lua_type(L, 3)) {
+                default:
+                    push(L, std::errc::invalid_argument, "arg", 3);
+                    return lua_error(L);
+                case LUA_TNIL:
+                    if (mac_prepare_process_label(&label) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = false;
+                    break;
+                case LUA_TSTRING: {
+                    auto policy = tostringview(L, 3);
+                    if (policy.find(',') != std::string_view::npos) {
+                        push(L, std::errc::invalid_argument, "arg", 3);
+                        return lua_error(L);
+                    }
+                    if (mac_prepare(&label, policy.data()) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = true;
+                    break;
+                }
+                case LUA_TTABLE: {
+                    std::string policies;
+                    for (int i = 1 ;; ++i) {
+                        lua_rawgeti(L, 3, i);
+                        switch (lua_type(L, -1)) {
+                        default:
+                            push(L, std::errc::invalid_argument, "arg", 3);
+                            return lua_error(L);
+                        case LUA_TNIL:
+                            lua_pop(L, 1);
+                            goto end_for;
+                        case LUA_TSTRING:
+                            break;
+                        }
+                        auto policy = tostringview(L);
+                        if (policy.find(',') != std::string_view::npos) {
+                            push(L, std::errc::invalid_argument, "arg", 3);
+                            return lua_error(L);
+                        }
+                        if (!policies.empty())
+                            policies.push_back(',');
+
+                        policies.append(policy);
+                        lua_pop(L, 1);
+                    }
+                    end_for:
+                    if (policies.empty()) {
+                        push(L, std::errc::invalid_argument, "arg", 3);
+                        return lua_error(L);
+                    }
+                    if (mac_prepare(&label, policies.data()) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+                    single_policy = false;
+                    break;
+                }
+                }
+                BOOST_SCOPE_EXIT_ALL(&) { mac_free(label); };
+                if (mac_get_peer(socket->socket.native_handle(), label) == -1) {
+                    push(L, std::error_code{errno, std::system_category()});
+                    return lua_error(L);
+                }
+
+                char* text = nullptr;
+                if (mac_to_text(label, &text) == -1) {
+                    push(L, std::error_code{errno, std::system_category()});
+                    return lua_error(L);
+                }
+                BOOST_SCOPE_EXIT_ALL(&) { free(text); };
+
+                std::string_view textview = text;
+
+                if (single_policy) {
+                    if (textview.size() == 0) {
+                        lua_pushnil(L);
+                        return 1;
+                    }
+
+                    auto idx = textview.find('/');
+                    if (idx != std::string_view::npos) {
+                        textview.remove_prefix(idx + 1);
+                    }
+
+                    push(L, textview);
+                    return 1;
+                }
+
+                lua_newtable(L);
+                while (!textview.empty()) {
+                    auto idx = textview.find('/');
+                    if (idx == std::string_view::npos) {
+                        break;
+                    }
+
+                    auto policy = textview.substr(0, idx);
+                    std::string_view value;
+
+                    textview.remove_prefix(idx + 1);
+                    idx = textview.find(',');
+                    if (idx == std::string_view::npos) {
+                        swap(textview, value);
+                    } else {
+                        value = textview.substr(0, idx);
+                        textview.remove_prefix(idx + 1);
+                    }
+
+                    push(L, policy);
+                    push(L, value);
+                    lua_rawset(L, -3);
+                }
+                return 1;
+#else
+                push(L, std::errc::not_supported,
+                     "arg", "remote_security_labels");
+                return lua_error(L);
+#endif // BOOST_OS_BSD_FREE
             })
     EMILUA_GPERF_END(key)(L, socket);
 }
