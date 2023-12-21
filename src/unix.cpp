@@ -14,6 +14,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/unix.hpp>
 
 #if BOOST_OS_BSD_FREE
+#include <sys/ucred.h>
 #include <sys/mac.h>
 #endif // BOOST_OS_BSD_FREE
 EMILUA_GPERF_DECLS_END(includes)
@@ -54,6 +55,94 @@ static char unix_seqpacket_socket_receive_key;
 static char unix_seqpacket_socket_send_key;
 static char unix_seqpacket_socket_receive_with_fds_key;
 static char unix_seqpacket_socket_send_with_fds_key;
+
+#if BOOST_OS_BSD_FREE
+struct freebsd_remote_credentials
+{
+    freebsd_remote_credentials()
+    {
+        value.cr_version = XUCRED_VERSION;
+        value.cr_uid = -1;
+        value.cr_ngroups = 0;
+        value.cr_pid = -1;
+    }
+
+    template<class P>
+    int level(const P&) const
+    {
+        return SOL_LOCAL;
+    }
+
+    template<class P>
+    int name(const P&) const
+    {
+        return LOCAL_PEERCRED;
+    }
+
+    template<class P>
+    void* data(const P&)
+    {
+        return &value;
+    }
+
+    template<class P>
+    std::size_t size(const P&)
+    {
+        return sizeof(value);
+    }
+
+    template<class P>
+    void resize(const P&, std::size_t s)
+    {
+        if (s != sizeof(value))
+            throw std::length_error{"credentials socket option resize"};
+    }
+
+    struct xucred value;
+};
+#endif // BOOST_OS_BSD_FREE
+
+#if BOOST_OS_LINUX
+struct linux_remote_credentials
+{
+    linux_remote_credentials()
+        : value(-1, -1, -1)
+    {}
+
+    template<class P>
+    int level(const P&) const
+    {
+        return SOL_SOCKET;
+    }
+
+    template<class P>
+    int name(const P&) const
+    {
+        return SO_PEERCRED;
+    }
+
+    template<class P>
+    void* data(const P&)
+    {
+        return &value;
+    }
+
+    template<class P>
+    std::size_t size(const P&)
+    {
+        return sizeof(value);
+    }
+
+    template<class P>
+    void resize(const P&, std::size_t s)
+    {
+        if (s != sizeof(value))
+            throw std::length_error{"credentials socket option resize"};
+    }
+
+    struct ucred value;
+};
+#endif // BOOST_OS_LINUX
 EMILUA_GPERF_DECLS_END(unix)
 
 template<class T, bool SKIP_EOF_DETECTION, bool IS_RECEIVE_FROM>
@@ -2668,6 +2757,72 @@ static int unix_stream_socket_get_option(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "remote_credentials",
+            [](lua_State* L, unix_stream_socket* socket) -> int {
+#if BOOST_OS_BSD_FREE
+                freebsd_remote_credentials o;
+                boost::system::error_code ec;
+                socket->socket.get_option(o, ec);
+                if (ec) {
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                if (o.value.cr_version != XUCRED_VERSION) {
+                    push(L, std::errc::not_supported,
+                         "detail", "unrecognized XUCRED_VERSION");
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+
+                lua_pushliteral(L, "uid");
+                lua_pushinteger(L, o.value.cr_uid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pid");
+                lua_pushinteger(L, o.value.cr_pid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "groups");
+                lua_createtable(L, /*narr=*/o.value.cr_ngroups, /*nrec=*/0);
+                for (int i = 0 ; i != o.value.cr_ngroups ; ++i) {
+                    lua_pushinteger(L, o.value.cr_groups[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+                lua_rawset(L, -3);
+
+                return 1;
+#elif BOOST_OS_LINUX
+                linux_remote_credentials o;
+                boost::system::error_code ec;
+                socket->socket.get_option(o, ec);
+                if (ec) {
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+
+                lua_pushliteral(L, "uid");
+                lua_pushinteger(L, o.value.uid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pid");
+                lua_pushinteger(L, o.value.pid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "groups");
+                lua_createtable(L, /*narr=*/1, /*nrec=*/0);
+                lua_pushinteger(L, o.value.gid);
+                lua_rawseti(L, -2, 1);
+                lua_rawset(L, -3);
+
+                return 1;
+#else
+                push(L, std::errc::not_supported, "arg", "remote_credentials");
+                return lua_error(L);
+#endif // BOOST_OS_BSD_FREE
+            })
+        EMILUA_GPERF_PAIR(
             "remote_security_labels",
             [](lua_State* L, unix_stream_socket* socket) -> int {
 #if BOOST_OS_BSD_FREE
@@ -4383,6 +4538,72 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
                 }
                 lua_pushboolean(L, o.value());
                 return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "remote_credentials",
+            [](lua_State* L, unix_seqpacket_socket* socket) -> int {
+#if BOOST_OS_BSD_FREE
+                freebsd_remote_credentials o;
+                boost::system::error_code ec;
+                socket->socket.get_option(o, ec);
+                if (ec) {
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                if (o.value.cr_version != XUCRED_VERSION) {
+                    push(L, std::errc::not_supported,
+                         "detail", "unrecognized XUCRED_VERSION");
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+
+                lua_pushliteral(L, "uid");
+                lua_pushinteger(L, o.value.cr_uid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pid");
+                lua_pushinteger(L, o.value.cr_pid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "groups");
+                lua_createtable(L, /*narr=*/o.value.cr_ngroups, /*nrec=*/0);
+                for (int i = 0 ; i != o.value.cr_ngroups ; ++i) {
+                    lua_pushinteger(L, o.value.cr_groups[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+                lua_rawset(L, -3);
+
+                return 1;
+#elif BOOST_OS_LINUX
+                linux_remote_credentials o;
+                boost::system::error_code ec;
+                socket->socket.get_option(o, ec);
+                if (ec) {
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+
+                lua_pushliteral(L, "uid");
+                lua_pushinteger(L, o.value.uid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pid");
+                lua_pushinteger(L, o.value.pid);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "groups");
+                lua_createtable(L, /*narr=*/1, /*nrec=*/0);
+                lua_pushinteger(L, o.value.gid);
+                lua_rawseti(L, -2, 1);
+                lua_rawset(L, -3);
+
+                return 1;
+#else
+                push(L, std::errc::not_supported, "arg", "remote_credentials");
+                return lua_error(L);
+#endif // BOOST_OS_BSD_FREE
             })
         EMILUA_GPERF_PAIR(
             "remote_security_labels",

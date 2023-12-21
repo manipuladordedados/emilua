@@ -18,7 +18,8 @@
   convenience.
 * Add yet more functions to the module filesystem: `mkfifo()`, `mknod()`,
   `makedev()`.
-* New socket options to retrieve security labels from UNIX sockets endpoints.
+* New UNIX socket options to retrieve security labels and credentials from the
+  remote process.
 * Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 
 == 0.5

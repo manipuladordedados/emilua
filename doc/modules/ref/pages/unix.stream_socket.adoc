@@ -210,6 +210,14 @@ Boost.Asio documentation].
 https://www.boost.org/doc/libs/1_72_0/doc/html/boost_asio/reference/socket_base/debug.html[Check
 Boost.Asio documentation].
 
+`"remote_credentials": { uid: integer, groups: integer[], pid: integer }`::
+Returns the credentials from the remote process.
++
+CAUTION: On Linux, `groups` don't include the supplementary group list.
++
+CAUTION: `pid` is racy and you shouldn't use it for anything but debugging
+purposes.
+
 `"remote_security_labels": { [string]: string }|string|nil`::
 (FreeBSD only) Returns the security labels associated with each policy for the
 remote process.
