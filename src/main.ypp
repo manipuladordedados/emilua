@@ -129,7 +129,7 @@ int main(int argc, char *argv[], char *envp[])
             // wider range of problems. IOW, there are no plans to remove this
             // code (the bzero() protection might not be a complete solution,
             // but it works usually well in practice).
-            for (int i = 1 ; i != argc ; ++i) {
+            for (int i = 1 ; i < argc ; ++i) {
                 std::string_view view = argv[i];
                 args.s = const_cast<char*>(view.data());
                 args.n = view.size();
