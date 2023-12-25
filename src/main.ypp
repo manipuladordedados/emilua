@@ -141,6 +141,9 @@ int main(int argc, char *argv[], char *envp[])
                 args.n = env.size();
                 write(ipc_actor_service_pipe[1], &args, sizeof(args));
             }
+            args.s = envp;
+            args.n = sizeof(char*);
+            write(ipc_actor_service_pipe[1], &args, sizeof(args));
             args.s = nullptr;
             args.n = 0;
             write(ipc_actor_service_pipe[1], &args, sizeof(args));

@@ -25,12 +25,6 @@ BEGIN {
     print
     next
 }
-# FreeBSD doesn't like how Emilua safely clears the environment for ipc-based
-# actors and spits this in stderr. Ignore it.
-$0 == "emilua: environment corrupt; missing value for " {
-    NR -= 1
-    next
-}
 {
     sanitize_record()
     switch (getline expected <(TEST ".out")) {
