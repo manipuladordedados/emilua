@@ -1,7 +1,11 @@
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/core.hpp>
 
+#include <boost/scope_exit.hpp>
+
 #include <sys/capsicum.h>
+#include <sys/jail.h>
+#include <jail.h>
 
 #define EMILUA_DETAIL_INT_CONSTANT(X) \
     [](lua_State* L) -> int {         \
@@ -132,6 +136,138 @@ int posix_mt_index(lua_State* L)
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {
                     int res = cap_enter();
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jail_attach",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int jid = luaL_checkinteger(L, 1);
+                    int res = jail_attach(jid);
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jail_set",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    lua_settop(L, 2);
+
+                    if (lua_type(L, 1) != LUA_TTABLE) {
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/jail_set");
+                        std::exit(1);
+                    }
+
+                    std::vector<struct jailparam> params;
+                    BOOST_SCOPE_EXIT_ALL(&) {
+                        jailparam_free(params.data(), params.size());
+                    };
+
+                    lua_pushnil(L);
+                    while (lua_next(L, 1) != 0) {
+                        const char* name;
+                        const char* value;
+
+                        if (lua_type(L, -2) != LUA_TSTRING) {
+                            errno = EINVAL;
+                            perror("<3>ipc_actor/init/jail_set");
+                            std::exit(1);
+                        }
+                        name = lua_tostring(L, -2);
+
+                        switch (lua_type(L, -1)) {
+                        default:
+                            errno = EINVAL;
+                            perror("<3>ipc_actor/init/jail_set");
+                            std::exit(1);
+                        case LUA_TSTRING:
+                            value = lua_tostring(L, -1);
+                            break;
+                        case LUA_TBOOLEAN:
+                            value = (lua_toboolean(L, -1) ? "true" : "false");
+                            break;
+                        }
+
+                        params.emplace_back();
+
+                        if (jailparam_init(&params.back(), name) == -1) {
+                            int last_error = errno;
+                            params.pop_back();
+                            check_last_error(L, last_error);
+                            lua_pushinteger(L, -1);
+                            lua_pushinteger(L, last_error);
+                            return 2;
+                        }
+
+                        if (jailparam_import(&params.back(), value) == -1) {
+                            int last_error = errno;
+                            check_last_error(L, last_error);
+                            lua_pushinteger(L, -1);
+                            lua_pushinteger(L, last_error);
+                            return 2;
+                        }
+
+                        lua_pop(L, 1);
+                    }
+
+                    int flags = 0;
+
+                    switch (lua_type(L, 2)) {
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/jail_set");
+                        std::exit(1);
+                    case LUA_TNIL:
+                        break;
+                    case LUA_TTABLE:
+                        for (int i = 1 ;; ++i) {
+                            lua_rawgeti(L, 2, i);
+                            switch (lua_type(L, -1)) {
+                            default:
+                                errno = EINVAL;
+                                perror("<3>ipc_actor/init/jail_set");
+                                std::exit(1);
+                            case LUA_TNIL:
+                                lua_pop(L, 1);
+                                goto end_for;
+                            case LUA_TSTRING:
+                                break;
+                            }
+
+                            auto s = tostringview(L);
+                            lua_pop(L, 1);
+                            int f = EMILUA_GPERF_BEGIN(s)
+                                EMILUA_GPERF_PARAM(int action)
+                                EMILUA_GPERF_DEFAULT_VALUE(0)
+                                EMILUA_GPERF_PAIR("create", JAIL_CREATE)
+                                EMILUA_GPERF_PAIR("update", JAIL_UPDATE)
+                                EMILUA_GPERF_PAIR("attach", JAIL_ATTACH)
+                                EMILUA_GPERF_PAIR("dying", JAIL_DYING)
+                            EMILUA_GPERF_END(s);
+                            if (f == 0) {
+                                errno = EINVAL;
+                                perror("<3>ipc_actor/init/jail_set");
+                                std::exit(1);
+                            }
+                            flags |= f;
+                        }
+                    }
+                 end_for:
+
+                    int res = jailparam_set(
+                        params.data(), params.size(), flags);
                     int last_error = (res == -1) ? errno : 0;
                     check_last_error(L, last_error);
                     lua_pushinteger(L, res);

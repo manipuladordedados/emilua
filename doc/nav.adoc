@@ -147,6 +147,11 @@
 **** xref:ref:system.setpgid.adoc[setpgid]
 **** xref:ref:system.getsid.adoc[getsid]
 **** xref:ref:system.setsid.adoc[setsid]
+*** FreeBSD jails
+**** xref:ref:system.jail_set.adoc[jail_set]
+**** xref:ref:system.jail_get.adoc[jail_get]
+**** xref:ref:system.jail_remove.adoc[jail_remove]
+**** xref:ref:system.jailparam_all.adoc[jailparam_all]
 ** tls
 *** xref:ref:tls.context.adoc[context]
 *** xref:ref:tls.context_flag.adoc[context_flag]

@@ -1,0 +1,21 @@
+= system.jailparam_all
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.jailparam_all() -> string[]
+----
+
+== Description
+
+Returns a list of all known jail parameters.

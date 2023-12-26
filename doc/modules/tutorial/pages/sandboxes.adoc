@@ -13,10 +13,11 @@ Emilua - Lua execution engine
 endif::[]
 
 Emilua provides support for creating actors in isolated processes using
-Capsicum, Linux namespaces or Landlock. The idea is to prevent potentially
-exploitable code from accessing resources beyond what has been explicitly handed
-to them. That's the basis for capability-based security systems, and it maps
-pretty well to APIs implementing the actor model such as Emilua.
+Capsicum, FreeBSD jails, Linux namespaces or Landlock. The idea is to prevent
+potentially exploitable code from accessing resources beyond what has been
+explicitly handed to them. That's the basis for capability-based security
+systems, and it maps pretty well to APIs implementing the actor model such as
+Emilua.
 
 .XKCD 1200: Authorization
 image::authorization.png["If someone steals my laptop while I'm logged in, they can read my email, take my money, and impersonate me to my friends, but at least they can't install drivers without my permission.",link=https://xkcd.com/1200/]

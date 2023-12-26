@@ -248,6 +248,14 @@ include::pages/system.getsid.adoc[]
 
 include::pages/system.setsid.adoc[]
 
+include::pages/system.jail_set.adoc[]
+
+include::pages/system.jail_get.adoc[]
+
+include::pages/system.jail_remove.adoc[]
+
+include::pages/system.jailparam_all.adoc[]
+
 include::pages/tls.context.adoc[]
 
 include::pages/tls.context_flag.adoc[]

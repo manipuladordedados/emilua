@@ -1,0 +1,32 @@
+= system.jail_set
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.jail_set(params: { [string]: string|boolean }, flags: string[]|nil) -> integer
+----
+
+== Description
+
+Create or modify a jail.
+
+Jail parameters are given as strings and they'll be transparently converted to
+the native format accepted by the kernel.
+
+`flags` may contain the following values:
+
+* `"create"`
+* `"update"`
+* `"dying"`
+
+See jail(8) for more information on the core jail parameters.

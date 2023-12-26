@@ -1,0 +1,50 @@
+= system.jail_get
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.jail_get(params: table, flags: string[]|nil) -> integer, { [string]: string }
+----
+
+== Description
+
+Retrieves jail parameters.
+
+`params` specify -- as a list of strings -- which parameters are desired in the
+returned value.
+
+`params` also specify -- in the same format as used by system.jail_set() --
+which jail to read values from. Usually `"jid"` or `"name"` are used as
+filters. The special parameter `"lastjid"` can be used to retrieve a list of all
+jails.
+
+`flags` may contain the following values:
+
+* `"dying"`
+
+== Example
+
+Retrieve the hostname and path of jail "foo":
+
+[source,lua]
+----
+local jid, params = system.jail_get {
+    "host.hostname",
+    "path",
+    ["name"] = "foo"
+}
+
+print(jid)
+print(params["host.hostname"])
+print(params.path)
+----

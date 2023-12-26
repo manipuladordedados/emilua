@@ -124,6 +124,7 @@ Emilua has first-class support for modern sandboxing technologies.
 
 * Linux namespaces.
 * Linux's Landlock.
+* FreeBSD's jails.
 * FreeBSD's Capsicum.
 
 Mitigate risks by creating disposable cheap sandboxes to parse untrusted input

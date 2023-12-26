@@ -372,6 +372,7 @@ as the second result):
 * `unshare()`.
 * `setns()`.
 * `cap_enter()`.
+* `jail_attach()`.
 
 === Constants
 
@@ -594,3 +595,19 @@ Returns two values:
 
 1. `landlock_restrict_self()` return.
 2. The errno value (or `0` on success).
+
+=== `C.jail_set(params: { [string]: string|boolean }, flags: string[]|nil) -> integer, integer`
+
+Create or modify a jail. Optionally locks the current process in it.
+
+Jail parameters are given as strings and they'll be transparently converted to
+the native format accepted by the kernel.
+
+`flags` may contain the following values:
+
+* `"create"`
+* `"update"`
+* `"attach"`
+* `"dying"`
+
+See jail(8) for more information on the core jail parameters.

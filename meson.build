@@ -23,6 +23,10 @@ if host_machine.system() == 'linux'
     boost_modules += 'context'
 endif
 
+if host_machine.system() == 'freebsd'
+    add_project_link_arguments('-ljail', language : 'cpp')
+endif
+
 luajit = dependency('luajit', version : '>=2.0.5')
 boost = dependency(
     'boost',

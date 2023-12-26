@@ -1,0 +1,21 @@
+= system.jail_remove
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.jail_remove(jid: integer)
+----
+
+== Description
+
+Removes the jail identified by `jid`.

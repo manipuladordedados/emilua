@@ -42,6 +42,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <sys/capability.h>
 #include <grp.h>
 #endif // BOOST_OS_LINUX
+
+#if BOOST_OS_BSD_FREE
+#include <sys/jail.h>
+#include <jail.h>
+#endif // BOOST_OS_BSD_FREE
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -1085,6 +1090,294 @@ static int system_exit(lua_State* L)
     vm_ctx.notify_exit_request();
     return lua_yield(L, 0);
 }
+
+#if BOOST_OS_BSD_FREE
+static int system_jail_set(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    if (lua_type(L, 1) != LUA_TTABLE) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::vector<struct jailparam> params;
+    BOOST_SCOPE_EXIT_ALL(&) { jailparam_free(params.data(), params.size()); };
+
+    lua_pushnil(L);
+    while (lua_next(L, 1) != 0) {
+        const char* name;
+        const char* value;
+
+        if (lua_type(L, -2) != LUA_TSTRING) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+        name = lua_tostring(L, -2);
+
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        case LUA_TSTRING:
+            value = lua_tostring(L, -1);
+            break;
+        case LUA_TBOOLEAN:
+            value = (lua_toboolean(L, -1) ? "true" : "false");
+            break;
+        }
+
+        params.emplace_back();
+
+        if (jailparam_init(&params.back(), name) == -1) {
+            params.pop_back();
+            push(L, std::error_code{errno, std::system_category()}, "arg", 1,
+                 "jailparam_init", name);
+            return lua_error(L);
+        }
+
+        if (jailparam_import(&params.back(), value) == -1) {
+            push(L, std::error_code{errno, std::system_category()}, "arg", 1,
+                 "jailparam_import", value);
+            return lua_error(L);
+        }
+
+        lua_pop(L, 1);
+    }
+
+    int flags = 0;
+
+    switch (lua_type(L, 2)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 2, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            int f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PPGUARD(BOOST_OS_BSD_FREE)
+                EMILUA_GPERF_PARAM(int action)
+                EMILUA_GPERF_DEFAULT_VALUE(0)
+                EMILUA_GPERF_PAIR("create", JAIL_CREATE)
+                EMILUA_GPERF_PAIR("update", JAIL_UPDATE)
+                EMILUA_GPERF_PAIR("dying", JAIL_DYING)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
+    }
+ end_for:
+
+    int jid = jailparam_set(params.data(), params.size(), flags);
+    if (jid == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_pushinteger(L, jid);
+    return 1;
+}
+
+static int system_jail_get(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    if (lua_type(L, 1) != LUA_TTABLE) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::vector<struct jailparam> params;
+    BOOST_SCOPE_EXIT_ALL(&) { jailparam_free(params.data(), params.size()); };
+
+    std::set<std::vector<struct jailparam>::size_type> non_output_args;
+
+    lua_pushnil(L);
+    while (lua_next(L, 1) != 0) {
+        switch (lua_type(L, -2)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        case LUA_TNUMBER: {
+            if (lua_type(L, -1) != LUA_TSTRING) {
+                push(L, std::errc::invalid_argument, "arg", 1);
+                return lua_error(L);
+            }
+
+            params.emplace_back();
+
+            const char* name = lua_tostring(L, -1);
+            if (jailparam_init(&params.back(), name) == -1) {
+                params.pop_back();
+                push(L, std::error_code{errno, std::system_category()},
+                     "arg", 1, "jailparam_init", name);
+                return lua_error(L);
+            }
+
+            lua_pop(L, 1);
+            continue;
+        }
+        case LUA_TSTRING:
+            break;
+        }
+
+        non_output_args.emplace(params.size());
+
+        const char* name = lua_tostring(L, -2);
+        const char* value;
+
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        case LUA_TSTRING:
+            value = lua_tostring(L, -1);
+            break;
+        case LUA_TBOOLEAN:
+            value = (lua_toboolean(L, -1) ? "true" : "false");
+            break;
+        }
+
+        params.emplace_back();
+
+        if (jailparam_init(&params.back(), name) == -1) {
+            params.pop_back();
+            push(L, std::error_code{errno, std::system_category()}, "arg", 1,
+                 "jailparam_init", name);
+            return lua_error(L);
+        }
+
+        if (jailparam_import(&params.back(), value) == -1) {
+            push(L, std::error_code{errno, std::system_category()}, "arg", 1,
+                 "jailparam_import", value);
+            return lua_error(L);
+        }
+
+        lua_pop(L, 1);
+    }
+
+    int flags = 0;
+
+    switch (lua_type(L, 2)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 2, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            int f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PPGUARD(BOOST_OS_BSD_FREE)
+                EMILUA_GPERF_PARAM(int action)
+                EMILUA_GPERF_DEFAULT_VALUE(0)
+                EMILUA_GPERF_PAIR("dying", JAIL_DYING)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
+    }
+ end_for:
+
+    int jid = jailparam_get(params.data(), params.size(), flags);
+    if (jid == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_pushinteger(L, jid);
+
+    lua_createtable(
+        L, /*narr=*/0, /*nrec=*/params.size() - non_output_args.size());
+
+    for (
+        std::vector<struct jailparam>::size_type i = 0 ; i != params.size() ;
+        ++i
+    ) {
+        if (non_output_args.contains(i))
+            continue;
+
+        lua_pushstring(L, params[i].jp_name);
+        char* value = jailparam_export(&params[i]);
+        BOOST_SCOPE_EXIT_ALL(&) { free(value); };
+        if (!value) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+        lua_pushstring(L, value);
+        lua_rawset(L, -3);
+    }
+
+    return 2;
+}
+
+static int system_jail_remove(lua_State* L)
+{
+    int jid = luaL_checkinteger(L, 1);
+
+    if (jail_remove(jid) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    return 0;
+}
+
+static int system_jailparam_all(lua_State* L)
+{
+    struct jailparam *jp = nullptr;
+    int njp = jailparam_all(&jp);
+    if (njp == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+    BOOST_SCOPE_EXIT_ALL(&) {
+        jailparam_free(jp, njp);
+        free(jp);
+    };
+
+    lua_createtable(L, /*narr=*/njp, /*nrec=*/0);
+    for (int i = 0 ; i != njp ; ++i) {
+        lua_pushstring(L, jp[i].jp_name);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+#endif // BOOST_OS_BSD_FREE
 
 #if BOOST_OS_UNIX
 static int system_getresuid(lua_State* L)
@@ -2784,6 +3077,46 @@ static int system_mt_index(lua_State* L)
             "exit",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, system_exit);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jail_set",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, system_jail_set);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jail_get",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, system_jail_get);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jail_remove",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, system_jail_remove);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "jailparam_all",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, system_jailparam_all);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
                 return 1;
             })
     EMILUA_GPERF_END(key)(L);
