@@ -24,13 +24,19 @@ list of steps you need to do:
    long as at least one Lua VM is alive. If you want to be sure, just make sure
    it outlives `boost::asio::io_context` and you're good to go.
 
-4. Call `emilua::make_vm()` (see `src/main.ypp` for an example).
+4. Create an `emilua::properties_service` object with the same concurrency hint
+   passed to `boost::asio::io_context` and add it to the
+   `boost::asio::io_context` object using `boost::asio::make_service`. This step
+   will be needed for as long as Boost.Asio refuses to add a getter for the
+   concurrency hint: <https://github.com/chriskohlhoff/asio/pull/1254>.
 
-5. Call `emilua::vm_context::fiber_resume()` inside the strand returned by
+5. Call `emilua::make_vm()` (see `src/main.ypp` for an example).
+
+6. Call `emilua::vm_context::fiber_resume()` inside the strand returned by
    `emilua::vm_context::strand()` to start the Lua VM created in the previous
    step (see `src/main.ypp` for an example).
 
-6. Optionally synchronize against other threads before you exit the
+7. Optionally synchronize against other threads before you exit the
    application. If you're going to spawn actors in foreign
    `boost::asio::io_context` objects in your Lua programs then it's a good idea
    to include this step. See below.
@@ -95,6 +101,21 @@ For communication with the supervisor process, Emilua uses an UNIX socket. The
 file descriptor for this process is stored in
 `app_context::ipc_actor_service_sockfd`. See `src/main.ypp` for an example on
 how to initialize this variable.
+
+You also need to initialize `emilua::app_context::environp`. This is a pointer
+to `environ`. This step must be done before you fork to create the supervisor
+process. Emilua uses an indirection instead of using `environ` directly because
+FreeBSD is not POSIX-compliant and the usual declaration for `environ` doesn't
+work from shared libraries. Emilua never modifies the environment for the main
+process, so you don't need to worry about what Emilua uses this variable
+for. Its usage is internal to Emilua and won't affect your {cpp} program.
+
+[source,cpp]
+----
+#if BOOST_OS_UNIX
+emilua::app_context::environp = &environ;
+#endif // BOOST_OS_UNIX
+----
 
 On Linux, you also need to initialize `emilua::clone_stack_address`.
 
