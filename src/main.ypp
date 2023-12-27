@@ -42,6 +42,8 @@ namespace asio = boost::asio;
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
 
+extern char** environ;
+
 static constexpr auto help_text = FMT_STRING(
     "Emilua: Execution engine for luaJIT\n"
     "Usage: {} [OPTIONS] [file]\n"
@@ -82,6 +84,8 @@ int main(int argc, char *argv[], char *envp[])
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
+    emilua::app_context::environp = &environ;
+
     int ipc_actor_service_pipe[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
         ipc_actor_service_pipe[0] = -1;
@@ -141,9 +145,6 @@ int main(int argc, char *argv[], char *envp[])
                 args.n = env.size();
                 write(ipc_actor_service_pipe[1], &args, sizeof(args));
             }
-            args.s = envp;
-            args.n = sizeof(char*);
-            write(ipc_actor_service_pipe[1], &args, sizeof(args));
             args.s = nullptr;
             args.n = 0;
             write(ipc_actor_service_pipe[1], &args, sizeof(args));

@@ -37,6 +37,8 @@ char raw_getmetatable_key;
 void* clone_stack_address;
 #endif // BOOST_OS_LINUX
 
+char*** app_context::environp;
+
 asio::io_context::id properties_service::id;
 
 std::string_view log_domain<default_log_domain>::name = "emilua";

@@ -14,7 +14,7 @@
 #include <boost/hana/plus.hpp>
 #include <boost/predef/os/bsd.h>
 
-#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/archives/binary.hpp>
 
@@ -52,6 +52,9 @@ static int proc_stdout;
 static int proc_stderr;
 static bool proc_stderr_has_color;
 static bool has_lua_hook;
+
+static std::vector<std::string> environ_buffer1;
+static std::vector<char*> environ_buffer2;
 
 struct monotonic_allocator
 {
@@ -1054,7 +1057,6 @@ static int child_main(void*)
     int main_ctx_concurrency_hint;
     fs::path entry_point;
 
-    std::unordered_map<std::string, std::string> tmp_env;
     app_context appctx;
     appctx.app_args.reserve(2);
     appctx.app_args.emplace_back();
@@ -1073,11 +1075,16 @@ static int child_main(void*)
         entry_point = fs::path{str, fs::path::native_format};
         str.clear();
 
-        ia >> tmp_env;
-        for (const auto &[k, v] : tmp_env) {
-            setenv(k.c_str(), v.c_str(), /*overwrite=*/1);
-            appctx.app_env.emplace(k, v);
+        ia >> environ_buffer1;
+        environ_buffer2.reserve(environ_buffer1.size() + 1);
+        for (auto& s : environ_buffer1) {
+            environ_buffer2.emplace_back(s.data());
+            auto idx = s.find('=');
+            std::string_view s2{s};
+            appctx.app_env.emplace(s2.substr(0, idx), s2.substr(idx + 1));
         }
+        environ_buffer2.emplace_back(nullptr);
+        *app_context::environp = environ_buffer2.data();
     }
     buffer.clear();
     buffer.shrink_to_fit();
@@ -1098,8 +1105,11 @@ static int child_main(void*)
         } catch (const std::ios_base::failure&) {}
     }
 
-    emilua::stdout_has_color = [&tmp_env]() {
-        if (auto it = tmp_env.find("EMILUA_COLORS") ; it != tmp_env.end()) {
+    emilua::stdout_has_color = [&appctx]() {
+        if (
+            auto it = appctx.app_env.find("EMILUA_COLORS") ;
+            it != appctx.app_env.end()
+        ) {
             if (it->second == "1") {
                 return true;
             } else if (it->second == "0") {
@@ -1118,7 +1128,10 @@ static int child_main(void*)
         return false;
     }();
 
-    if (auto it = tmp_env.find("EMILUA_LOG_LEVELS") ; it != tmp_env.end()) {
+    if (
+        auto it = appctx.app_env.find("EMILUA_LOG_LEVELS") ;
+        it != appctx.app_env.end()
+    ) {
         std::string_view env = it->second;
         int level;
         auto res = std::from_chars(
@@ -1198,7 +1211,12 @@ int app_context::ipc_actor_service_main(int sockfd)
 
         explicit_bzero(args.s, args.n);
     }
-    clearenv();
+    {
+        // we don't use clearenv() because it's unsafe when we manipulate
+        // environ directly
+        static char* emptyenv[1] = { NULL };
+        *app_context::environp = emptyenv;
+    }
 
     if (dup2(sockfd, 3) == -1) {
         perror("<3>ipc_actor/supervisor");
