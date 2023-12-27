@@ -21,7 +21,7 @@
 #if BOOST_OS_UNIX
 #include <emilua/file_descriptor.hpp>
 
-#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/archives/binary.hpp>
 #include <sys/wait.h>
@@ -1114,7 +1114,7 @@ static int spawn_vm(lua_State* L)
 #endif
 #if BOOST_OS_UNIX
     bool run_in_subprocess = false;
-    std::unordered_map<std::string, std::string> newenv;
+    std::vector<std::string> newenv;
     std::optional<std::string> lua_hook;
     int lua_hook_fd = -1;
     int proc_stdin = -1;
@@ -1444,7 +1444,9 @@ static int spawn_vm(lua_State* L)
                         return lua_error(L);
                     }
 
-                    newenv.emplace(tostringview(L, -2), tostringview(L));
+                    newenv.emplace_back(tostringview(L, -2));
+                    newenv.back().push_back('=');
+                    newenv.back().append(tostringview(L));
                     lua_pop(L, 1);
                 }
 

@@ -401,6 +401,7 @@ public:
 
 #if BOOST_OS_UNIX
     int ipc_actor_service_sockfd = -1;
+    static char*** environp;
 #endif // BOOST_OS_UNIX
 
 private:
