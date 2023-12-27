@@ -27,19 +27,15 @@ install:
       Cflags: -IC:/OpenSSL-v111-Win64/include'
   - vcpkg install --triplet x64-windows-static-release luajit
   - vcpkg install --triplet x64-windows-release fmt
-  - set PATH=%PATH%;C:\Tools\vcpkg\packages\luajit_x64-windows-static-release\tools
   - choco install pkgconfiglite re2c gperf gawk
 
 build_script:
-  - md build
-  - cd build
-  - meson setup -Dbackend=ninja -Denable_file_io=true -Denable_manpages=false -Ddisable_color=true -Dcpp_args=['-DFMT_HEADER_ONLY','-D_WIN32_WINNT=0x0602'] -Dcpp_eh=a -Db_pch=false -Dbuildtype=release -Ddefault_library=static -Db_ndebug=true ..
-  - meson compile
-  - copy C:\Libraries\boost_1_83_0\lib64-msvc-14.3\boost_nowide-vc143-mt-x64-1_83.dll .
+  - meson setup -Dbackend=ninja -Denable_file_io=true -Denable_manpages=false -Ddisable_color=true -Dcpp_args=['-DFMT_HEADER_ONLY','-D_WIN32_WINNT=0x0602'] -Dcpp_eh=a -Db_pch=false -Dbuildtype=release -Ddefault_library=static -Db_ndebug=true build
+  - meson compile -C build
+  - copy C:\Libraries\boost_1_83_0\lib64-msvc-14.3\boost_nowide-vc143-mt-x64-1_83.dll build
 
 test_script:
-  - cd "%APPVEYOR_BUILD_FOLDER%\build"
-  - meson test --print-errorlogs "emilua:"
+  - meson test --print-errorlogs "emilua:" -C build
 
 on_finish:
   - curl -F "file=@%APPVEYOR_BUILD_FOLDER%\build\meson-logs\testlog.junit.xml" "https://ci.appveyor.com/api/testresults/junit/%APPVEYOR_JOB_ID%"
