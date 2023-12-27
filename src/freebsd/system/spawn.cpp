@@ -728,14 +728,8 @@ static int subprocess_mt_index(lua_State* L)
     if (args->programfd != -1) {
         fexecve(args->programfd, args->argv, args->envp);
     } else if (args->use_path) {
-#if 1
-        errno = ENOTSUP;
-#else
-        // we can't use environ as of now:
-        // https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=263265
-        environ = args->envp;
+        *app_context::environp = args->envp;
         execvp(args->program, args->argv);
-#endif
     } else {
         execve(args->program, args->argv, args->envp);
     }
@@ -759,15 +753,8 @@ int system_spawn(lua_State* L)
     switch (lua_type(L, -1)) {
     case LUA_TSTRING:
         program = tostringview(L);
-#if 1
-        // we can't use environ for execvp() as of now:
-        // https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=263265
-        push(L, std::errc::not_supported, "arg", "program");
-        return lua_error(L);
-#else
         use_path = true;
         break;
-#endif
     case LUA_TUSERDATA: {
         auto fd = static_cast<file_descriptor_handle*>(lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
