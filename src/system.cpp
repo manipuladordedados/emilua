@@ -297,8 +297,15 @@ static int system_signal_set_new(lua_State* L)
     new (set) asio::signal_set{vm_ctx.strand().context()};
 
     for (int i = 1 ; i <= nargs ; ++i) {
+#if BOOST_OS_WINDOWS
+        asio::signal_set_base::flags_t flags =
+            asio::signal_set_base::flags::dont_care;
+#else
+        asio::signal_set_base::flags_t flags =
+            asio::signal_set_base::flags::restart;
+#endif // BOOST_OS_WINDOWS
         boost::system::error_code ec;
-        set->add(lua_tointeger(L, i), ec);
+        set->add(lua_tointeger(L, i), flags, ec);
         if (ec) {
             push(L, ec, "arg", i);
             return lua_error(L);
@@ -373,8 +380,15 @@ static int system_signal_set_add(lua_State* L)
         return lua_error(L);
     }
 
+#if BOOST_OS_WINDOWS
+    asio::signal_set_base::flags_t flags =
+        asio::signal_set_base::flags::dont_care;
+#else
+    asio::signal_set_base::flags_t flags =
+        asio::signal_set_base::flags::restart;
+#endif // BOOST_OS_WINDOWS
     boost::system::error_code ec;
-    set->add(lua_tointeger(L, 2), ec);
+    set->add(lua_tointeger(L, 2), flags, ec);
     if (ec) {
         push(L, ec);
         return lua_error(L);
