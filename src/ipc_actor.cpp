@@ -644,7 +644,7 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
                 setmetatable(recv_fiber, -2);
                 new (ch) ipc_actor_address{executor.context()};
                 {
-                    asio::local::datagram_protocol protocol;
+                    asio::local::seq_packet_protocol protocol;
                     boost::system::error_code ignored_ec;
                     ch->dest.assign(protocol, fds[0], ignored_ec);
                     assert(!ignored_ec);
@@ -729,7 +729,7 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
                 setmetatable(recv_fiber, -2);
                 new (ch) ipc_actor_address{executor.context()};
                 {
-                    asio::local::datagram_protocol protocol;
+                    asio::local::seq_packet_protocol protocol;
                     boost::system::error_code ignored_ec;
                     ch->dest.assign(protocol, fds[fdsidx], ignored_ec);
                     assert(!ignored_ec);

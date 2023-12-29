@@ -3835,7 +3835,7 @@ static int unix_seqpacket_socket_open(lua_State* L)
     }
 
     boost::system::error_code ec;
-    sock->socket.open(seqpacket_protocol{}, ec);
+    sock->socket.open(asio::local::seq_packet_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
@@ -3966,7 +3966,7 @@ static int unix_seqpacket_socket_assign(lua_State* L)
     setmetatable(L, 2);
 
     boost::system::error_code ec;
-    sock->socket.assign(seqpacket_protocol{}, *handle, ec);
+    sock->socket.assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
     return 0;
@@ -4033,13 +4033,14 @@ static int unix_seqpacket_socket_shutdown(lua_State* L)
     auto key = tostringview(L, 2);
     auto what = EMILUA_GPERF_BEGIN(key)
         EMILUA_GPERF_PARAM(
-            seqpacket_protocol::socket::shutdown_type action)
+            asio::local::seq_packet_protocol::socket::shutdown_type action)
         EMILUA_GPERF_PAIR(
-            "receive", seqpacket_protocol::socket::shutdown_receive)
+            "receive",
+            asio::local::seq_packet_protocol::socket::shutdown_receive)
         EMILUA_GPERF_PAIR(
-            "send", seqpacket_protocol::socket::shutdown_send)
+            "send", asio::local::seq_packet_protocol::socket::shutdown_send)
         EMILUA_GPERF_PAIR(
-            "both", seqpacket_protocol::socket::shutdown_both)
+            "both", asio::local::seq_packet_protocol::socket::shutdown_both)
     EMILUA_GPERF_END(key);
     if (!what) {
         push(L, std::errc::invalid_argument, "arg", 2);
@@ -5069,7 +5070,7 @@ static int unix_seqpacket_socket_new(lua_State* L)
     setmetatable(L, 1);
 
     boost::system::error_code ec;
-    sock->socket.assign(seqpacket_protocol{}, *handle, ec);
+    sock->socket.assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
     return 1;
@@ -5106,7 +5107,7 @@ EMILUA_GPERF_DECLS_BEGIN(unix_seqpacket_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_seqpacket_acceptor_open(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5119,7 +5120,7 @@ static int unix_seqpacket_acceptor_open(lua_State* L)
     }
 
     boost::system::error_code ec;
-    acceptor->open(seqpacket_protocol{}, ec);
+    acceptor->open(asio::local::seq_packet_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
@@ -5131,7 +5132,7 @@ static int unix_seqpacket_acceptor_bind(lua_State* L)
 {
     lua_settop(L, 2);
 
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5177,7 +5178,7 @@ static int unix_seqpacket_acceptor_bind(lua_State* L)
 static int unix_seqpacket_acceptor_listen(lua_State* L)
 {
     lua_settop(L, 2);
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5221,7 +5222,7 @@ static int unix_seqpacket_acceptor_accept(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5238,8 +5239,10 @@ static int unix_seqpacket_acceptor_accept(lua_State* L)
     acceptor->async_accept(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec,
-                                   seqpacket_protocol::socket peer) {
+            [vm_ctx,current_fiber](
+                const boost::system::error_code& ec,
+                asio::local::seq_packet_protocol::socket peer
+            ) {
                 auto peer_pusher = [&ec,&peer](lua_State* fiber) {
                     if (ec) {
                         lua_pushnil(fiber);
@@ -5272,7 +5275,7 @@ EMILUA_GPERF_DECLS_BEGIN(unix_seqpacket_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_seqpacket_acceptor_close(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5295,7 +5298,7 @@ static int unix_seqpacket_acceptor_close(lua_State* L)
 
 static int unix_seqpacket_acceptor_cancel(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5318,7 +5321,7 @@ static int unix_seqpacket_acceptor_cancel(lua_State* L)
 
 static int unix_seqpacket_acceptor_assign(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5350,7 +5353,7 @@ static int unix_seqpacket_acceptor_assign(lua_State* L)
     setmetatable(L, 2);
 
     boost::system::error_code ec;
-    acceptor->assign(seqpacket_protocol{}, *handle, ec);
+    acceptor->assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
     return 0;
@@ -5358,7 +5361,7 @@ static int unix_seqpacket_acceptor_assign(lua_State* L)
 
 static int unix_seqpacket_acceptor_release(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5402,7 +5405,7 @@ static int unix_seqpacket_acceptor_release(lua_State* L)
 
 static int unix_seqpacket_acceptor_set_option(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5417,15 +5420,22 @@ static int unix_seqpacket_acceptor_set_option(lua_State* L)
     auto key = tostringview(L, 2);
     return EMILUA_GPERF_BEGIN(key)
         EMILUA_GPERF_PARAM(
-            int (*action)(lua_State*, seqpacket_protocol::acceptor*))
+            int (*action)(
+                lua_State*, asio::local::seq_packet_protocol::acceptor*))
         EMILUA_GPERF_DEFAULT_VALUE(
-            [](lua_State* L, seqpacket_protocol::acceptor*) -> int {
+            [](
+                lua_State* L,
+                asio::local::seq_packet_protocol::acceptor*
+            ) -> int {
                 push(L, std::errc::not_supported);
                 return lua_error(L);
             })
         EMILUA_GPERF_PAIR(
             "debug",
-            [](lua_State* L, seqpacket_protocol::acceptor* acceptor) -> int {
+            [](
+                lua_State* L,
+                asio::local::seq_packet_protocol::acceptor* acceptor
+            ) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
                 boost::system::error_code ec;
@@ -5438,7 +5448,10 @@ static int unix_seqpacket_acceptor_set_option(lua_State* L)
             })
         EMILUA_GPERF_PAIR(
             "enable_connection_aborted",
-            [](lua_State* L, seqpacket_protocol::acceptor* acceptor) -> int {
+            [](
+                lua_State* L,
+                asio::local::seq_packet_protocol::acceptor* acceptor
+            ) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::enable_connection_aborted o(
                     lua_toboolean(L, 3));
@@ -5455,7 +5468,7 @@ static int unix_seqpacket_acceptor_set_option(lua_State* L)
 
 static int unix_seqpacket_acceptor_get_option(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     if (!acceptor || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -5470,15 +5483,21 @@ static int unix_seqpacket_acceptor_get_option(lua_State* L)
     auto key = tostringview(L, 2);
     return EMILUA_GPERF_BEGIN(key)
         EMILUA_GPERF_PARAM(
-            int (*action)(lua_State*, seqpacket_protocol::acceptor*))
+            int (*action)(
+                lua_State*, asio::local::seq_packet_protocol::acceptor*))
         EMILUA_GPERF_DEFAULT_VALUE(
-            [](lua_State* L, seqpacket_protocol::acceptor*) -> int {
+            [](
+                lua_State* L, asio::local::seq_packet_protocol::acceptor*
+            ) -> int {
                 push(L, std::errc::not_supported);
                 return lua_error(L);
             })
         EMILUA_GPERF_PAIR(
             "debug",
-            [](lua_State* L, seqpacket_protocol::acceptor* acceptor) -> int {
+            [](
+                lua_State* L,
+                asio::local::seq_packet_protocol::acceptor* acceptor
+            ) -> int {
                 asio::socket_base::debug o;
                 boost::system::error_code ec;
                 acceptor->get_option(o, ec);
@@ -5491,7 +5510,10 @@ static int unix_seqpacket_acceptor_get_option(lua_State* L)
             })
         EMILUA_GPERF_PAIR(
             "enable_connection_aborted",
-            [](lua_State* L, seqpacket_protocol::acceptor* acceptor) -> int {
+            [](
+                lua_State* L,
+                asio::local::seq_packet_protocol::acceptor* acceptor
+            ) -> int {
                 asio::socket_base::enable_connection_aborted o;
                 boost::system::error_code ec;
                 acceptor->get_option(o, ec);
@@ -5507,7 +5529,7 @@ static int unix_seqpacket_acceptor_get_option(lua_State* L)
 
 inline int unix_seqpacket_acceptor_is_open(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     lua_pushboolean(L, acceptor->is_open());
     return 1;
@@ -5515,7 +5537,7 @@ inline int unix_seqpacket_acceptor_is_open(lua_State* L)
 
 inline int unix_seqpacket_acceptor_local_path(lua_State* L)
 {
-    auto acceptor = static_cast<seqpacket_protocol::acceptor*>(
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
     boost::system::error_code ec;
     auto ep = acceptor->local_endpoint(ec);
@@ -5626,12 +5648,14 @@ static int unix_seqpacket_acceptor_new(lua_State* L)
     auto& vm_ctx = get_vm_context(L);
 
     if (nargs == 0) {
-        auto a = static_cast<seqpacket_protocol::acceptor*>(
-            lua_newuserdata(L, sizeof(seqpacket_protocol::acceptor))
+        auto a = static_cast<asio::local::seq_packet_protocol::acceptor*>(
+            lua_newuserdata(
+                L, sizeof(asio::local::seq_packet_protocol::acceptor))
         );
         rawgetp(L, LUA_REGISTRYINDEX, &unix_seqpacket_acceptor_mt_key);
         setmetatable(L, -2);
-        new (a) seqpacket_protocol::acceptor{vm_ctx.strand().context()};
+        new (a) asio::local::seq_packet_protocol::acceptor{
+            vm_ctx.strand().context()};
         return 1;
     }
 
@@ -5651,18 +5675,19 @@ static int unix_seqpacket_acceptor_new(lua_State* L)
         return lua_error(L);
     }
 
-    auto a = static_cast<seqpacket_protocol::acceptor*>(
-        lua_newuserdata(L, sizeof(seqpacket_protocol::acceptor))
+    auto a = static_cast<asio::local::seq_packet_protocol::acceptor*>(
+        lua_newuserdata(L, sizeof(asio::local::seq_packet_protocol::acceptor))
     );
     rawgetp(L, LUA_REGISTRYINDEX, &unix_seqpacket_acceptor_mt_key);
     setmetatable(L, -2);
-    new (a) seqpacket_protocol::acceptor{vm_ctx.strand().context()};
+    new (a) asio::local::seq_packet_protocol::acceptor{
+        vm_ctx.strand().context()};
 
     lua_pushnil(L);
     setmetatable(L, 1);
 
     boost::system::error_code ec;
-    a->assign(seqpacket_protocol{}, *handle, ec);
+    a->assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
     return 1;
@@ -5833,7 +5858,8 @@ void init_unix(lua_State* L)
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__gc");
-        lua_pushcfunction(L, finalizer<seqpacket_protocol::acceptor>);
+        lua_pushcfunction(
+            L, finalizer<asio::local::seq_packet_protocol::acceptor>);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);

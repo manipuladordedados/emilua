@@ -60,7 +60,7 @@ struct ipc_actor_send_op
 
     ipc_actor_send_op(emilua::vm_context& vm_ctx,
                       asio::cancellation_slot cancel_slot,
-                      asio::local::datagram_protocol::socket& sock)
+                      asio::local::seq_packet_protocol::socket& sock)
         : sock{sock}
         , current_fiber{vm_ctx.current_fiber()}
         , vm_ctx{vm_ctx.shared_from_this()}
@@ -171,7 +171,7 @@ struct ipc_actor_send_op
         vm_ctx->fiber_resume(current_fiber);
     }
 
-    asio::local::datagram_protocol::socket& sock;
+    asio::local::seq_packet_protocol::socket& sock;
     lua_State* current_fiber;
     std::shared_ptr<emilua::vm_context> vm_ctx;
     asio::cancellation_slot cancel_slot;
@@ -270,7 +270,7 @@ static int deserializer_closure(lua_State* L)
         setmetatable(L, -2);
         new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
-        asio::local::datagram_protocol protocol;
+        asio::local::seq_packet_protocol protocol;
         boost::system::error_code ignored_ec;
         ch->dest.assign(protocol, a.inbox->value, ignored_ec);
         assert(!ignored_ec);
@@ -1738,7 +1738,7 @@ static int spawn_vm(lua_State* L)
         setmetatable(L, -2);
         new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
-        asio::local::datagram_protocol protocol;
+        asio::local::seq_packet_protocol protocol;
         boost::system::error_code ignored_ec;
         ch->dest.assign(protocol, channel[1], ignored_ec);
         assert(!ignored_ec);

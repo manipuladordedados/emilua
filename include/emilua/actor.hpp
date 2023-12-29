@@ -13,7 +13,7 @@
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
-#include <boost/asio/local/datagram_protocol.hpp>
+#include <boost/asio/local/seq_packet_protocol.hpp>
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_BSD_FREE
@@ -87,7 +87,7 @@ struct ipc_actor_inbox_service : public pending_operation
         : pending_operation{/*shared_ownership=*/false}
         , sock{ioctx}
     {
-        asio::local::datagram_protocol protocol;
+        asio::local::seq_packet_protocol protocol;
         boost::system::error_code ignored_ec;
         sock.assign(protocol, inboxfd, ignored_ec);
         assert(!ignored_ec);
@@ -106,7 +106,7 @@ struct ipc_actor_inbox_service : public pending_operation
     void cancel() noexcept override
     {}
 
-    asio::local::datagram_protocol::socket sock;
+    asio::local::seq_packet_protocol::socket sock;
     bool running = false;
 };
 
@@ -222,7 +222,7 @@ struct ipc_actor_address
         : dest{ioctx}
     {}
 
-    asio::local::datagram_protocol::socket dest;
+    asio::local::seq_packet_protocol::socket dest;
     ipc_actor_reaper* reaper = nullptr;
 };
 #endif // BOOST_OS_UNIX
