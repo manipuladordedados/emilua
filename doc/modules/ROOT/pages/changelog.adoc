@@ -22,6 +22,7 @@
 * New UNIX socket options to retrieve security labels and credentials from the
   remote process.
 * Remove HTTP & WebSocket classes. They should be offered as separate plugins.
+* `file_descriptor` implemented for Windows pipes and `file.stream`.
 
 == 0.5
 

@@ -73,7 +73,6 @@ static int readable_pipe_cancel(lua_State* L)
     return 0;
 }
 
-#if BOOST_OS_UNIX
 static int readable_pipe_assign(lua_State* L)
 {
     auto pipe = static_cast<asio::readable_pipe*>(lua_touserdata(L, 1));
@@ -132,10 +131,14 @@ static int readable_pipe_release(lua_State* L)
     }
 
     boost::system::error_code ec;
-    int rawfd = pipe->release(ec);
+    file_descriptor_handle rawfd = pipe->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
+#if BOOST_OS_WINDOWS
+            BOOL res = CloseHandle(rawfd);
+#else // BOOST_OS_WINDOWS
             int res = close(rawfd);
+#endif // BOOST_OS_WINDOWS
             boost::ignore_unused(res);
         }
     };
@@ -155,7 +158,6 @@ static int readable_pipe_release(lua_State* L)
     rawfd = INVALID_FILE_DESCRIPTOR;
     return 1;
 }
-#endif // BOOST_OS_UNIX
 EMILUA_GPERF_DECLS_END(read_stream)
 
 static int readable_pipe_read_some(lua_State* L)
@@ -259,21 +261,13 @@ static int readable_pipe_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "assign",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, readable_pipe_assign);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "release",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, readable_pipe_release);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -290,11 +284,8 @@ static int readable_pipe_new(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
 
-#if BOOST_OS_UNIX
     int nargs = lua_gettop(L);
     if (nargs == 0) {
-#endif // BOOST_OS_UNIX
-
         auto pipe = static_cast<asio::readable_pipe*>(
             lua_newuserdata(L, sizeof(asio::readable_pipe))
         );
@@ -302,8 +293,6 @@ static int readable_pipe_new(lua_State* L)
         setmetatable(L, -2);
         new (pipe) asio::readable_pipe{vm_ctx.strand().context()};
         return 1;
-
-#if BOOST_OS_UNIX
     }
 
     auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
@@ -337,7 +326,6 @@ static int readable_pipe_new(lua_State* L)
     assert(!ec); boost::ignore_unused(ec);
 
     return 1;
-#endif // BOOST_OS_UNIX
 }
 
 EMILUA_GPERF_DECLS_BEGIN(write_stream)
@@ -386,7 +374,6 @@ static int writable_pipe_cancel(lua_State* L)
     return 0;
 }
 
-#if BOOST_OS_UNIX
 static int writable_pipe_assign(lua_State* L)
 {
     auto pipe = static_cast<asio::writable_pipe*>(lua_touserdata(L, 1));
@@ -445,10 +432,14 @@ static int writable_pipe_release(lua_State* L)
     }
 
     boost::system::error_code ec;
-    int rawfd = pipe->release(ec);
+    file_descriptor_handle rawfd = pipe->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
+#if BOOST_OS_WINDOWS
+            BOOL res = CloseHandle(rawfd);
+#else // BOOST_OS_WINDOWS
             int res = close(rawfd);
+#endif // BOOST_OS_WINDOWS
             boost::ignore_unused(res);
         }
     };
@@ -468,7 +459,6 @@ static int writable_pipe_release(lua_State* L)
     rawfd = INVALID_FILE_DESCRIPTOR;
     return 1;
 }
-#endif // BOOST_OS_UNIX
 EMILUA_GPERF_DECLS_END(write_stream)
 
 static int writable_pipe_write_some(lua_State* L)
@@ -572,21 +562,13 @@ static int writable_pipe_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "assign",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, writable_pipe_assign);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "release",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, writable_pipe_release);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -603,11 +585,8 @@ static int writable_pipe_new(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
 
-#if BOOST_OS_UNIX
     int nargs = lua_gettop(L);
     if (nargs == 0) {
-#endif // BOOST_OS_UNIX
-
         auto pipe = static_cast<asio::writable_pipe*>(
             lua_newuserdata(L, sizeof(asio::writable_pipe))
         );
@@ -615,8 +594,6 @@ static int writable_pipe_new(lua_State* L)
         setmetatable(L, -2);
         new (pipe) asio::writable_pipe{vm_ctx.strand().context()};
         return 1;
-
-#if BOOST_OS_UNIX
     }
 
     auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
@@ -650,7 +627,6 @@ static int writable_pipe_new(lua_State* L)
     assert(!ec); boost::ignore_unused(ec);
 
     return 1;
-#endif // BOOST_OS_UNIX
 }
 
 static int pair(lua_State* L)

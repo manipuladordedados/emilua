@@ -69,7 +69,11 @@ static int file_descriptor_close(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
+#if BOOST_OS_WINDOWS
+    BOOL res = CloseHandle(*handle);
+#else // BOOST_OS_WINDOWS
     int res = close(*handle);
+#endif // BOOST_OS_WINDOWS
     boost::ignore_unused(res);
 
     return 0;
@@ -93,6 +97,9 @@ static int file_descriptor_dup(lua_State* L)
         return lua_error(L);
     }
 
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
     int newfd = dup(*oldhandle);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (newfd != -1) {
@@ -114,6 +121,7 @@ static int file_descriptor_dup(lua_State* L)
     *newhandle = newfd;
     newfd = -1;
     return 1;
+#endif // BOOST_OS_WINDOWS
 }
 
 #if BOOST_OS_LINUX
@@ -555,6 +563,9 @@ static int file_descriptor_mt_tostring(lua_State* L)
         return lua_error(L);
     }
 
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
     // Paranoia. Apparently the kernel side disagrees about what should be the
     // file descriptor's underlying type (cf. close_range(2)) so negative values
     // could be possible (very unlikely as EMFILE should still hinder them
@@ -586,6 +597,7 @@ static int file_descriptor_mt_tostring(lua_State* L)
 
     lua_pushlstring(L, buf.data(), s_size);
     return 1;
+#endif // BOOST_OS_WINDOWS
 }
 
 static int file_descriptor_mt_gc(lua_State* L)
@@ -594,7 +606,11 @@ static int file_descriptor_mt_gc(lua_State* L)
     if (handle == INVALID_FILE_DESCRIPTOR)
         return 0;
 
+#if BOOST_OS_WINDOWS
+    BOOL res = CloseHandle(handle);
+#else // BOOST_OS_WINDOWS
     int res = close(handle);
+#endif // BOOST_OS_WINDOWS
     boost::ignore_unused(res);
     return 0;
 }

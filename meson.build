@@ -186,6 +186,7 @@ incdir = [
 ]
 
 src = [
+    'src/file_descriptor.cpp',
     'src/recursive_mutex.cpp',
     'src/generic_error.cpp',
     'src/scope_cleanup.cpp',
@@ -281,7 +282,6 @@ re2c_src = [
 
 if host_machine.system() != 'windows'
     src += [
-        'src/file_descriptor.cpp',
         'src/unix.cpp',
         'src/ipc_actor.cpp',
         'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',

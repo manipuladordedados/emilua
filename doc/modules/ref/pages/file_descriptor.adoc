@@ -14,7 +14,8 @@ A file descriptor.
 
 NOTE: It cannot be created directly.
 
-NOTE: This type is not available on Windows.
+NOTE: On Windows, `file_descriptor` is only implemented for pipes and
+`file.stream`.
 
 == Functions
 

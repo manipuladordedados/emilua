@@ -134,7 +134,6 @@ static int stream_cancel(lua_State* L)
     return 0;
 }
 
-#if BOOST_OS_UNIX
 static int stream_assign(lua_State* L)
 {
     auto file = static_cast<asio::stream_file*>(lua_touserdata(L, 1));
@@ -193,10 +192,14 @@ static int stream_release(lua_State* L)
     }
 
     boost::system::error_code ec;
-    int rawfd = file->release(ec);
+    file_descriptor_handle rawfd = file->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
+#if BOOST_OS_WINDOWS
+            BOOL res = CloseHandle(rawfd);
+#else // BOOST_OS_WINDOWS
             int res = close(rawfd);
+#endif // BOOST_OS_WINDOWS
             boost::ignore_unused(res);
         }
     };
@@ -216,7 +219,6 @@ static int stream_release(lua_State* L)
     rawfd = INVALID_FILE_DESCRIPTOR;
     return 1;
 }
-#endif // BOOST_OS_UNIX
 
 static int stream_resize(lua_State* L)
 {
@@ -443,21 +445,13 @@ static int stream_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "assign",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, stream_assign);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "release",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
                 lua_pushcfunction(L, stream_release);
-#else // BOOST_OS_UNIX
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -504,7 +498,6 @@ static int stream_new(lua_State* L)
         return 1;
     }
 
-#if BOOST_OS_UNIX
     auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
     if (!handle || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -536,10 +529,6 @@ static int stream_new(lua_State* L)
     assert(!ec); boost::ignore_unused(ec);
 
     return 1;
-#else // BOOST_OS_UNIX
-    push(L, std::errc::invalid_argument, "arg", 1);
-    return lua_error(L);
-#endif // BOOST_OS_UNIX
 }
 
 EMILUA_GPERF_DECLS_BEGIN(random_access)
