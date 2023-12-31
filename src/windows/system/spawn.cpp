@@ -381,7 +381,7 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     STARTUPINFOW startup_info{
-        sizeof(STARTUPINFOEXW), nullptr, nullptr, nullptr,
+        sizeof(STARTUPINFOW), nullptr, nullptr, nullptr,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr,
         INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE
     };
