@@ -8,9 +8,13 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/async_base.hpp>
 
 #include <boost/asio/windows/object_handle.hpp>
+#include <boost/asio/readable_pipe.hpp>
+#include <boost/asio/writable_pipe.hpp>
+#include <boost/asio/connect_pipe.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/scope_exit.hpp>
 
+#include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
 EMILUA_GPERF_DECLS_END(includes)
 
@@ -240,6 +244,8 @@ int system_spawn(lua_State* L)
 {
     lua_settop(L, 1);
     luaL_checktype(L, 1, LUA_TTABLE);
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    const int FILE_DESCRIPTOR_MT_INDEX = lua_gettop(L);
     auto& vm_ctx = get_vm_context(L);
 
     std::filesystem::path program;
@@ -349,6 +355,156 @@ int system_spawn(lua_State* L)
     }
     environmentb.emplace_back(nullptr);
 
+    HANDLE proc_stdin = INVALID_HANDLE_VALUE;
+    asio::readable_pipe stdin_rpipe{vm_ctx.strand().context()};
+    asio::writable_pipe stdin_wpipe{vm_ctx.strand().context()};
+
+    lua_getfield(L, 1, "stdin");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL: {
+        boost::system::error_code ec;
+        asio::connect_pipe(stdin_rpipe, stdin_wpipe, ec);
+        if (ec) {
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+        proc_stdin = stdin_rpipe.native_handle();
+        SetHandleInformation(
+            proc_stdin, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+        break;
+    }
+    case LUA_TSTRING:
+        if (tostringview(L) != "share") {
+            push(L, std::errc::invalid_argument, "arg", "stdin");
+            return lua_error(L);
+        }
+        proc_stdin = GetStdHandle(STD_INPUT_HANDLE);
+        break;
+    case LUA_TUSERDATA: {
+        auto handle = static_cast<file_descriptor_handle*>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument, "arg", "stdin");
+            return lua_error(L);
+        }
+        if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+            push(L, std::errc::invalid_argument, "arg", "stdin");
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+        if (*handle == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy, "arg", "stdin");
+            return lua_error(L);
+        }
+        proc_stdin = *handle;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "stdin");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    HANDLE proc_stdout = INVALID_HANDLE_VALUE;
+    asio::readable_pipe stdout_rpipe{vm_ctx.strand().context()};
+    asio::writable_pipe stdout_wpipe{vm_ctx.strand().context()};
+
+    lua_getfield(L, 1, "stdout");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL: {
+        boost::system::error_code ec;
+        asio::connect_pipe(stdout_rpipe, stdout_wpipe, ec);
+        if (ec) {
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+        proc_stdout = stdout_wpipe.native_handle();
+        SetHandleInformation(
+            proc_stdout, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+        break;
+    }
+    case LUA_TSTRING:
+        if (tostringview(L) != "share") {
+            push(L, std::errc::invalid_argument, "arg", "stdout");
+            return lua_error(L);
+        }
+        proc_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+        break;
+    case LUA_TUSERDATA: {
+        auto handle = static_cast<file_descriptor_handle*>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument, "arg", "stdout");
+            return lua_error(L);
+        }
+        if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+            push(L, std::errc::invalid_argument, "arg", "stdout");
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+        if (*handle == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy, "arg", "stdout");
+            return lua_error(L);
+        }
+        proc_stdout = *handle;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "stdout");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    HANDLE proc_stderr = INVALID_HANDLE_VALUE;
+    asio::readable_pipe stderr_rpipe{vm_ctx.strand().context()};
+    asio::writable_pipe stderr_wpipe{vm_ctx.strand().context()};
+
+    lua_getfield(L, 1, "stderr");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL: {
+        boost::system::error_code ec;
+        asio::connect_pipe(stderr_rpipe, stderr_wpipe, ec);
+        if (ec) {
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+        proc_stderr = stderr_wpipe.native_handle();
+        SetHandleInformation(
+            proc_stderr, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+        break;
+    }
+    case LUA_TSTRING:
+        if (tostringview(L) != "share") {
+            push(L, std::errc::invalid_argument, "arg", "stderr");
+            return lua_error(L);
+        }
+        proc_stderr = GetStdHandle(STD_ERROR_HANDLE);
+        break;
+    case LUA_TUSERDATA: {
+        auto handle = static_cast<file_descriptor_handle*>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument, "arg", "stderr");
+            return lua_error(L);
+        }
+        if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+            push(L, std::errc::invalid_argument, "arg", "stderr");
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+        if (*handle == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy, "arg", "stderr");
+            return lua_error(L);
+        }
+        proc_stderr = *handle;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "stderr");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::filesystem::path working_directory;
     lua_getfield(L, 1, "working_directory");
     switch (lua_type(L, -1)) {
@@ -380,27 +536,79 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    STARTUPINFOW startup_info{
+    DWORD dwFlags = STARTF_USESTDHANDLES;
+    STARTUPINFOEXW startup_info{{
         sizeof(STARTUPINFOEXW), nullptr, nullptr, nullptr,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr,
-        INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE
+        0, 0, 0, 0, 0, 0, 0, dwFlags, 0, 0, nullptr,
+        proc_stdin, proc_stdout, proc_stderr
+    }, nullptr};
+    BOOST_SCOPE_EXIT_ALL(&) { if (startup_info.lpAttributeList) {
+        HeapFree(GetProcessHeap(), 0, startup_info.lpAttributeList);
+    } };
+
+    {
+        SIZE_T size = 0;
+
+        if (!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) {
+            DWORD last_error = GetLastError();
+            if (last_error != ERROR_INSUFFICIENT_BUFFER) {
+                boost::system::error_code ec(
+                    last_error, asio::error::get_system_category());
+                push(L, static_cast<std::error_code>(ec));
+                return lua_error(L);
+            }
+        }
+
+        startup_info.lpAttributeList = reinterpret_cast<
+            LPPROC_THREAD_ATTRIBUTE_LIST>(HeapAlloc(GetProcessHeap(), 0, size));
+        if (!startup_info.lpAttributeList) {
+            push(L, std::errc::not_enough_memory);
+            return lua_error(L);
+        }
+
+        if (!InitializeProcThreadAttributeList(
+            startup_info.lpAttributeList, 1, 0, &size
+        )) {
+            DWORD last_error = GetLastError();
+            boost::system::error_code ec(
+                last_error, asio::error::get_system_category());
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+    }
+    BOOST_SCOPE_EXIT_ALL(&) {
+        DeleteProcThreadAttributeList(startup_info.lpAttributeList);
     };
+
+    HANDLE handles_to_inherit[3] = { proc_stdin, proc_stdout, proc_stderr };
+
+    if (!UpdateProcThreadAttribute(
+        startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+        handles_to_inherit, 3 * sizeof(HANDLE), NULL, NULL
+    )) {
+        DWORD last_error = GetLastError();
+        boost::system::error_code ec(
+            last_error, asio::error::get_system_category());
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
 
     PROCESS_INFORMATION pi{nullptr, nullptr, 0, 0};
     BOOST_SCOPE_EXIT_ALL(&) {
         if (pi.hProcess != INVALID_HANDLE_VALUE) { CloseHandle(pi.hProcess); }
     };
 
+    DWORD dwCreationFlags{EXTENDED_STARTUPINFO_PRESENT};
     BOOL ok = ::CreateProcessW(
         program.c_str(),
         command_line.data(),
         /*lpProcessAttributes=*/nullptr,
         /*lpThreadAttributes=*/nullptr,
-        /*bInheritHandles=*/FALSE,
-        /*dwCreationFlags=*/0,
+        /*bInheritHandles=*/TRUE,
+        dwCreationFlags,
         environmentb.data(),
         working_directory.empty() ? nullptr : working_directory.c_str(),
-        &startup_info,
+        &startup_info.StartupInfo,
         &pi);
     if (!ok) {
         DWORD last_error = GetLastError();

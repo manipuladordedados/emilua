@@ -193,6 +193,9 @@ static int stream_release(lua_State* L)
 
     boost::system::error_code ec;
     file_descriptor_handle rawfd = file->release(ec);
+#if BOOST_OS_WINDOWS
+    SetHandleInformation(rawfd, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+#endif // BOOST_OS_WINDOWS
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
 #if BOOST_OS_WINDOWS
