@@ -6,6 +6,8 @@
 == 0.6
 
 * Add FreeBSD's jails support.
+* Add function `format()` to format strings. The implementation uses
+  https://fmt.dev/[{cpp}'s libfmt].
 * Convert decomposition functions from filesystem.path to properties:
   `root_name`, `root_directory`, `root_path`, `relative_path`, `parent_path`,
   `filename`, `stem`, `extension`.

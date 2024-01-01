@@ -1,0 +1,60 @@
+= format
+
+:_:
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+format(fmt: string[, ...]) -> string
+----
+
+== Description
+
+Formats args according to specifications in `fmt` and returns the result as a
+string.
+
+Supported arguments:
+
+* `boolean`
+* `number`
+* `string`
+
+You may also specify pairs. First element must be a string and it works as a
+named argument.
+
+https://fmt.dev/latest/syntax.html[The full specification for the format string
+can be found in libfmt homepage].
+
+NOTE: `format()` is a global so it doesn't need to be ``require()``d.
+
+== Example
+
+[source,lua]
+----
+format("{0}, {1}, {2}", 'a', 'b', 'c')
+-- Result: "a, b, c"
+
+format("{}, {}, {}", 'a', 'b', 'c')
+-- Result: "a, b, c"
+
+format("{2}, {1}, {0}", 'a', 'b', 'c')
+-- Result: "c, b, a"
+
+format("{0}{1}{0}", "abra", "cad") -- arguments' indices can be repeated
+-- Result: "abracadabra"
+
+format("{:.{}f}", 3.14, 1)
+-- Result: "3.1"
+
+format("Elapsed time: {s:.2f} seconds", {"s", 1.23})
+-- Result: "Elapsed time: 1.23 seconds"
+----

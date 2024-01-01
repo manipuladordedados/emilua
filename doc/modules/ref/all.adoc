@@ -6,6 +6,8 @@ include::pages/generic_error.adoc[]
 
 include::pages/asio_error.adoc[]
 
+include::pages/format.adoc[]
+
 include::pages/byte_span.adoc[]
 
 include::pages/condition_variable.adoc[]
