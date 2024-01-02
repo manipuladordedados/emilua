@@ -405,12 +405,22 @@ static int writer_value(lua_State* L)
                 return lua_error(L);
             }
             break;
-        case LUA_TNUMBER:
-            if (jw->writer.value(lua_tonumber(L, 2)) == 0) {
-                push(L, jw->writer.error());
-                return lua_error(L);
+        case LUA_TNUMBER: {
+            auto v = lua_tonumber(L, 2);
+            std::int64_t as_int = v;
+            if (v - static_cast<lua_Number>(as_int) == 0) {
+                if (jw->writer.value(as_int) == 0) {
+                    push(L, jw->writer.error());
+                    return lua_error(L);
+                }
+            } else {
+                if (jw->writer.value(v) == 0) {
+                    push(L, jw->writer.error());
+                    return lua_error(L);
+                }
             }
             break;
+        }
         case LUA_TBOOLEAN:
             if (jw->writer.value(lua_toboolean(L, 2) ? true : false) == 0) {
                 push(L, jw->writer.error());
