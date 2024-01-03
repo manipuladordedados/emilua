@@ -153,7 +153,8 @@ Whether to create a new session and become the session leader. On `true`, calls
 `setsid()` on the child.
 +
 
-NOTE: *Not* available on Windows.
+NOTE: On Windows, `DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP` is used in
+creation flags.
 
 `set_ctty: file_descriptor|nil`::
 

@@ -517,6 +517,20 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    bool start_new_session = false;
+    lua_getfield(L, 1, "start_new_session");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        start_new_session = lua_toboolean(L, -1);
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "start_new_session");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::filesystem::path working_directory;
     lua_getfield(L, 1, "working_directory");
     switch (lua_type(L, -1)) {
@@ -612,6 +626,11 @@ int system_spawn(lua_State* L)
 
     DWORD dwCreationFlags{
         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT};
+
+    if (start_new_session) {
+        dwCreationFlags |= DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+    }
+
     BOOL ok = ::CreateProcessW(
         program.c_str(),
         command_line.data(),
