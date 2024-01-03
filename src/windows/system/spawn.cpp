@@ -531,6 +531,24 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    bool create_new_process_group = false;
+    lua_getfield(L, 1, "process_group");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TNUMBER:
+        if (lua_tointeger(L, -1) != 0) {
+            push(L, std::errc::not_supported, "arg", "process_group");
+            return lua_error(L);
+        }
+        create_new_process_group = true;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "process_group");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::filesystem::path working_directory;
     lua_getfield(L, 1, "working_directory");
     switch (lua_type(L, -1)) {
@@ -629,6 +647,10 @@ int system_spawn(lua_State* L)
 
     if (start_new_session) {
         dwCreationFlags |= DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+    }
+
+    if (create_new_process_group) {
+        dwCreationFlags |= CREATE_NEW_PROCESS_GROUP;
     }
 
     BOOL ok = ::CreateProcessW(

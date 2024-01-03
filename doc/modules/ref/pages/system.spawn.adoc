@@ -171,7 +171,8 @@ Set the process group (it calls `setpgid()` on the child). On 0, the child's
 process group ID is made the same as its process ID.
 +
 
-NOTE: *Not* available on Windows.
+NOTE: On Windows, only `0` is supported (`CREATE_NEW_PROCESS_GROUP` is used in
+creation flags).
 
 `foreground: "stdin"|"stdout"|"stderr"|file_descriptor|nil`::
 
