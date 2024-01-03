@@ -322,7 +322,7 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    std::vector<std::string> environment;
+    std::vector<std::wstring> environment;
     lua_getfield(L, 1, "environment");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
@@ -337,9 +337,13 @@ int system_spawn(lua_State* L)
                 return lua_error(L);
             }
 
-            environment.emplace_back(tostringview(L, -2));
-            environment.back() += '=';
-            environment.back() += tostringview(L, -1);
+            auto v = nowide::widen(tostringview(L, -2));
+            v.push_back(L'=');
+            v.append(nowide::widen(tostringview(L, -1)));
+            environment.insert(
+                std::upper_bound(environment.begin(), environment.end(), v),
+                v);
+
             lua_pop(L, 1);
         }
         break;
@@ -348,12 +352,16 @@ int system_spawn(lua_State* L)
         return lua_error(L);
     }
     lua_pop(L, 1);
-    std::vector<char*> environmentb;
-    environmentb.reserve(environment.size() + 1);
-    for (auto& e: environment) {
-        environmentb.emplace_back(e.data());
+    std::wstring environmentb;
+    std::size_t environment_size = 0;
+    for (auto& e : environment) {
+        environment_size += e.size() + 1;
     }
-    environmentb.emplace_back(nullptr);
+    environmentb.reserve(environment_size);
+    for (auto& e : environment) {
+        environmentb += e;
+        environmentb.push_back(L'\0');
+    }
 
     HANDLE proc_stdin = INVALID_HANDLE_VALUE;
     asio::readable_pipe stdin_rpipe{vm_ctx.strand().context()};
@@ -598,7 +606,8 @@ int system_spawn(lua_State* L)
         if (pi.hProcess != INVALID_HANDLE_VALUE) { CloseHandle(pi.hProcess); }
     };
 
-    DWORD dwCreationFlags{EXTENDED_STARTUPINFO_PRESENT};
+    DWORD dwCreationFlags{
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT};
     BOOL ok = ::CreateProcessW(
         program.c_str(),
         command_line.data(),
