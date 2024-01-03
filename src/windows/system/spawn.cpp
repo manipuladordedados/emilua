@@ -259,6 +259,10 @@ int system_spawn(lua_State* L)
     }
     case LUA_TUSERDATA: {
         auto path = static_cast<std::filesystem::path*>(lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument, "arg", "program");
+            return lua_error(L);
+        }
         rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
         if (!lua_rawequal(L, -1, -2)) {
             push(L, std::errc::invalid_argument, "arg", "program");
