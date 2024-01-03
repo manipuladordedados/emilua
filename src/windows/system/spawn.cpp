@@ -7,10 +7,12 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/core.hpp>
 #include <emilua/async_base.hpp>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/windows/object_handle.hpp>
 #include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/writable_pipe.hpp>
 #include <boost/asio/connect_pipe.hpp>
+#include <boost/container/small_vector.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/scope_exit.hpp>
 
@@ -38,6 +40,21 @@ struct subprocess
     DWORD dwProcessId;
     result<DWORD, void> status;
 };
+
+template<class F>
+static void env_path_for_each(std::string_view value, F&& f)
+{
+    std::string_view::const_iterator semicolon = value.begin();
+    std::string_view::const_iterator next_semicolon;
+    do {
+        next_semicolon = std::find(semicolon, value.end(), ';');
+        f(value.substr(semicolon - value.begin(), next_semicolon - semicolon));
+        semicolon = next_semicolon;
+
+        if (next_semicolon != value.end())
+            ++semicolon;
+    } while (semicolon != value.end());
+}
 EMILUA_GPERF_DECLS_END(system)
 
 static int subprocess_wait(lua_State* L)
@@ -242,6 +259,8 @@ void quote_and_append_argv(std::wstring& command_line, const std::wstring& arg)
 
 int system_spawn(lua_State* L)
 {
+    using boost::algorithm::iequals;
+
     lua_settop(L, 1);
     luaL_checktype(L, 1, LUA_TTABLE);
     rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
@@ -252,15 +271,45 @@ int system_spawn(lua_State* L)
     lua_getfield(L, 1, "program");
     switch (lua_type(L, -1)) {
     case LUA_TSTRING: {
+        boost::container::small_vector<const wchar_t*, 2> pathext;
+        auto append_extension = [&pathext](std::string_view ext) {
+            if (iequals(ext, ".exe", std::locale::classic())) {
+                pathext.emplace_back(L".exe");
+            } else if (iequals(ext, ".com", std::locale::classic())) {
+                pathext.emplace_back(L".com");
+            }
+        };
+        if (
+            auto it = vm_ctx.appctx.app_env.find("PATHEXT") ;
+            it != vm_ctx.appctx.app_env.end()
+        ) {
+            env_path_for_each(it->second, append_extension);
+        } else {
+            for (const auto& env : vm_ctx.appctx.app_env) {
+                if (iequals(env.first, "PATHEXT", std::locale::classic())) {
+                    env_path_for_each(env.second, append_extension);
+                    break;
+                }
+            }
+            if (pathext.empty()) {
+                pathext.emplace_back(L".com");
+                pathext.emplace_back(L".exe");
+            }
+        }
         wchar_t path[MAX_PATH];
-        if (!SearchPathW(
-            nullptr, nowide::widen(tostringview(L)).c_str(), L".exe", MAX_PATH,
-            path, nullptr
-        )) {
+        for (const auto& ext : pathext) {
+            if (SearchPathW(
+                nullptr, nowide::widen(tostringview(L)).c_str(), ext, MAX_PATH,
+                path, nullptr
+            )) {
+                program = path;
+                break;
+            }
+        }
+        if (program.empty()) {
             push(L, std::errc::no_such_file_or_directory);
             return lua_error(L);
         }
-        program = path;
         break;
     }
     case LUA_TUSERDATA: {
