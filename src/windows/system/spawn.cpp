@@ -693,38 +693,6 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    bool start_new_session = false;
-    lua_getfield(L, 1, "start_new_session");
-    switch (lua_type(L, -1)) {
-    case LUA_TNIL:
-        break;
-    case LUA_TBOOLEAN:
-        start_new_session = lua_toboolean(L, -1);
-        break;
-    default:
-        push(L, std::errc::invalid_argument, "arg", "start_new_session");
-        return lua_error(L);
-    }
-    lua_pop(L, 1);
-
-    bool create_new_process_group = false;
-    lua_getfield(L, 1, "process_group");
-    switch (lua_type(L, -1)) {
-    case LUA_TNIL:
-        break;
-    case LUA_TNUMBER:
-        if (lua_tointeger(L, -1) != 0) {
-            push(L, std::errc::not_supported, "arg", "process_group");
-            return lua_error(L);
-        }
-        create_new_process_group = true;
-        break;
-    default:
-        push(L, std::errc::invalid_argument, "arg", "process_group");
-        return lua_error(L);
-    }
-    lua_pop(L, 1);
-
     std::filesystem::path working_directory;
     lua_getfield(L, 1, "working_directory");
     switch (lua_type(L, -1)) {
@@ -796,6 +764,97 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    DWORD dwCreationFlags{
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT};
+
+    lua_getfield(L, 1, "start_new_session");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        if (lua_toboolean(L, -1))
+            dwCreationFlags |= DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "start_new_session");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "process_group");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TNUMBER:
+        if (lua_tointeger(L, -1) != 0) {
+            push(L, std::errc::not_supported, "arg", "process_group");
+            return lua_error(L);
+        }
+        dwCreationFlags |= CREATE_NEW_PROCESS_GROUP;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "process_group");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "create_breakaway_from_job");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        if (lua_toboolean(L, -1))
+            dwCreationFlags |= CREATE_BREAKAWAY_FROM_JOB;
+        break;
+    default:
+        push(L, std::errc::invalid_argument,
+             "arg", "create_breakaway_from_job");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "create_new_console");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        if (lua_toboolean(L, -1))
+            dwCreationFlags |= CREATE_NEW_CONSOLE;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "create_new_console");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "create_no_window");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        if (lua_toboolean(L, -1))
+            dwCreationFlags |= CREATE_NO_WINDOW;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "create_no_window");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "detached_process");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        if (lua_toboolean(L, -1))
+            dwCreationFlags |= DETACHED_PROCESS;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "detached_process");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     STARTUPINFOEXW startup_info{{
         sizeof(STARTUPINFOEXW), nullptr, nullptr, nullptr,
         0, 0, 0, 0, 0, 0, 0, dwFlags, wShowWindow, 0, nullptr,
@@ -856,17 +915,6 @@ int system_spawn(lua_State* L)
     BOOST_SCOPE_EXIT_ALL(&) {
         if (pi.hProcess != INVALID_HANDLE_VALUE) { CloseHandle(pi.hProcess); }
     };
-
-    DWORD dwCreationFlags{
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT};
-
-    if (start_new_session) {
-        dwCreationFlags |= DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
-    }
-
-    if (create_new_process_group) {
-        dwCreationFlags |= CREATE_NEW_PROCESS_GROUP;
-    }
 
     BOOL ok = ::CreateProcessW(
         program.c_str(),
