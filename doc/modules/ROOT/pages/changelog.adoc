@@ -25,6 +25,7 @@
   remote process.
 * Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 * `file_descriptor` implemented for Windows pipes and `file.stream`.
+* Many improvements to Windows version of `system.spawn()`.
 
 == 0.5
 

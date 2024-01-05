@@ -285,6 +285,14 @@ Enter in this Linux net namespace.
 
 NOTE: Only available on Linux.
 
+`show_window: "hide"|"shownormal"|"normal"|"showminimized"|"showmaximized"|"maximize"|"shownoactivate"|"show"|"minimize"|"showminnoactive"|"showna"|"restore"|"forceminimize"|nil`::
+
+If present, `STARTUPINFO.dwFlags` will include `STARTF_USESHOWWINDOW`, and
+`STARTUPINFO.wShowWindow` will be initialized with the indicated value.
++
+
+NOTE: Only available on Windows.
+
 == `subprocess` functions
 
 === `wait(self)`

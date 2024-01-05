@@ -757,9 +757,48 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     DWORD dwFlags = STARTF_USESTDHANDLES;
+
+    WORD wShowWindow;
+    lua_getfield(L, 1, "show_window");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        wShowWindow = 0;
+        break;
+    case LUA_TSTRING: {
+        auto value = tostringview(L);
+        auto value2 = EMILUA_GPERF_BEGIN(value)
+            EMILUA_GPERF_PARAM(WORD action)
+            EMILUA_GPERF_PAIR("hide", SW_HIDE)
+            EMILUA_GPERF_PAIR("shownormal", SW_SHOWNORMAL)
+            EMILUA_GPERF_PAIR("normal", SW_NORMAL)
+            EMILUA_GPERF_PAIR("showminimized", SW_SHOWMINIMIZED)
+            EMILUA_GPERF_PAIR("showmaximized", SW_SHOWMAXIMIZED)
+            EMILUA_GPERF_PAIR("maximize", SW_MAXIMIZE)
+            EMILUA_GPERF_PAIR("shownoactivate", SW_SHOWNOACTIVATE)
+            EMILUA_GPERF_PAIR("show", SW_SHOW)
+            EMILUA_GPERF_PAIR("minimize", SW_MINIMIZE)
+            EMILUA_GPERF_PAIR("showminnoactive", SW_SHOWMINNOACTIVE)
+            EMILUA_GPERF_PAIR("showna", SW_SHOWNA)
+            EMILUA_GPERF_PAIR("restore", SW_RESTORE)
+            EMILUA_GPERF_PAIR("forceminimize", SW_FORCEMINIMIZE)
+        EMILUA_GPERF_END(value);
+        if (!value2) {
+            push(L, std::errc::invalid_argument, "arg", "show_window");
+            return lua_error(L);
+        }
+        dwFlags |= STARTF_USESHOWWINDOW;
+        wShowWindow = *value2;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "show_window");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     STARTUPINFOEXW startup_info{{
         sizeof(STARTUPINFOEXW), nullptr, nullptr, nullptr,
-        0, 0, 0, 0, 0, 0, 0, dwFlags, 0, 0, nullptr,
+        0, 0, 0, 0, 0, 0, 0, dwFlags, wShowWindow, 0, nullptr,
         proc_stdin, proc_stdout, proc_stderr
     }, nullptr};
     BOOST_SCOPE_EXIT_ALL(&) { if (startup_info.lpAttributeList) {
