@@ -330,3 +330,12 @@ The process id used by the OS to represent this child process (e.g. the number
 that shows up in `/proc` on some UNIX systems).
 
 NOTE: You can only access this field for non-``wait()``'ed processes.
+
+== Bugs
+
+Windows properly supports line-breaks in `arguments`. However if you're running
+a `.bat` or a `.cmd` file, there's a bug in `CMD.exe` that stops parsing the
+command line at the line-break. This is a bug in Windows. To fix this bug, you
+need to install TCC-RT from JP Software (or another `CMD.exe` replacement such
+as wineconsole) and set `COMSPEC` to this new interpreter. Microsoft won't fix
+this bug.

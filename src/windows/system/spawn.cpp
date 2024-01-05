@@ -24,6 +24,8 @@ namespace emilua {
 
 EMILUA_GPERF_DECLS_BEGIN(system)
 EMILUA_GPERF_NAMESPACE(emilua)
+namespace fs = std::filesystem;
+
 static char subprocess_mt_key;
 static char subprocess_wait_key;
 
@@ -225,13 +227,32 @@ static int subprocess_mt_index(lua_State* L)
     EMILUA_GPERF_END(key)(L);
 }
 
-static
-void quote_and_append_argv(std::wstring& command_line, const std::wstring& arg)
+inline bool is_cmdexe_metacharacter(wchar_t c)
 {
-    if (!arg.empty() && arg.find_first_of(L" \t\v\n\"") == std::wstring::npos) {
+    // L'"' is a metacharacter as well, but we handle it separately so it
+    // doesn't need to be included in this list.
+    //
+    // This list probably contains more characters than are really needed.
+    return c == L'(' || c == L')' || c == L'%' || c == L'!' || c == L'^' ||
+        c == L'<' || c == L'>' || c == L'&' || c == L'|' || c == L'@' ||
+        c == L'[' || c == L']' || c == L'{' || c == L'}';
+}
+
+static
+void quote_and_append_argv(std::wstring& command_line, const std::wstring& arg,
+                           bool cmdexe_quoting)
+{
+    if (
+        !arg.empty() && !cmdexe_quoting &&
+        arg.find_first_of(L" \t\v\n\"") == std::wstring::npos
+    ) {
         command_line.append(arg);
     } else {
-        command_line.push_back(L'"');
+        if (cmdexe_quoting) {
+            command_line.append(L"^\"");
+        } else {
+            command_line.push_back(L'"');
+        }
 
         for (auto it = arg.begin() ;; ++it) {
             std::size_t backslash_count = 0;
@@ -246,14 +267,25 @@ void quote_and_append_argv(std::wstring& command_line, const std::wstring& arg)
                 break;
             } else if (*it == L'"') {
                 command_line.append(backslash_count * 2 + 1, L'\\');
-                command_line.push_back(*it);
+                if (cmdexe_quoting) {
+                    command_line.append(L"^\"");
+                } else {
+                    command_line.push_back(*it);
+                }
             } else {
                 command_line.append(backslash_count, L'\\');
+                if (cmdexe_quoting && is_cmdexe_metacharacter(*it)) {
+                    command_line.push_back(L'^');
+                }
                 command_line.push_back(*it);
             }
         }
 
-        command_line.push_back(L'"');
+        if (cmdexe_quoting) {
+            command_line.append(L"^\"");
+        } else {
+            command_line.push_back(L'"');
+        }
     }
 }
 
@@ -268,12 +300,19 @@ int system_spawn(lua_State* L)
     auto& vm_ctx = get_vm_context(L);
 
     std::filesystem::path program;
+    std::wstring command_line;
+    bool use_comspec;
+
     lua_getfield(L, 1, "program");
     switch (lua_type(L, -1)) {
     case LUA_TSTRING: {
-        boost::container::small_vector<const wchar_t*, 2> pathext;
+        boost::container::small_vector<const wchar_t*, 4> pathext;
         auto append_extension = [&pathext](std::string_view ext) {
-            if (iequals(ext, ".exe", std::locale::classic())) {
+            if (iequals(ext, ".cmd", std::locale::classic())) {
+                pathext.emplace_back(L".cmd");
+            } else if (iequals(ext, ".bat", std::locale::classic())) {
+                pathext.emplace_back(L".bat");
+            } else if (iequals(ext, ".exe", std::locale::classic())) {
                 pathext.emplace_back(L".exe");
             } else if (iequals(ext, ".com", std::locale::classic())) {
                 pathext.emplace_back(L".com");
@@ -294,6 +333,8 @@ int system_spawn(lua_State* L)
             if (pathext.empty()) {
                 pathext.emplace_back(L".com");
                 pathext.emplace_back(L".exe");
+                pathext.emplace_back(L".bat");
+                pathext.emplace_back(L".cmd");
             }
         }
         wchar_t path[MAX_PATH];
@@ -302,7 +343,49 @@ int system_spawn(lua_State* L)
                 nullptr, nowide::widen(tostringview(L)).c_str(), ext, MAX_PATH,
                 path, nullptr
             )) {
-                program = path;
+                if (
+                    ext == std::wstring_view{L".cmd"} ||
+                    ext == std::wstring_view{L".bat"}
+                ) {
+                    if (
+                        auto it = vm_ctx.appctx.app_env.find("ComSpec") ;
+                        it != vm_ctx.appctx.app_env.end()
+                    ) {
+                        program = fs::path{
+                            nowide::widen(it->second), fs::path::native_format};
+                        command_line.append(L"/C ");
+                        quote_and_append_argv(command_line, path, true);
+                    } else if (
+                        auto it = vm_ctx.appctx.app_env.find("COMSPEC") ;
+                        it != vm_ctx.appctx.app_env.end()
+                    ) {
+                        program = fs::path{
+                            nowide::widen(it->second), fs::path::native_format};
+                        command_line.append(L"/C ");
+                        quote_and_append_argv(command_line, path, true);
+                    } else {
+                        for (const auto& env : vm_ctx.appctx.app_env) {
+                            if (iequals(
+                                env.first, "COMSPEC", std::locale::classic()
+                            )) {
+                                program = fs::path{
+                                    nowide::widen(it->second),
+                                    fs::path::native_format};
+                                command_line.append(L"/C ");
+                                quote_and_append_argv(command_line, path, true);
+                                break;
+                            }
+                        }
+                        if (program.empty()) {
+                            push(L, std::errc::no_such_file_or_directory);
+                            return lua_error(L);
+                        }
+                    }
+                    use_comspec = true;
+                } else {
+                    program = path;
+                    use_comspec = false;
+                }
                 break;
             }
         }
@@ -326,7 +409,52 @@ int system_spawn(lua_State* L)
         lua_pop(L, 1);
 
         try {
-            program = *path;
+            auto ext = path->extension().wstring();
+            if (
+                iequals(
+                    ext, std::wstring_view{L".cmd"}, std::locale::classic()) ||
+                iequals(ext, std::wstring_view{L".bat"}, std::locale::classic())
+            ) {
+                if (
+                    auto it = vm_ctx.appctx.app_env.find("ComSpec") ;
+                    it != vm_ctx.appctx.app_env.end()
+                ) {
+                    program = fs::path{
+                        nowide::widen(it->second), fs::path::native_format};
+                    command_line.append(L"/C ");
+                    quote_and_append_argv(command_line, path->wstring(), true);
+                } else if (
+                    auto it = vm_ctx.appctx.app_env.find("COMSPEC") ;
+                    it != vm_ctx.appctx.app_env.end()
+                ) {
+                    program = fs::path{
+                        nowide::widen(it->second), fs::path::native_format};
+                    command_line.append(L"/C ");
+                    quote_and_append_argv(command_line, path->wstring(), true);
+                } else {
+                    for (const auto& env : vm_ctx.appctx.app_env) {
+                        if (iequals(
+                            env.first, "COMSPEC", std::locale::classic()
+                        )) {
+                            program = fs::path{
+                                nowide::widen(it->second),
+                                fs::path::native_format};
+                            command_line.append(L"/C ");
+                            quote_and_append_argv(
+                                command_line, path->wstring(), true);
+                            break;
+                        }
+                    }
+                    if (program.empty()) {
+                        push(L, std::errc::no_such_file_or_directory);
+                        return lua_error(L);
+                    }
+                }
+                use_comspec = true;
+            } else {
+                program = *path;
+                use_comspec = false;
+            }
         } catch (const std::system_error& e) {
             push(L, e.code());
             return lua_error(L);
@@ -342,13 +470,12 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    std::wstring command_line;
     lua_getfield(L, 1, "arguments");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
     case LUA_TTABLE:
-        for (int i = 1 ;; ++i) {
+        for (int i = (use_comspec ? 2 : 1) ;; ++i) {
             lua_rawgeti(L, -1, i);
             switch (lua_type(L, -1)) {
             case LUA_TNIL:
@@ -359,7 +486,7 @@ int system_spawn(lua_State* L)
                     command_line.push_back(L' ');
 
                 quote_and_append_argv(
-                    command_line, nowide::widen(tostringview(L)));
+                    command_line, nowide::widen(tostringview(L)), use_comspec);
                 lua_pop(L, 1);
                 break;
             default:
