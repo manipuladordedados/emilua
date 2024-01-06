@@ -53,6 +53,10 @@ Use the file descriptor as the specified standard handle (`stdin`, `stdout`, or
 `nil`:::
 Create and use a closed pipe end as the specified standard handle (`stdin`,
 `stdout`, or `stderr`) for the spawned process.
++
+
+NOTE: On Windows, it's unspecified (will vary depending on whether any
+redirection is done at all, ``dwCreationFlags``'s value, etc).
 
 `extra_fds: { [integer]: file_descriptor }|nil`::
 

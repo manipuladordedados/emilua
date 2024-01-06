@@ -1,4 +1,4 @@
-/* Copyright (c) 2023 Vinícius dos Santos Oliveira
+/* Copyright (c) 2023, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -9,9 +9,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/windows/object_handle.hpp>
-#include <boost/asio/readable_pipe.hpp>
-#include <boost/asio/writable_pipe.hpp>
-#include <boost/asio/connect_pipe.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/scope_exit.hpp>
@@ -543,30 +540,21 @@ int system_spawn(lua_State* L)
         environmentb.push_back(L'\0');
     }
 
+    boost::container::small_vector<HANDLE, 3> handles_to_inherit;
+
     HANDLE proc_stdin = INVALID_HANDLE_VALUE;
-    asio::readable_pipe stdin_rpipe{vm_ctx.strand().context()};
-    asio::writable_pipe stdin_wpipe{vm_ctx.strand().context()};
 
     lua_getfield(L, 1, "stdin");
     switch (lua_type(L, -1)) {
-    case LUA_TNIL: {
-        boost::system::error_code ec;
-        asio::connect_pipe(stdin_rpipe, stdin_wpipe, ec);
-        if (ec) {
-            push(L, static_cast<std::error_code>(ec));
-            return lua_error(L);
-        }
-        proc_stdin = stdin_rpipe.native_handle();
-        SetHandleInformation(
-            proc_stdin, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    case LUA_TNIL:
         break;
-    }
     case LUA_TSTRING:
         if (tostringview(L) != "share") {
             push(L, std::errc::invalid_argument, "arg", "stdin");
             return lua_error(L);
         }
         proc_stdin = GetStdHandle(STD_INPUT_HANDLE);
+        handles_to_inherit.push_back(proc_stdin);
         break;
     case LUA_TUSERDATA: {
         auto handle = static_cast<file_descriptor_handle*>(
@@ -585,6 +573,7 @@ int system_spawn(lua_State* L)
             return lua_error(L);
         }
         proc_stdin = *handle;
+        handles_to_inherit.push_back(proc_stdin);
         break;
     }
     default:
@@ -594,29 +583,18 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     HANDLE proc_stdout = INVALID_HANDLE_VALUE;
-    asio::readable_pipe stdout_rpipe{vm_ctx.strand().context()};
-    asio::writable_pipe stdout_wpipe{vm_ctx.strand().context()};
 
     lua_getfield(L, 1, "stdout");
     switch (lua_type(L, -1)) {
-    case LUA_TNIL: {
-        boost::system::error_code ec;
-        asio::connect_pipe(stdout_rpipe, stdout_wpipe, ec);
-        if (ec) {
-            push(L, static_cast<std::error_code>(ec));
-            return lua_error(L);
-        }
-        proc_stdout = stdout_wpipe.native_handle();
-        SetHandleInformation(
-            proc_stdout, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    case LUA_TNIL:
         break;
-    }
     case LUA_TSTRING:
         if (tostringview(L) != "share") {
             push(L, std::errc::invalid_argument, "arg", "stdout");
             return lua_error(L);
         }
         proc_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+        handles_to_inherit.push_back(proc_stdout);
         break;
     case LUA_TUSERDATA: {
         auto handle = static_cast<file_descriptor_handle*>(
@@ -635,6 +613,7 @@ int system_spawn(lua_State* L)
             return lua_error(L);
         }
         proc_stdout = *handle;
+        handles_to_inherit.push_back(proc_stdout);
         break;
     }
     default:
@@ -644,29 +623,18 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     HANDLE proc_stderr = INVALID_HANDLE_VALUE;
-    asio::readable_pipe stderr_rpipe{vm_ctx.strand().context()};
-    asio::writable_pipe stderr_wpipe{vm_ctx.strand().context()};
 
     lua_getfield(L, 1, "stderr");
     switch (lua_type(L, -1)) {
-    case LUA_TNIL: {
-        boost::system::error_code ec;
-        asio::connect_pipe(stderr_rpipe, stderr_wpipe, ec);
-        if (ec) {
-            push(L, static_cast<std::error_code>(ec));
-            return lua_error(L);
-        }
-        proc_stderr = stderr_wpipe.native_handle();
-        SetHandleInformation(
-            proc_stderr, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    case LUA_TNIL:
         break;
-    }
     case LUA_TSTRING:
         if (tostringview(L) != "share") {
             push(L, std::errc::invalid_argument, "arg", "stderr");
             return lua_error(L);
         }
         proc_stderr = GetStdHandle(STD_ERROR_HANDLE);
+        handles_to_inherit.push_back(proc_stderr);
         break;
     case LUA_TUSERDATA: {
         auto handle = static_cast<file_descriptor_handle*>(
@@ -685,6 +653,7 @@ int system_spawn(lua_State* L)
             return lua_error(L);
         }
         proc_stderr = *handle;
+        handles_to_inherit.push_back(proc_stderr);
         break;
     }
     default:
@@ -724,7 +693,10 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    DWORD dwFlags = STARTF_USESTDHANDLES;
+    DWORD dwFlags = 0;
+
+    if (handles_to_inherit.size() > 0)
+        dwFlags |= STARTF_USESTDHANDLES;
 
     WORD wShowWindow;
     lua_getfield(L, 1, "show_window");
@@ -864,7 +836,7 @@ int system_spawn(lua_State* L)
         HeapFree(GetProcessHeap(), 0, startup_info.lpAttributeList);
     } };
 
-    {
+    if (handles_to_inherit.size() > 0) {
         SIZE_T size = 0;
 
         if (!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) {
@@ -895,14 +867,14 @@ int system_spawn(lua_State* L)
         }
     }
     BOOST_SCOPE_EXIT_ALL(&) {
-        DeleteProcThreadAttributeList(startup_info.lpAttributeList);
+        if (handles_to_inherit.size() > 0)
+            DeleteProcThreadAttributeList(startup_info.lpAttributeList);
     };
 
-    HANDLE handles_to_inherit[3] = { proc_stdin, proc_stdout, proc_stderr };
-
-    if (!UpdateProcThreadAttribute(
+    if ((handles_to_inherit.size() > 0) && !UpdateProcThreadAttribute(
         startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        handles_to_inherit, 3 * sizeof(HANDLE), NULL, NULL
+        handles_to_inherit.data(), handles_to_inherit.size() * sizeof(HANDLE),
+        NULL, NULL
     )) {
         DWORD last_error = GetLastError();
         boost::system::error_code ec(
@@ -921,7 +893,7 @@ int system_spawn(lua_State* L)
         command_line.data(),
         /*lpProcessAttributes=*/nullptr,
         /*lpThreadAttributes=*/nullptr,
-        /*bInheritHandles=*/TRUE,
+        /*bInheritHandles=*/((handles_to_inherit.size() > 0) ? TRUE : FALSE),
         dwCreationFlags,
         environmentb.data(),
         working_directory.empty() ? nullptr : working_directory.c_str(),
