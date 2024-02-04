@@ -352,12 +352,12 @@ signal, this will be `nil`.
 
 NOTE: You can only access this field for ``wait()``'ed processes.
 
-=== `pid: integer`
+=== `pid: integer|nil`
 
 The process id used by the OS to represent this child process (e.g. the number
 that shows up in `/proc` on some UNIX systems).
 
-NOTE: You can only access this field for non-``wait()``'ed processes.
+For ``wait()``'ed processes, value is `nil`.
 
 == Bugs
 

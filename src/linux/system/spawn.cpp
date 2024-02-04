@@ -309,8 +309,8 @@ inline int subprocess_pid(lua_State* L)
 {
     auto p = static_cast<subprocess*>(lua_touserdata(L, 1));
     if (!p->reaper) {
-        push(L, std::errc::no_child_process);
-        return lua_error(L);
+        lua_pushnil(L);
+        return 1;
     }
 
     lua_pushinteger(L, p->reaper->childpid);

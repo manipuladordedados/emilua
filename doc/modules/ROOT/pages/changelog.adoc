@@ -5,6 +5,9 @@
 
 == 0.7
 
+* Make subprocess.pid nullable. That's useful for synchronization when multiple
+  fibers are observing parts of subprocess state.
+
 == 0.6
 
 * Add FreeBSD's jails support.
