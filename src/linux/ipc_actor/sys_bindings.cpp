@@ -1,6 +1,7 @@
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/core.hpp>
 
+#include <sys/sysmacros.h>
 #include <sys/capability.h>
 #include <sys/mount.h>
 
@@ -553,6 +554,34 @@ int posix_mt_index(lua_State* L)
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "mknod",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    mode_t mode = luaL_checkinteger(L, 2);
+                    dev_t dev = luaL_checkinteger(L, 3);
+                    int res = mknod(path, mode, dev);
+                    int last_error = (res == -1) ? errno : 0;
+                    check_last_error(L, last_error);
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "makedev",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int major = luaL_checkinteger(L, 1);
+                    int minor = luaL_checkinteger(L, 2);
+
+                    lua_pushinteger(L, makedev(major, minor));
+                    return 1;
                 });
                 return 1;
             })
