@@ -297,6 +297,10 @@ function mode(user, group, other)
 end
 ----
 
+==== `write_all(fd: integer, buffer: string) -> integer, integer`
+
+Similar to `stream.write_all()`.
+
 ==== `receive_with_fd(fd: integer, buf_size: integer) -> string, integer, integer`
 
 Returns three values:

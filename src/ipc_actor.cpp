@@ -239,6 +239,36 @@ static void init_hookstate(lua_State* L)
         });
     lua_setglobal(L, "mode");
 
+    lua_pushcfunction(
+        L,
+        [](lua_State* L) -> int {
+            int fd = luaL_checkinteger(L, 1);
+            std::size_t len;
+            const char* str = lua_tolstring(L, 2, &len);
+            std::size_t nwritten = 0;
+            while (nwritten < len) {
+                int res = write(fd, str + nwritten, len - nwritten);
+                int last_error = (res == -1) ? errno : 0;
+                if (last_error != 0) {
+                    lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+                    if (lua_toboolean(L, -1)) {
+                        errno = last_error;
+                        perror("<3>ipc_actor/init/write_all");
+                        std::exit(1);
+                    } else {
+                        lua_pushinteger(L, nwritten);
+                        lua_pushinteger(L, last_error);
+                        return 2;
+                    }
+                }
+                nwritten += res;
+            }
+            lua_pushinteger(L, nwritten);
+            lua_pushinteger(L, 0);
+            return 2;
+        });
+    lua_setglobal(L, "write_all");
+
     lua_pushcfunction(L, [](lua_State* L) -> int {
 #if BOOST_OS_LINUX
         int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
