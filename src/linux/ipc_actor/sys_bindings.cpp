@@ -37,17 +37,22 @@ EMILUA_GPERF_DECLS_END(landlock)
 namespace emilua {
 
 EMILUA_GPERF_DECLS_BEGIN(sys_bindings)
-static void check_last_error(lua_State* L, int last_error)
+static void check_last_error(lua_State* L, int last_error,
+                             const char* perror_string)
 {
     if (last_error != 0) {
         lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
         if (lua_toboolean(L, -1)) {
             errno = last_error;
-            perror("<3>ipc_actor/init");
+            perror(perror_string);
             std::exit(1);
         }
     }
 };
+
+#define CHECK_LAST_ERROR(L, last_error, str) \
+    check_last_error(L, last_error, "<3>ipc_actor/init/" str)
+
 EMILUA_GPERF_DECLS_END(sys_bindings)
 
 EMILUA_GPERF_DECLS_BEGIN(landlock)
@@ -329,7 +334,7 @@ int posix_mt_index(lua_State* L)
                     char* buf = static_cast<char*>(a(ud, NULL, 0, nbyte));
                     int res = read(fd, buf, nbyte);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "read");
                     if (last_error == 0) {
                         lua_pushlstring(L, buf, res);
                     } else {
@@ -349,7 +354,7 @@ int posix_mt_index(lua_State* L)
                     const char* str = lua_tolstring(L, 2, &len);
                     int res = write(fd, str, len);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "write");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -371,7 +376,7 @@ int posix_mt_index(lua_State* L)
                         res = open(str, flags, mode);
                     }
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "open");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -386,7 +391,7 @@ int posix_mt_index(lua_State* L)
                     mode_t mode = luaL_checkinteger(L, 2);
                     int res = mkdir(path, mode);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "mkdir");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -401,7 +406,7 @@ int posix_mt_index(lua_State* L)
                     const char* newpath = luaL_checkstring(L, 2);
                     int res = link(oldpath, newpath);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "link");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -416,7 +421,7 @@ int posix_mt_index(lua_State* L)
                     const char* linkpath = luaL_checkstring(L, 2);
                     int res = symlink(target, linkpath);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "symlink");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -432,7 +437,7 @@ int posix_mt_index(lua_State* L)
                     gid_t group = luaL_checkinteger(L, 3);
                     int res = chown(path, owner, group);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "chown");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -447,7 +452,7 @@ int posix_mt_index(lua_State* L)
                     mode_t mode = luaL_checkinteger(L, 2);
                     int res = chmod(path, mode);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "chmod");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -461,7 +466,7 @@ int posix_mt_index(lua_State* L)
                     const char* path = luaL_checkstring(L, 1);
                     int res = chdir(path);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "chdir");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -492,7 +497,7 @@ int posix_mt_index(lua_State* L)
                         lua_isnil(L, 5) ? nullptr : lua_tostring(L, 5);
                     int res = mount(source, target, fstype, flags, data);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "mount");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -506,7 +511,7 @@ int posix_mt_index(lua_State* L)
                     const char* target = luaL_checkstring(L, 1);
                     int res = umount(target);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "umount");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -521,7 +526,7 @@ int posix_mt_index(lua_State* L)
                     int flags = luaL_checkinteger(L, 2);
                     int res = umount2(target, flags);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "umount2");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -536,7 +541,7 @@ int posix_mt_index(lua_State* L)
                     const char* put_old = luaL_checkstring(L, 2);
                     int res = syscall(SYS_pivot_root, new_root, put_old);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "pivot_root");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -550,7 +555,7 @@ int posix_mt_index(lua_State* L)
                     const char* path = luaL_checkstring(L, 1);
                     int res = chroot(path);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "chroot");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -566,7 +571,7 @@ int posix_mt_index(lua_State* L)
                     dev_t dev = luaL_checkinteger(L, 3);
                     int res = mknod(path, mode, dev);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "mknod");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -593,7 +598,7 @@ int posix_mt_index(lua_State* L)
                     const char* str = lua_tolstring(L, 1, &len);
                     int res = sethostname(str, len);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "sethostname");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -608,7 +613,7 @@ int posix_mt_index(lua_State* L)
                     const char* str = lua_tolstring(L, 1, &len);
                     int res = setdomainname(str, len);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setdomainname");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -621,7 +626,7 @@ int posix_mt_index(lua_State* L)
                 lua_pushcfunction(L, [](lua_State* L) -> int {
                     pid_t res = setsid();
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setsid");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -636,7 +641,7 @@ int posix_mt_index(lua_State* L)
                     pid_t pgid = luaL_checkinteger(L, 2);
                     int res = setpgid(pid, pgid);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setpgid");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -652,7 +657,7 @@ int posix_mt_index(lua_State* L)
                     uid_t suid = luaL_checkinteger(L, 3);
                     int res = setresuid(ruid, euid, suid);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setresuid");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -668,7 +673,7 @@ int posix_mt_index(lua_State* L)
                     gid_t sgid = luaL_checkinteger(L, 3);
                     int res = setresgid(rgid, egid, sgid);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setresgid");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -687,7 +692,7 @@ int posix_mt_index(lua_State* L)
                         case LUA_TNIL: {
                             int res = setgroups(groups.size(), groups.data());
                             int last_error = (res == -1) ? errno : 0;
-                            check_last_error(L, last_error);
+                            CHECK_LAST_ERROR(L, last_error, "setgroups");
                             lua_pushinteger(L, res);
                             lua_pushinteger(L, last_error);
                             return 2;
@@ -718,7 +723,7 @@ int posix_mt_index(lua_State* L)
                     BOOST_SCOPE_EXIT_ALL(&) { cap_free(caps2); };
                     int res = cap_set_proc(caps2);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "cap_set_proc");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -737,7 +742,7 @@ int posix_mt_index(lua_State* L)
                     }
                     int res = cap_drop_bound(cap);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "cap_drop_bound");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -761,7 +766,7 @@ int posix_mt_index(lua_State* L)
 
                     int res = cap_set_ambient(cap, value);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "cap_set_ambient");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -774,7 +779,7 @@ int posix_mt_index(lua_State* L)
                 lua_pushcfunction(L, [](lua_State* L) -> int {
                     int res = cap_reset_ambient();
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "cap_reset_ambient");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -787,7 +792,7 @@ int posix_mt_index(lua_State* L)
                 lua_pushcfunction(L, [](lua_State* L) -> int {
                     int res = cap_set_secbits(luaL_checkinteger(L, 1));
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "cap_set_secbits");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -801,7 +806,7 @@ int posix_mt_index(lua_State* L)
                     int nstype = luaL_checkinteger(L, 1);
                     int res = unshare(nstype);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "unshare");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -816,7 +821,7 @@ int posix_mt_index(lua_State* L)
                     int nstype = luaL_checkinteger(L, 2);
                     int res = setns(fd, nstype);
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "setns");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -903,7 +908,7 @@ int posix_mt_index(lua_State* L)
 
                     int res = execve(pathname, argv.data(), envp.data());
                     int last_error = errno;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "execve");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -990,7 +995,7 @@ int posix_mt_index(lua_State* L)
 
                     int res = fexecve(fd, argv.data(), envp.data());
                     int last_error = errno;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "fexecve");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -1109,7 +1114,7 @@ int posix_mt_index(lua_State* L)
                                       flags);
 
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "landlock_create_ruleset");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -1209,7 +1214,7 @@ int posix_mt_index(lua_State* L)
                         /*flags=*/0);
 
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "landlock_add_rule");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
@@ -1240,7 +1245,7 @@ int posix_mt_index(lua_State* L)
                         SYS_landlock_restrict_self, lua_tointeger(L, 1), 0);
 
                     int last_error = (res == -1) ? errno : 0;
-                    check_last_error(L, last_error);
+                    CHECK_LAST_ERROR(L, last_error, "landlock_restrict_self");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
