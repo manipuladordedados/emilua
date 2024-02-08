@@ -497,6 +497,8 @@ These constants live inside the global table `C`.
 * `S_ISUID`.
 * `S_ISGID`.
 * `S_ISVTX`.
+* `S_IFCHR`.
+* `S_IFBLK`.
 * `MS_REMOUNT`.
 * `MS_BIND`.
 * `MS_SHARED`.
