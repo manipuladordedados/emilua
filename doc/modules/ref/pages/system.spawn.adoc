@@ -298,20 +298,28 @@ If present, `STARTUPINFO.dwFlags` will include `STARTF_USESHOWWINDOW`, and
 NOTE: Only available on Windows.
 
 `create_breakaway_from_job: boolean = false`::
-
++
+--
 NOTE: Only available on Windows.
+--
 
 `create_new_console: boolean = false`::
-
++
+--
 NOTE: Only available on Windows.
+--
 
 `create_no_window: boolean = false`::
-
++
+--
 NOTE: Only available on Windows.
+--
 
 `detached_process: boolean = false`::
-
++
+--
 NOTE: Only available on Windows.
+--
 
 == `subprocess` functions
 
