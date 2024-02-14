@@ -214,7 +214,6 @@ may perform the usual calls in `init.script`:
 [source,lua]
 ----
 C.setsid()
-C.setpgid(0, 0)
 ----
 ====
 --
