@@ -1440,9 +1440,9 @@ static int system_setresuid(lua_State* L)
         }
     }
 
-    uid_t ruid = lua_tointeger(L, 1);
-    uid_t euid = lua_tointeger(L, 2);
-    uid_t suid = lua_tointeger(L, 3);
+    uid_t ruid = luaL_checkinteger(L, 1);
+    uid_t euid = luaL_checkinteger(L, 2);
+    uid_t suid = luaL_checkinteger(L, 3);
     if (setresuid(ruid, euid, suid) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
@@ -1516,9 +1516,9 @@ static int system_setresgid(lua_State* L)
         }
     }
 
-    gid_t rgid = lua_tointeger(L, 1);
-    gid_t egid = lua_tointeger(L, 2);
-    gid_t sgid = lua_tointeger(L, 3);
+    gid_t rgid = luaL_checkinteger(L, 1);
+    gid_t egid = luaL_checkinteger(L, 2);
+    gid_t sgid = luaL_checkinteger(L, 3);
     if (setresgid(rgid, egid, sgid) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
