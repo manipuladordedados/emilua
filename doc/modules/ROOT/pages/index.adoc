@@ -189,9 +189,6 @@ availability].
 * APIs to query attributes, manipulate permissions, and the like.
 * Lots of algorithms (e.g. symlink-resolving path canonization, subtrees
   copying, etc).
-* It focuses on cross-platform support, so not all operations are supported yet,
-  but some platform-specific extensions are already available (e.g. non-Windows
-  umask(3p)).
 
 == Misc features
 
