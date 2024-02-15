@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 Vinícius dos Santos Oliveira
+/* Copyright (c) 2022, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -40,6 +40,8 @@ char file_descriptor_mt_key;
 EMILUA_GPERF_DECLS_BEGIN(file_descriptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 
+static char closed_file_descriptor_mt_key;
+
 #if BOOST_OS_BSD_FREE
 static const cap_rights_t empty_rights = []() {
     cap_rights_t ret;
@@ -66,7 +68,7 @@ static int file_descriptor_close(lua_State* L)
         return lua_error(L);
     }
 
-    lua_pushnil(L);
+    rawgetp(L, LUA_REGISTRYINDEX, &closed_file_descriptor_mt_key);
     setmetatable(L, 1);
 
 #if BOOST_OS_WINDOWS
@@ -554,6 +556,18 @@ static int file_descriptor_mt_index(lua_State* L)
     EMILUA_GPERF_END(key)(L);
 }
 
+static int closed_file_descriptor_mt_index(lua_State* L)
+{
+    auto key = tostringview(L, 2);
+    if (key == "close") {
+        lua_pushcfunction(L, [](lua_State*) -> int { return 0; });
+        return 1;
+    } else {
+        push(L, errc::bad_index, "index", 2);
+        return lua_error(L);
+    }
+}
+
 static int file_descriptor_mt_tostring(lua_State* L)
 {
     auto& handle = *static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
@@ -635,6 +649,20 @@ void init_file_descriptor(lua_State* L)
 
         lua_pushliteral(L, "__gc");
         lua_pushcfunction(L, file_descriptor_mt_gc);
+        lua_rawset(L, -3);
+    }
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &closed_file_descriptor_mt_key);
+    {
+        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushliteral(L, "file_descriptor");
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, closed_file_descriptor_mt_index);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
