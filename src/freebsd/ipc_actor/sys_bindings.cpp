@@ -17,6 +17,7 @@ EMILUA_GPERF_DECLS_END(includes)
 namespace emilua {
 
 EMILUA_GPERF_DECLS_BEGIN(sys_bindings)
+EMILUA_GPERF_NAMESPACE(emilua)
 static void check_last_error(lua_State* L, int last_error)
 {
     if (last_error != 0) {

@@ -37,6 +37,7 @@ EMILUA_GPERF_DECLS_END(landlock)
 namespace emilua {
 
 EMILUA_GPERF_DECLS_BEGIN(sys_bindings)
+EMILUA_GPERF_NAMESPACE(emilua)
 static void check_last_error(lua_State* L, int last_error,
                              const char* perror_string)
 {
@@ -56,6 +57,7 @@ static void check_last_error(lua_State* L, int last_error,
 EMILUA_GPERF_DECLS_END(sys_bindings)
 
 EMILUA_GPERF_DECLS_BEGIN(landlock)
+EMILUA_GPERF_NAMESPACE(emilua)
 static
 emilua::result<std::uint64_t, const char*>
 landlock_handled_access_fs(lua_State* L)
