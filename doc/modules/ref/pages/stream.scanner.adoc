@@ -41,9 +41,9 @@ protocol elements that are delimited by the character sequence
 ____
 
 To easily parse these protocols, you may set a `scanner` object with
-`record_separator="\r\n"` (the default). Then, `get_line()` will return a new
-line each time it is called. If the field separator/pattern is also specified,
-the line will be broken into a table made of the fields.
+`record_separator="\r\n"`. Then, `get_line()` will return a new line each time
+it is called. If the field separator/pattern is also specified, the line will be
+broken into a table made of the fields.
 
 New buffers will be allocated as more space is needed until a specified maximum
 (or an unspecified maximum default).
@@ -79,7 +79,7 @@ before using ``scanner``'s methods.
 
 Optional attributes to `opts`:
 
-`record_separator: string|regex = "\r\n"`::
+`record_separator: string|regex = "\n"`::
   The pattern used to split records.
 +
 [IMPORTANT]

@@ -10,8 +10,7 @@ return function(ret)
     end
 
     if not ret.record_separator then
-        -- good default for network protocols
-        ret.record_separator = '\r\n'
+        ret.record_separator = '\n'
     end
 
     ret.buffer_ = byte_span_new(ret.buffer_size_hint or INITIAL_BUFFER_SIZE)
