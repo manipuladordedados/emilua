@@ -566,6 +566,21 @@ int posix_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "mkfifo",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    mode_t mode = luaL_checkinteger(L, 2);
+                    int res = mkfifo(path, mode);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "mkfifo");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "mknod",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {

@@ -356,6 +356,7 @@ as the second result):
 * `open()`.
 * `mkdir()`.
 * `chdir()`.
+* `mkfifo()`.
 * `mknod()`.
 * `makedev()`.
 * `link()`.

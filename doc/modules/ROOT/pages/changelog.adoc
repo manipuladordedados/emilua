@@ -9,6 +9,7 @@
   fibers are observing parts of subprocess state.
 * Allow file_descriptor.close() to be called multiple times in a row.
 * Add extra optional parameter to filesystem.mknod().
+* Add more POSIX bindings to init.script API.
 
 == 0.6
 
