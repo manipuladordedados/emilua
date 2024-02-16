@@ -13,9 +13,11 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.mknod(p: fs.path, mode: integer, dev: integer)
+fs.mknod(p: fs.path, mode: integer, dev: integer[, type: "character"|"block"])
 ----
 
 == Description
 
 See mknod(3).
+
+If `type` is provided, `S_IFCHR` or `S_IFBLK` is OR'ed into `mode`.

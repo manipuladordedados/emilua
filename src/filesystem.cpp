@@ -3155,7 +3155,7 @@ static int mkfifo(lua_State* L)
 
 static int mknod(lua_State* L)
 {
-    lua_settop(L, 3);
+    lua_settop(L, 4);
 
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
     if (!path || !lua_getmetatable(L, 1)) {
@@ -3170,6 +3170,26 @@ static int mknod(lua_State* L)
 
     mode_t mode = luaL_checkinteger(L, 2);
     dev_t dev = luaL_checkinteger(L, 3);
+
+    switch (lua_type(L, 4)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 4);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TSTRING: {
+        auto type = tostringview(L, 4);
+        if (type == "character") {
+            mode |= S_IFCHR;
+        } else if (type == "block") {
+            mode |= S_IFBLK;
+        } else {
+            push(L, std::errc::invalid_argument, "arg", 4);
+            return lua_error(L);
+        }
+        break;
+    }
+    }
 
     if (::mknod(path->c_str(), mode, dev) == -1) {
         push(L, std::error_code{errno, std::system_category()});
