@@ -1,0 +1,27 @@
+= filesystem.mkdir
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.mkdir(p: fs.path, mode: integer)
+----
+
+== Description
+
+See mkdir(3).
+
+NOTE: *Not* available on Windows.
+
+== See also
+
+* xref:filesystem.create_directory.adoc[filesystem.create_directory(3em)]

@@ -30,3 +30,7 @@ from `existing_p`.
 every element of `p` that does not already exist.
 
 Returns whether a directory was created for the directory `p` resolves to.
+
+== See also
+
+* xref:filesystem.mkdir.adoc[filesystem.mkdir(3em)]
