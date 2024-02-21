@@ -1029,6 +1029,10 @@ static int child_main(void*)
             // SIGINT to PID1.
             sigaction(SIGINT, /*act=*/&sa, /*oldact=*/NULL);
 
+            // Allow EPIPE to propagate if child process closes standard file
+            // descriptors.
+            close_range(0, UINT_MAX, /*flags=*/0);
+
             for (siginfo_t info ;;) {
                 waitid(P_ALL, /*ignored_id=*/0, &info, WEXITED);
                 if (info.si_pid == childpid) {
@@ -1303,11 +1307,11 @@ int app_context::ipc_actor_service_main(int sockfd)
         switch (nread) {
         case -1:
             perror("<3>ipc_actor/supervisor");
-            close(sockfd);
+            close_range(0, UINT_MAX, /*flags=*/0);
             while (wait(NULL) > 0);
             return 1;
         case 0:
-            close(sockfd);
+            close_range(0, UINT_MAX, /*flags=*/0);
             while (wait(NULL) > 0);
             return 0;
         }
@@ -1329,7 +1333,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (setresuid(
                 request.resuid[0], request.resuid[1], request.resuid[2]
             ) == -1) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1350,7 +1354,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (setresgid(
                 request.resgid[0], request.resgid[1], request.resgid[2]
             ) == -1) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1381,7 +1385,7 @@ int app_context::ipc_actor_service_main(int sockfd)
                     PROT_READ, MAP_SHARED, fds[1], /*offset=*/0);
                 close(fds[1]);
                 if (groups == MAP_FAILED) {
-                    close(fds[0]);
+                    close_range(0, UINT_MAX, /*flags=*/0);
                     while (wait(NULL) > 0);
                     return 1;
                 }
@@ -1390,7 +1394,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (setgroups(
                 request.setgroups_ngroups, reinterpret_cast<gid_t*>(groups)
             ) == -1) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1423,7 +1427,7 @@ int app_context::ipc_actor_service_main(int sockfd)
                 MAP_SHARED, fds[1], /*offset=*/0);
             close(fds[1]);
             if (text == MAP_FAILED) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1431,13 +1435,13 @@ int app_context::ipc_actor_service_main(int sockfd)
             cap_t caps = cap_from_text(reinterpret_cast<char*>(text));
             munmap(text, request.cap_set_proc_mfd_size);
             if (caps == NULL) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
 
             if (cap_set_proc(caps) == -1) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1458,7 +1462,7 @@ int app_context::ipc_actor_service_main(int sockfd)
 
 
             if (cap_drop_bound(request.cap_value) == -1) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1480,7 +1484,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (
                 cap_set_ambient(request.cap_value, request.cap_flag_value) == -1
             ) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1500,7 +1504,7 @@ int app_context::ipc_actor_service_main(int sockfd)
 
 
             if (cap_reset_ambient() == -1) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1520,7 +1524,7 @@ int app_context::ipc_actor_service_main(int sockfd)
 
 
             if (cap_set_secbits(request.cap_set_secbits_value) == -1) {
-                close(pout);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
@@ -1550,13 +1554,13 @@ int app_context::ipc_actor_service_main(int sockfd)
                 fds[1], /*offset=*/0);
             close(fds[1]);
             if (path == MAP_FAILED) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
 
             if (chdir(reinterpret_cast<char*>(path)) == -1) {
-                close(fds[0]);
+                close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
