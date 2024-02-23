@@ -16,11 +16,25 @@ endif::[]
 ----
 local fs = require "filesystem"
 
-fs.mode(user: integer, group: integer, other: integer) -> integer
-    return bit.bor(bit.lshift(user, 6), bit.lshift(group, 3), other)
-end
+fs.mode(user: integer, group: integer, other: integer) -> integer <1>
+fs.mode("set_uid"|"set_gid"|"sticky_bit") -> integer <2>
 ----
 
 == Description
 
 A helper function to create POSIX mode permission bits.
+
+The implementation for overload #1 is:
+
+[source,lua]
+----
+function mode(user: integer, group: integer, other: integer) -> integer
+    return bit.bor(bit.lshift(user, 6), bit.lshift(group, 3), other)
+end
+----
+
+The meaning for overload #2's parameters:
+
+`"set_uid"`:: `S_ISUID`
+`"set_gid"`:: `S_ISGID`
+`"sticky_bit"`:: `S_ISVTX`

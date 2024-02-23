@@ -4947,7 +4947,10 @@ void init_filesystem(lua_State* L)
         L, reinterpret_cast<char*>(mode_bytecode), mode_bytecode_size, nullptr);
     assert(res == 0); boost::ignore_unused(res);
     lua_getglobal(L, "bit");
-    lua_call(L, 1, 1);
+    lua_pushinteger(L, static_cast<int>(std::filesystem::perms::set_uid));
+    lua_pushinteger(L, static_cast<int>(std::filesystem::perms::set_gid));
+    lua_pushinteger(L, static_cast<int>(std::filesystem::perms::sticky_bit));
+    lua_call(L, 4, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 }
 
