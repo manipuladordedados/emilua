@@ -147,6 +147,93 @@ The only resource a sandbox starts with is `inbox` and its only method:
 choose which resources are safe to hand over (e.g. read-only access to a file
 and a pipe).
 
+== Container runtime
+
+A generic C-powered & Lua-driven container runtime. Many container runtimes out
+there focus on specific containerization technologies such as Linux namespaces,
+but Emilua acts as a generic container runtime that supports different kernel
+technologies{_}footnote:[Future releases will also implement virtio-vsock to
+ease communication with containers managed by QEMU]:
+
+* Linux namespaces.
+* FreeBSD jails.
+
+Many container runtimes (e.g. bubblewrap, nsjail) are CLI-driven and give little
+room for flexibility. The standard tool to automate CLI usage is BASH. However
+BASH cannot be used to restore flexibility here (it can only automate CLI
+arguments). BASH scripts are a poor match for the internal container setup
+phases, and that's not usually supported. Even when BASH is supported for the
+setup phases (e.g. LXC pre-mount, and net-up scripts), that's usually very
+restricted in scope given how inappropriate BASH is to drive the setup phases of
+a container. BASH scripts give you **more** worries to bring up a container, not
+less:
+
+* Poor synchronization primitives to drive the complex setup required to use new
+  Linux namespaces. BASH only gives you pipes and files. Files can't even be
+  used in all steps of this setup (e.g. mount namespaces and pivot-root). Emilua
+  will give you a rich pool of IPC primitives not available to BASH scripts
+  (check the documentation).
+* You must be extra careful to not call any binaries from the container image as
+  one must always assume these images are compromised (that's the whole point of
+  isolating software within a container to begin with), but BASH can't do
+  anything on its own and must always rely on external tools (it's probably a
+  good idea to rely on static binaries of busybox as well to not accidentally
+  invoke compromised shared libraries from the container image). Emilua is safer
+  as it gives you access to a subset of the POSIX API plus a few extensions
+  (e.g. mkdir, mount) that calls the syscalls directly (i.e. no container
+  binaries ever involved) within a Lua script to initialize the container
+  namespaces.
+
+The pragmatic solution is to never involve BASH in the setup of Linux
+namespaces. The CLI tool would do all actions declared in the initial arguments
+on your behalf, and only return you the final result. The downside is a big loss
+in flexibility. If your use case falls outside of the tool's envisioned cases,
+you're out of options.
+
+Emilua is designed differently. Emilua offers you a fully-featured programming
+language and VM -- that's Lua -- to script the setup phases inside the
+containerized process.
+
+However any general-purpose programming language can escape from BASH's
+shortcomings with respect to containerization challenges. Any container runtime
+meant to be used from source code -- not a CLI tool -- will be flexible enough
+to more use cases. The new challenge here is how to avoid leaking resources from
+the language's own runtime to the container. That's why it's easy to create a
+container runtime using C, but not so much for Java or Python.
+
+What Emilua gives to Lua is a container runtime that surpassed these challenges
+and is ready to roll. The API provides two contexts (program and container
+initialization), and you can coordinate both to initialize your container
+programmatically any way you want. The container initialization context was
+paranoiacally implemented to **not** inherit the parent process's sensitive
+context (e.g. memory other than the executable itself, env vars), to abort on
+any C API error by default, and to securely erase the contents of temporary
+buffers (e.g. messages received through `C.read()` within the initialization
+script, and any memory allocated by the Lua VM). You won't find any of these in
+other Lua projects.
+
+[NOTE]
+.A note on FreeBSD jails
+====
+FreeBSD jails work differently than Linux namespaces, and complex setups are not
+really needed. However Emilua can still offer a few goodies here such as
+attaching to an existing jail using a clean OS-level process to perform
+container-side administrative tasks not specified by binaries found on the
+container image.
+====
+
+Later -- should you desire -- you can still use BASH to orchestrate Emilua
+programs after the setup phases are fully encapsulated just inside Emilua
+programs. If you have no needs for customizing the container setup phases, then
+Emilua doesn't bring any advantages over other tools -- bubblewrap, nsjail, etc
+-- and you're already well served with the existing market solutions.
+
+The same machinery used for containers is also used to create capsicum
+sandboxes. That's a testament of the runtime's flexibility. Capsicum pose API
+requirements that cannot be met if you can only think and design in terms of the
+seccomp model. Emilua is the only container runtime also able to drive full use
+of capsicum sandboxes.
+
 == Cross-platform
 
 * Windows.
