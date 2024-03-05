@@ -33,6 +33,7 @@
 *** xref:ref:filesystem.relative.adoc[relative]
 *** xref:ref:filesystem.proximate.adoc[proximate]
 *** xref:ref:filesystem.current_working_directory.adoc[current_working_directory]
+*** xref:ref:filesystem.chroot.adoc[chroot]
 *** xref:ref:filesystem.copy.adoc[copy]
 *** xref:ref:filesystem.copy_file.adoc[copy_file]
 *** xref:ref:filesystem.copy_symlink.adoc[copy_symlink]

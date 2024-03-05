@@ -139,6 +139,7 @@ struct ipc_actor_start_vm_request
         CAP_SET_SECBITS,
 #endif // BOOST_OS_LINUX
         CHDIR,
+        CHROOT,
         UMASK
     } type;
 
@@ -162,6 +163,7 @@ struct ipc_actor_start_vm_request
 #endif // BOOST_OS_LINUX
 
     std::string::size_type chdir_mfd_size;
+    std::string::size_type chroot_mfd_size;
     mode_t umask_mask;
 };
 

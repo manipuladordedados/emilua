@@ -1,0 +1,23 @@
+= filesystem.chroot
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.chroot(p: fs.path)
+----
+
+== Description
+
+Set the root directory for the calling process.
+
+NOTE: Only the master VM is allowed to change the root directory.

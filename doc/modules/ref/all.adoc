@@ -34,6 +34,8 @@ include::pages/filesystem.proximate.adoc[]
 
 include::pages/filesystem.current_working_directory.adoc[]
 
+include::pages/filesystem.chroot.adoc[]
+
 include::pages/filesystem.copy.adoc[]
 
 include::pages/filesystem.copy_file.adoc[]
