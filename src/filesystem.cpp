@@ -4257,68 +4257,8 @@ static int filesystem_umask(lua_State* L)
     }
 
     mode_t mask = luaL_checkinteger(L, 1);
-
-#if BOOST_OS_UNIX
-    int channel[2] = { -1, -1 };
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (channel[0] != -1) close(channel[0]);
-        if (channel[1] != -1) close(channel[1]);
-    };
-    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
-        int res = pipe(channel);
-        if (res != 0) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-    }
-#endif // BOOST_OS_UNIX
-
     mode_t res = umask(mask);
     lua_pushinteger(L, res);
-
-#if BOOST_OS_UNIX
-    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
-        ipc_actor_start_vm_request request;
-        std::memset(&request, 0, sizeof(request));
-        request.type = ipc_actor_start_vm_request::UMASK;
-        request.umask_mask = mask;
-
-        struct msghdr msg;
-        std::memset(&msg, 0, sizeof(msg));
-
-        struct iovec iov;
-        iov.iov_base = &request;
-        iov.iov_len = sizeof(request);
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
-        msg.msg_controllen = CMSG_SPACE(sizeof(int));
-
-        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
-
-        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
-        close(channel[1]);
-        channel[1] = -1;
-
-        char buf[1];
-        auto nread = read(channel[0], &buf, 1);
-        if (nread == -1 || nread == 0) {
-            // as described in <https://ewontfix.com/17/> the only safe answer
-            // is to SIGKILL when we cannot guarantee atomicity of failure
-            std::exit(1);
-        }
-    }
-#endif // BOOST_OS_UNIX
-
     return 1;
 }
 #endif // BOOST_OS_UNIX

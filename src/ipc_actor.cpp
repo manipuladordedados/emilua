@@ -1278,6 +1278,8 @@ int app_context::ipc_actor_service_main(int sockfd)
         sigprocmask(SIG_BLOCK, &set, /*oldset=*/NULL);
     }
 
+    umask(S_IWGRP | S_IWOTH);
+
     struct msghdr msg;
 
     // That's the only acceptable data in the supervisor process memory (file
@@ -1593,21 +1595,6 @@ int app_context::ipc_actor_service_main(int sockfd)
             write(fds[0], buf, 1);
             close(fds[0]);
             munmap(path, request.chroot_mfd_size);
-            continue;
-        }
-        case ipc_actor_start_vm_request::UMASK: {
-            int pout;
-            char buf[1];
-
-            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-            assert(cmsg->cmsg_level == SOL_SOCKET &&
-                   cmsg->cmsg_type == SCM_RIGHTS);
-            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
-            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
-
-            umask(request.umask_mask);
-            write(pout, buf, 1);
-            close(pout);
             continue;
         }
         }

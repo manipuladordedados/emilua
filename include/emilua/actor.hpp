@@ -140,7 +140,6 @@ struct ipc_actor_start_vm_request
 #endif // BOOST_OS_LINUX
         CHDIR,
         CHROOT,
-        UMASK
     } type;
 
 #if BOOST_OS_LINUX
@@ -163,7 +162,6 @@ struct ipc_actor_start_vm_request
 #endif // BOOST_OS_LINUX
 
     std::string::size_type chroot_mfd_size;
-    mode_t umask_mask;
 };
 
 struct ipc_actor_start_vm_reply
