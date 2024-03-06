@@ -154,8 +154,8 @@ struct ipc_actor_start_vm_request
     uid_t resuid[3];
     gid_t resgid[3];
     int setgroups_ngroups;
-    ssize_t cap_set_proc_mfd_size;
 #if BOOST_OS_LINUX
+    ssize_t cap_set_proc_mfd_size;
     cap_value_t cap_value;
     cap_flag_value_t cap_flag_value;
     unsigned cap_set_secbits_value;
