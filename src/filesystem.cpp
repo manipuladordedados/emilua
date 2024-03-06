@@ -4244,8 +4244,9 @@ static int temp_directory_path(lua_State* L)
     }
 }
 
-// apparently there *IS* a Windows version of umask(), but I'm not quite sure
-// what it does, so I'm disabling this for now
+// Windows' _umask() is nonsense and useless. umask is an UNIX concept. The
+// attempt made to create a version for Windows under the same interface was
+// lame and useless. Windows execution model has no space for UNIX's umask.
 #if BOOST_OS_UNIX
 static int filesystem_umask(lua_State* L)
 {
