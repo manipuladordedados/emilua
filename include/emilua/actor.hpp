@@ -162,7 +162,6 @@ struct ipc_actor_start_vm_request
     unsigned cap_set_secbits_value;
 #endif // BOOST_OS_LINUX
 
-    std::string::size_type chdir_mfd_size;
     std::string::size_type chroot_mfd_size;
     mode_t umask_mask;
 };

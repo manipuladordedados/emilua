@@ -1549,24 +1549,14 @@ int app_context::ipc_actor_service_main(int sockfd)
                 break;
             }
 
-            void* path = mmap(
-                /*addr=*/NULL, request.chdir_mfd_size, PROT_READ, MAP_SHARED,
-                fds[1], /*offset=*/0);
-            close(fds[1]);
-            if (path == MAP_FAILED) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
-
-            if (chdir(reinterpret_cast<char*>(path)) == -1) {
+            if (fchdir(fds[1]) == -1) {
                 close_range(0, UINT_MAX, /*flags=*/0);
                 while (wait(NULL) > 0);
                 return 1;
             }
             write(fds[0], buf, 1);
             close(fds[0]);
-            munmap(path, request.chdir_mfd_size);
+            close(fds[1]);
             continue;
         }
         case ipc_actor_start_vm_request::CHROOT: {

@@ -14,6 +14,7 @@
 * Add extra optional parameter to filesystem.mknod().
 * Change default `record_separator` in `stream.scanner` to `"\n"`.
 * Add more POSIX bindings to init.script API.
+* Bug fixes.
 
 == 0.6
 

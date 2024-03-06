@@ -3668,58 +3668,32 @@ static int current_working_directory(lua_State* L)
     }
 
 #if BOOST_OS_UNIX
-    int channel[2] = { -1, -1 };
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (channel[0] != -1) close(channel[0]);
-        if (channel[1] != -1) close(channel[1]);
-    };
-
-    int mfd = -1;
-    BOOST_SCOPE_EXIT_ALL(&) { if (mfd != -1) close(mfd); };
-
-    std::string::size_type mfd_size;
-
     if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
-        int res = pipe(channel);
-        if (res != 0) {
+        int channel[2] = { -1, -1 };
+        BOOST_SCOPE_EXIT_ALL(&) {
+            if (channel[0] != -1) close(channel[0]);
+            if (channel[1] != -1) close(channel[1]);
+        };
+
+        if (pipe(channel) != 0) {
             push(L, std::error_code{errno, std::system_category()});
             return lua_error(L);
         }
 
-        auto as_str = path->string();
-        mfd_size = as_str.size() + 1; //< include nul terminator
+        int dirfd = open(path->string().data(), O_RDONLY | O_DIRECTORY);
+        BOOST_SCOPE_EXIT_ALL(&) { if (dirfd != -1) close(dirfd); };
 
-        mfd = memfd_create("emilua/current_working_directory", /*flags=*/0);
-        if (mfd == -1) {
+        if (dirfd == -1 || fchdir(dirfd) == -1) {
             push(L, std::error_code{errno, std::system_category()});
+            lua_pushliteral(L, "path1");
+            lua_pushvalue(L, 1);
+            lua_rawset(L, -3);
             return lua_error(L);
         }
 
-        if (ftruncate(mfd, mfd_size) == -1) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-
-        write(mfd, as_str.data(), mfd_size);
-    }
-#endif // BOOST_OS_UNIX
-
-    std::error_code ec;
-    fs::current_path(*path, ec);
-    if (ec) {
-        push(L, ec);
-        lua_pushliteral(L, "path1");
-        lua_pushvalue(L, 1);
-        lua_rawset(L, -3);
-        return lua_error(L);
-    }
-
-#if BOOST_OS_UNIX
-    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
         ipc_actor_start_vm_request request;
         std::memset(&request, 0, sizeof(request));
         request.type = ipc_actor_start_vm_request::CHDIR;
-        request.chdir_mfd_size = mfd_size;
 
         struct msghdr msg;
         std::memset(&msg, 0, sizeof(msg));
@@ -3749,7 +3723,7 @@ static int current_working_directory(lua_State* L)
             std::memcpy(it, &channel[1], sizeof(int));
             it += sizeof(int);
 
-            std::memcpy(it, &mfd, sizeof(int));
+            std::memcpy(it, &dirfd, sizeof(int));
         }
 
         sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
@@ -3763,6 +3737,20 @@ static int current_working_directory(lua_State* L)
             // is to SIGKILL when we cannot guarantee atomicity of failure
             std::exit(1);
         }
+    } else {
+#endif // BOOST_OS_UNIX
+
+        std::error_code ec;
+        fs::current_path(*path, ec);
+        if (ec) {
+            push(L, ec);
+            lua_pushliteral(L, "path1");
+            lua_pushvalue(L, 1);
+            lua_rawset(L, -3);
+            return lua_error(L);
+        }
+
+#if BOOST_OS_UNIX
     }
 #endif // BOOST_OS_UNIX
 
