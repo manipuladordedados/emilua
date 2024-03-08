@@ -1,4 +1,4 @@
-/* Copyright (c) 2021, 2022, 2023 Vinícius dos Santos Oliveira
+/* Copyright (c) 2021, 2022, 2023, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -39,7 +39,12 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #if BOOST_OS_LINUX
 #include <linux/securebits.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+
 #include <sys/capability.h>
+#include <sys/syscall.h>
+
 #include <grp.h>
 #endif // BOOST_OS_LINUX
 
@@ -1048,6 +1053,167 @@ inline int system_signal(lua_State* L)
     rawgetp(L, LUA_REGISTRYINDEX, &system_signal_key);
     return 1;
 }
+
+#if BOOST_OS_LINUX
+static int system_seccomp_set_mode_filter(lua_State* L)
+{
+    lua_settop(L, 1);
+
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size == 0 || bs->size % sizeof(struct sock_filter) != 0) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+
+    int mfd = -1;
+    BOOST_SCOPE_EXIT_ALL(&) { if (mfd != -1) close(mfd); };
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        mfd = memfd_create("emilua/seccomp_set_mode_filter", /*flags=*/0);
+        if (mfd == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        if (ftruncate(mfd, bs->size) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        write(mfd, bs->data.get(), bs->size);
+    }
+
+    // extra buffers to align data if needed {{{
+    void* mapped_region = NULL;
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (mapped_region != NULL) munmap(mapped_region, bs->size);
+    };
+    std::vector<struct sock_filter> aligned_buffer;
+    // }}}
+
+    struct sock_fprog prog;
+    prog.len = bs->size / sizeof(struct sock_filter);
+
+    if (
+        unsigned char* data = bs->data.get();
+        reinterpret_cast<std::uintptr_t>(data) % alignof(sock_filter) == 0
+    ) {
+        // data already aligned
+        prog.filter = reinterpret_cast<sock_filter*>(data);
+    } else {
+        if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+            mapped_region = mmap(
+                /*addr=*/NULL, bs->size, PROT_READ, MAP_SHARED, mfd,
+                /*offset=*/0);
+            if (mapped_region == MAP_FAILED) {
+                std::error_code ec{errno, std::system_category()};
+                mapped_region = NULL;
+                push(L, ec);
+                return lua_error(L);
+            }
+            prog.filter = static_cast<sock_filter*>(mapped_region);
+        } else {
+            aligned_buffer.resize(prog.len);
+            std::memcpy(aligned_buffer.data(), data, bs->size);
+            prog.filter = aligned_buffer.data();
+        }
+    }
+
+    int res = syscall(
+        SYS_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &prog);
+    switch (res) {
+    case -1:
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    default:
+        push(L, std::errc::no_such_process);
+        return lua_error(L);
+    case 0:
+        break;
+    }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type =
+            ipc_actor_start_vm_request::SYSTEM_SECCOMP_SET_MODE_FILTER;
+        request.seccomp_set_mode_filter_mfd_size = bs->size;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int) * 2)];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            std::memcpy(it, &mfd, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
+    return 0;
+}
+#endif // BOOST_OS_LINUX
 
 static int system_exit(lua_State* L)
 {
@@ -2765,6 +2931,16 @@ static int system_mt_index(lua_State* L)
             "spawn",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, system_spawn);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "seccomp_set_mode_filter",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, system_seccomp_set_mode_filter);
+#else // BOOST_OS_LINUX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
                 return 1;
             })
         EMILUA_GPERF_PAIR(

@@ -23,6 +23,9 @@
 
 #if BOOST_OS_LINUX
 #include <linux/close_range.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <grp.h>
@@ -1499,6 +1502,42 @@ int app_context::ipc_actor_service_main(int sockfd)
 
             write(pout, buf, 1);
             close(pout);
+            continue;
+        }
+        case ipc_actor_start_vm_request::SYSTEM_SECCOMP_SET_MODE_FILTER: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) == cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            void* filter = mmap(
+                /*addr=*/NULL, request.seccomp_set_mode_filter_mfd_size,
+                PROT_READ, MAP_SHARED, fds[1], /*offset=*/0);
+            close(fds[1]);
+            if (filter == MAP_FAILED)
+                goto out_cleanup_and_return_failure;
+
+            struct sock_fprog prog;
+            prog.len = request.seccomp_set_mode_filter_mfd_size /
+                sizeof(struct sock_filter);
+            prog.filter = reinterpret_cast<sock_filter*>(filter);
+
+            if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1)
+                goto out_cleanup_and_return_failure;
+
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            munmap(filter, request.seccomp_set_mode_filter_mfd_size);
             continue;
         }
 #endif // BOOST_OS_LINUX

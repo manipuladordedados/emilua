@@ -137,6 +137,7 @@ struct ipc_actor_start_vm_request
         CAP_SET_AMBIENT,
         CAP_RESET_AMBIENT,
         CAP_SET_SECBITS,
+        SYSTEM_SECCOMP_SET_MODE_FILTER,
 #endif // BOOST_OS_LINUX
         CHDIR,
         CHROOT,
@@ -159,6 +160,7 @@ struct ipc_actor_start_vm_request
     cap_value_t cap_value;
     cap_flag_value_t cap_flag_value;
     unsigned cap_set_secbits_value;
+    std::size_t seccomp_set_mode_filter_mfd_size;
 #endif // BOOST_OS_LINUX
 
     std::string::size_type chroot_mfd_size;

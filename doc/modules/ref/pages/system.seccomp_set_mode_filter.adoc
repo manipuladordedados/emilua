@@ -1,0 +1,25 @@
+= system.seccomp_set_mode_filter
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.seccomp_set_mode_filter(bpf_fprogram: byte_span)
+----
+
+== Description
+
+Set the secure computing (seccomp) mode for the calling process
+(i.e. `SECCOMP_FILTER_FLAG_TSYNC` is always used), to limit the available system
+calls.
+
+NOTE: Only the master VM is allowed to use this function.
