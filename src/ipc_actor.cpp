@@ -1395,6 +1395,32 @@ int app_context::ipc_actor_service_main(int sockfd)
             }
             continue;
         }
+        case ipc_actor_start_vm_request::SET_NO_NEW_PRIVS: {
+            int pout;
+            char buf[1];
+
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            assert(cmsg->cmsg_level == SOL_SOCKET &&
+                   cmsg->cmsg_type == SCM_RIGHTS);
+            assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
+            std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
+
+#if BOOST_OS_LINUX
+            int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+#elif BOOST_OS_BSD_FREE
+            int data = PROC_NO_NEW_PRIVS_ENABLE;
+            int res = procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data);
+#else
+            int res = -1;
+#endif // BOOST_OS_LINUX
+
+            if (res == -1)
+                goto out_cleanup_and_return_failure;
+
+            write(pout, buf, 1);
+            close(pout);
+            continue;
+        }
 #if BOOST_OS_LINUX
         case ipc_actor_start_vm_request::CAP_SET_PROC: {
             int fds[2] = { -1, -1 };

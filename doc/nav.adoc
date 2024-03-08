@@ -140,6 +140,7 @@
 **** xref:ref:system.setresgid.adoc[setresgid]
 **** xref:ref:system.getgroups.adoc[getgroups]
 **** xref:ref:system.setgroups.adoc[setgroups]
+**** xref:ref:system.set_no_new_privs.adoc[set_no_new_privs]
 **** xref:ref:system.linux_capabilities.adoc[linux_capabilities]
 **** xref:ref:system.seccomp_set_mode_filter.adoc[seccomp_set_mode_filter]
 *** Process & job control

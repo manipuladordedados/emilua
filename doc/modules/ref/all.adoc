@@ -236,6 +236,8 @@ include::pages/system.getgroups.adoc[]
 
 include::pages/system.setgroups.adoc[]
 
+include::pages/system.set_no_new_privs.adoc[]
+
 include::pages/system.linux_capabilities.adoc[]
 
 include::pages/system.seccomp_set_mode_filter.adoc[]

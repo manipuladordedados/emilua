@@ -131,6 +131,7 @@ struct ipc_actor_start_vm_request
         SETRESUID,
         SETRESGID,
         SETGROUPS,
+        SET_NO_NEW_PRIVS,
 #if BOOST_OS_LINUX
         CAP_SET_PROC,
         CAP_DROP_BOUND,

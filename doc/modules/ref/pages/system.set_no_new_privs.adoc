@@ -1,0 +1,24 @@
+= system.set_no_new_privs
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.set_no_new_privs()
+----
+
+== Description
+
+Set the `no_new_privs` attribute for the calling process (i.e. threads are
+synchronized even on Linux).
+
+NOTE: Only the master VM is allowed to use this function.

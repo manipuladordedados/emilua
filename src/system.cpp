@@ -38,17 +38,23 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_LINUX
+# if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+#  include <sys/psx_syscall.h>
+# endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+
 #include <linux/securebits.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
 
 #include <sys/capability.h>
 #include <sys/syscall.h>
+#include <sys/prctl.h>
 
 #include <grp.h>
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_BSD_FREE
+#include <sys/procctl.h>
 #include <sys/jail.h>
 #include <jail.h>
 #endif // BOOST_OS_BSD_FREE
@@ -1882,6 +1888,98 @@ static int system_setgroups(lua_State* L)
     return 0;
 }
 
+static int set_no_new_privs(lua_State* L)
+{
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
+#if BOOST_OS_LINUX
+# if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+    // The right constant to use in "C code" would actually be SYS_prctl, but
+    // glibc doesn't define it for prctl.
+    //
+    // The only reason for no_new_privs=1 to ever fail would be ENOSYS. On
+    // ENOSYS, atomicity of failure is already guaranteed. Therefore, there's no
+    // need to abort on security context becoming unsynchronized among threads
+    // (this never happens). We can safely propagate errors up to the caller
+    // without handling them ourselves.
+    auto res = psx_syscall6(
+        __NR_prctl, PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, /*unused_call_padding=*/0);
+# else // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+    int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+# endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+#elif BOOST_OS_BSD_FREE
+    int data = PROC_NO_NEW_PRIVS_ENABLE;
+    int res = procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data);
+#else
+    int res = -1;
+    errno = ENOSYS;
+#endif // BOOST_OS_LINUX
+
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::SET_NO_NEW_PRIVS;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        union {
+            struct cmsghdr align;
+            char buf[CMSG_SPACE(sizeof(int))];
+        } cmsgu;
+        msg.msg_control = cmsgu.buf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        std::memcpy(CMSG_DATA(cmsg), &channel[1], sizeof(int));
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
+    return 0;
+}
+
 static int system_getpid(lua_State* L)
 {
     lua_pushinteger(L, getpid());
@@ -3178,6 +3276,16 @@ static int system_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_UNIX
                 lua_pushcfunction(L, system_setgroups);
+#else // BOOST_OS_UNIX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_no_new_privs",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, set_no_new_privs);
 #else // BOOST_OS_UNIX
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_UNIX
