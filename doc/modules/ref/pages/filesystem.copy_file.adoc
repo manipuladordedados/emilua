@@ -13,16 +13,14 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.copy_file(from: fs.path, to: fs.path[, opts: table]) -> boolean
+fs.copy_file(from: fs.path, to: fs.path[, on_existing: "skip"|"overwrite"|"update"]) -> boolean
 ----
 
 == Description
 
 See <https://en.cppreference.com/w/cpp/filesystem/copy_file>.
 
-== `opts`
-
-`existing: "skip"|"overwrite"|"update"|nil`::
+== `on_existing`
 
 Behavior when the file already exists.
 

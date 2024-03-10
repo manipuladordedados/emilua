@@ -2807,30 +2807,20 @@ static int copy_file(lua_State* L)
     switch (lua_type(L, 3)) {
     case LUA_TNIL:
         break;
-    case LUA_TTABLE:
-        lua_getfield(L, 3, "existing");
-        switch (lua_type(L, -1)) {
-        case LUA_TNIL:
-            break;
-        case LUA_TSTRING: {
-            auto v = tostringview(L);
-            if (v == "skip") {
-                options |= fs::copy_options::skip_existing;
-            } else if (v == "overwrite") {
-                options |= fs::copy_options::overwrite_existing;
-            } else if (v == "update") {
-                options |= fs::copy_options::update_existing;
-            } else {
-                push(L, std::errc::invalid_argument, "arg", "existing");
-                return lua_error(L);
-            }
-            break;
-        }
-        default:
-            push(L, std::errc::invalid_argument, "arg", "existing");
+    case LUA_TSTRING: {
+        auto v = tostringview(L, 3);
+        if (v == "skip") {
+            options |= fs::copy_options::skip_existing;
+        } else if (v == "overwrite") {
+            options |= fs::copy_options::overwrite_existing;
+        } else if (v == "update") {
+            options |= fs::copy_options::update_existing;
+        } else {
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         break;
+    }
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);

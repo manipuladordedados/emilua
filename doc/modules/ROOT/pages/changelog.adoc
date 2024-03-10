@@ -12,6 +12,7 @@
 * `filesystem.mode()` accepts new arguments now.
 * Add `filesystem.chroot()`.
 * Add extra optional parameter to filesystem.mknod().
+* Change `filesystem.copy_file()` parameters.
 * Change default `record_separator` in `stream.scanner` to `"\n"`.
 * Add more POSIX bindings to init.script API.
 * Always start subprocess-based actors with umask 022.
