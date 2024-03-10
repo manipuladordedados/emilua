@@ -50,7 +50,7 @@ function cvs_exclude(iter, ctrl)
             return
         end
 
-        local p = tostring(entry.path:filename())
+        local p = entry.path.filename
         if p == ".git" or p == ".svn" or p == ".hg" then
             ctrl:disable_recursion_pending()
         end
@@ -85,6 +85,6 @@ Whether the recursion is disabled for the current directory.
 local fs = require "filesystem"
 
 for entry, depth in fs.recursive_directory_iterator(fs.path.new(".")) do
-    print(string.rep("\t", depth) .. tostring(entry.path:filename()))
+    print(string.rep("\t", depth) .. entry.path.filename)
 end
 ----
