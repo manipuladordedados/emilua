@@ -1849,7 +1849,7 @@ inline int directory_entry_file_size(lua_State* L)
     return 1;
 }
 
-inline int directory_entry_hard_link_count(lua_State* L)
+inline int directory_entry_hardlink_count(lua_State* L)
 {
     auto entry = static_cast<fs::directory_entry*>(lua_touserdata(L, 1));
 
@@ -1989,7 +1989,7 @@ static int directory_entry_mt_index(lua_State* L)
             })
         EMILUA_GPERF_PAIR("path", directory_entry_path)
         EMILUA_GPERF_PAIR("file_size", directory_entry_file_size)
-        EMILUA_GPERF_PAIR("hard_link_count", directory_entry_hard_link_count)
+        EMILUA_GPERF_PAIR("hardlink_count", directory_entry_hardlink_count)
         EMILUA_GPERF_PAIR("last_write_time", directory_entry_last_write_time)
         EMILUA_GPERF_PAIR("status", directory_entry_status)
         EMILUA_GPERF_PAIR("symlink_status", directory_entry_symlink_status)
@@ -2727,7 +2727,7 @@ static int copy(lua_State* L)
                 options |= fs::copy_options::directories_only;
             } else if (v == "create_symlinks") {
                 options |= fs::copy_options::create_symlinks;
-            } else if (v == "create_hard_links") {
+            } else if (v == "create_hardlinks") {
                 options |= fs::copy_options::create_hard_links;
             } else {
                 push(L, std::errc::invalid_argument, "arg", "copy");
@@ -2980,7 +2980,7 @@ static int create_directories(lua_State* L)
     return 1;
 }
 
-static int create_hard_link(lua_State* L)
+static int create_hardlink(lua_State* L)
 {
     lua_settop(L, 2);
 
@@ -3305,7 +3305,7 @@ static int file_size(lua_State* L)
     return 1;
 }
 
-static int hard_link_count(lua_State* L)
+static int hardlink_count(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
     if (!path || !lua_getmetatable(L, 1)) {
@@ -4498,9 +4498,9 @@ static int filesystem_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "create_hard_link",
+            "create_hardlink",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, create_hard_link);
+                lua_pushcfunction(L, create_hardlink);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -4568,9 +4568,9 @@ static int filesystem_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "hard_link_count",
+            "hardlink_count",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, hard_link_count);
+                lua_pushcfunction(L, hardlink_count);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

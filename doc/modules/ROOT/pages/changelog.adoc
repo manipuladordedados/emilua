@@ -13,6 +13,9 @@
 * Add `filesystem.chroot()`.
 * Add extra optional parameter to filesystem.mknod().
 * Change `filesystem.copy_file()` parameters.
+* Change every name in the module filesystem from ``hard_*`` to ``hard*``
+  (e.g. `create_hard_link()` to `create_hardlink()`). This C++17 convention is
+  dumb and Python's pathlib is the one who got it right.
 * Change default `record_separator` in `stream.scanner` to `"\n"`.
 * Add more POSIX bindings to init.script API.
 * Always start subprocess-based actors with umask 022.

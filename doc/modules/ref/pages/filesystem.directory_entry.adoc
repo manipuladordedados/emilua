@@ -29,7 +29,7 @@ The path the entry refers to.
 
 The size in bytes of the file to which the directory entry refers to.
 
-=== `hard_link_count: integer`
+=== `hardlink_count: integer`
 
 The number of hard links referring to the file to which the directory entry
 refers to.

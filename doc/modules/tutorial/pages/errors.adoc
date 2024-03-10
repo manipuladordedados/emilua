@@ -70,7 +70,7 @@ compared for ``++__++eq()`` and extra members are ignored.
 That's a function present in ``++__++index``. It'll return the default error
 condition for `self`.
 
-For instance, `filesystem.create_hard_link()` will report the original error
+For instance, `filesystem.create_hardlink()` will report the original error
 from the OS so you don't lose information on errors. On Windows, this function
 might throw `ERROR_ALREADY_EXISTS`, but this error maps perfectly to POSIX's
 `EEXIST`. If you're _reacting_ on error codes to determine an action to take

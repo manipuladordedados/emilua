@@ -1,4 +1,4 @@
-= filesystem.hard_link_count
+= filesystem.hardlink_count
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -13,7 +13,7 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.hard_link_count(p: fs.path) -> integer
+fs.hardlink_count(p: fs.path) -> integer
 ----
 
 == Description

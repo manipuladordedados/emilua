@@ -1,4 +1,4 @@
-= filesystem.create_hard_link
+= filesystem.create_hardlink
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -13,7 +13,7 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.create_hard_link(target: fs.path, link: fs.path)
+fs.create_hardlink(target: fs.path, link: fs.path)
 ----
 
 == Description

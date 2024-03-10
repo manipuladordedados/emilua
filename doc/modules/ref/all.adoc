@@ -46,7 +46,7 @@ include::pages/filesystem.create_directory.adoc[]
 
 include::pages/filesystem.mkdir.adoc[]
 
-include::pages/filesystem.create_hard_link.adoc[]
+include::pages/filesystem.create_hardlink.adoc[]
 
 include::pages/filesystem.create_symlink.adoc[]
 
@@ -60,7 +60,7 @@ include::pages/filesystem.equivalent.adoc[]
 
 include::pages/filesystem.file_size.adoc[]
 
-include::pages/filesystem.hard_link_count.adoc[]
+include::pages/filesystem.hardlink_count.adoc[]
 
 include::pages/filesystem.clock.adoc[]
 

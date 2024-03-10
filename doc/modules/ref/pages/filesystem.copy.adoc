@@ -50,7 +50,7 @@ Replace the existing file only if it is older than the file being copied.
 
 `"skip"`::: Ignore symlinks.
 
-`copy: "directories_only"|"create_symlinks"|"create_hard_links"|nil`::
+`copy: "directories_only"|"create_symlinks"|"create_hardlinks"|nil`::
 
 `nil`::: Copy file content.
 
@@ -62,7 +62,7 @@ Copy the directory structure, but do not copy any non-directory files.
 
 Instead of creating copies of files, create symlinks pointing to the originals.
 
-`"create_hard_links"`:::
+`"create_hardlinks"`:::
 
 Instead of creating copies of files, create hardlinks that resolve to the same
 files as the originals.
