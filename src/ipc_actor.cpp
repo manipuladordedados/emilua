@@ -1309,19 +1309,13 @@ int app_context::ipc_actor_service_main(int sockfd)
         switch (nread) {
         case -1:
             perror("<3>ipc_actor/supervisor");
-            close_range(0, UINT_MAX, /*flags=*/0);
-            while (wait(NULL) > 0);
-            return 1;
+            goto out_cleanup_and_return_failure;
         case 0:
-            close_range(0, UINT_MAX, /*flags=*/0);
-            while (wait(NULL) > 0);
-            return 0;
+            goto out_cleanup;
         }
         assert(nread == sizeof(request));
 
         switch (request.type) {
-        case ipc_actor_start_vm_request::CREATE_PROCESS:
-            break;
         case ipc_actor_start_vm_request::SETRESUID: {
             int pout;
             char buf[1];
@@ -1335,9 +1329,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (setresuid(
                 request.resuid[0], request.resuid[1], request.resuid[2]
             ) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
+                goto out_cleanup_and_return_failure;
             }
             write(pout, buf, 1);
             close(pout);
@@ -1356,9 +1348,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (setresgid(
                 request.resgid[0], request.resgid[1], request.resgid[2]
             ) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
+                goto out_cleanup_and_return_failure;
             }
             write(pout, buf, 1);
             close(pout);
@@ -1386,19 +1376,14 @@ int app_context::ipc_actor_service_main(int sockfd)
                     /*addr=*/NULL, sizeof(gid_t) * request.setgroups_ngroups,
                     PROT_READ, MAP_SHARED, fds[1], /*offset=*/0);
                 close(fds[1]);
-                if (groups == MAP_FAILED) {
-                    close_range(0, UINT_MAX, /*flags=*/0);
-                    while (wait(NULL) > 0);
-                    return 1;
-                }
+                if (groups == MAP_FAILED)
+                    goto out_cleanup_and_return_failure;
             }
 
             if (setgroups(
                 request.setgroups_ngroups, reinterpret_cast<gid_t*>(groups)
             ) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
+                goto out_cleanup_and_return_failure;
             }
             write(fds[0], buf, 1);
             close(fds[0]);
@@ -1428,25 +1413,17 @@ int app_context::ipc_actor_service_main(int sockfd)
                 /*addr=*/NULL, request.cap_set_proc_mfd_size, PROT_READ,
                 MAP_SHARED, fds[1], /*offset=*/0);
             close(fds[1]);
-            if (text == MAP_FAILED) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (text == MAP_FAILED)
+                goto out_cleanup_and_return_failure;
 
             cap_t caps = cap_from_text(reinterpret_cast<char*>(text));
             munmap(text, request.cap_set_proc_mfd_size);
-            if (caps == NULL) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (caps == NULL)
+                goto out_cleanup_and_return_failure;
 
-            if (cap_set_proc(caps) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (cap_set_proc(caps) == -1)
+                goto out_cleanup_and_return_failure;
+
             write(fds[0], buf, 1);
             close(fds[0]);
             cap_free(caps);
@@ -1463,11 +1440,9 @@ int app_context::ipc_actor_service_main(int sockfd)
             std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
 
 
-            if (cap_drop_bound(request.cap_value) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (cap_drop_bound(request.cap_value) == -1)
+                goto out_cleanup_and_return_failure;
+
             write(pout, buf, 1);
             close(pout);
             continue;
@@ -1486,9 +1461,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             if (
                 cap_set_ambient(request.cap_value, request.cap_flag_value) == -1
             ) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
+                goto out_cleanup_and_return_failure;
             }
             write(pout, buf, 1);
             close(pout);
@@ -1504,12 +1477,9 @@ int app_context::ipc_actor_service_main(int sockfd)
             assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
             std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
 
+            if (cap_reset_ambient() == -1)
+                goto out_cleanup_and_return_failure;
 
-            if (cap_reset_ambient() == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
             write(pout, buf, 1);
             close(pout);
             continue;
@@ -1524,12 +1494,9 @@ int app_context::ipc_actor_service_main(int sockfd)
             assert(sizeof(int) == cmsg->cmsg_len - CMSG_LEN(0));
             std::memcpy(&pout, CMSG_DATA(cmsg), sizeof(int));
 
+            if (cap_set_secbits(request.cap_set_secbits_value) == -1)
+                goto out_cleanup_and_return_failure;
 
-            if (cap_set_secbits(request.cap_set_secbits_value) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
             write(pout, buf, 1);
             close(pout);
             continue;
@@ -1551,11 +1518,9 @@ int app_context::ipc_actor_service_main(int sockfd)
                 break;
             }
 
-            if (fchdir(fds[1]) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (fchdir(fds[1]) == -1)
+                goto out_cleanup_and_return_failure;
+
             write(fds[0], buf, 1);
             close(fds[0]);
             close(fds[1]);
@@ -1581,168 +1546,189 @@ int app_context::ipc_actor_service_main(int sockfd)
                 /*addr=*/NULL, request.chroot_mfd_size, PROT_READ, MAP_SHARED,
                 fds[1], /*offset=*/0);
             close(fds[1]);
-            if (path == MAP_FAILED) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (path == MAP_FAILED)
+                goto out_cleanup_and_return_failure;
 
-            if (chroot(reinterpret_cast<char*>(path)) == -1) {
-                close_range(0, UINT_MAX, /*flags=*/0);
-                while (wait(NULL) > 0);
-                return 1;
-            }
+            if (chroot(reinterpret_cast<char*>(path)) == -1)
+                goto out_cleanup_and_return_failure;
+
             write(fds[0], buf, 1);
             close(fds[0]);
             munmap(path, request.chroot_mfd_size);
             continue;
         }
-        }
+        case ipc_actor_start_vm_request::CREATE_PROCESS: {
+            int fds[4] = {-1, -1, -1, -1};
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (
+                    cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS
+                ) {
+                    continue;
+                }
 
-        int fds[4] = {-1, -1, -1, -1};
-        for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+            if (msg.msg_flags & MSG_CTRUNC) {
+                for (int i = 0 ; i != 4 ; ++i) {
+                    if (fds[i] == -1)
+                        break;
+
+                    close(fds[i]);
+                }
                 continue;
-
-            assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
-            std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
-            break;
-        }
-        if (msg.msg_flags & MSG_CTRUNC) {
-            for (int i = 0 ; i != 4 ; ++i) {
-                if (fds[i] == -1)
-                    break;
-
-                close(fds[i]);
             }
-            continue;
-        }
-        inboxfd = fds[0];
-        assert(inboxfd != -1);
+            inboxfd = fds[0];
+            assert(inboxfd != -1);
 
-        switch (request.stdin_action) {
-        case ipc_actor_start_vm_request::CLOSE_FD:
-            proc_stdin = -1;
-            break;
-        case ipc_actor_start_vm_request::SHARE_PARENT:
-            proc_stdin = STDIN_FILENO;
-            break;
-        case ipc_actor_start_vm_request::USE_PIPE:
-            for (int i = 1 ; i != 4 ; ++i) {
-                if (fds[i] != -1) {
-                    proc_stdin = fds[i];
-                    fds[i] = -1;
-                    break;
+            switch (request.stdin_action) {
+            case ipc_actor_start_vm_request::CLOSE_FD:
+                proc_stdin = -1;
+                break;
+            case ipc_actor_start_vm_request::SHARE_PARENT:
+                proc_stdin = STDIN_FILENO;
+                break;
+            case ipc_actor_start_vm_request::USE_PIPE:
+                for (int i = 1 ; i != 4 ; ++i) {
+                    if (fds[i] != -1) {
+                        proc_stdin = fds[i];
+                        fds[i] = -1;
+                        break;
+                    }
                 }
+                assert(proc_stdin != -1);
+                break;
             }
-            assert(proc_stdin != -1);
-            break;
-        }
 
-        switch (request.stdout_action) {
-        case ipc_actor_start_vm_request::CLOSE_FD:
-            proc_stdout = -1;
-            break;
-        case ipc_actor_start_vm_request::SHARE_PARENT:
-            proc_stdout = STDOUT_FILENO;
-            break;
-        case ipc_actor_start_vm_request::USE_PIPE:
-            for (int i = 1 ; i != 4 ; ++i) {
-                if (fds[i] != -1) {
-                    proc_stdout = fds[i];
-                    fds[i] = -1;
-                    break;
+            switch (request.stdout_action) {
+            case ipc_actor_start_vm_request::CLOSE_FD:
+                proc_stdout = -1;
+                break;
+            case ipc_actor_start_vm_request::SHARE_PARENT:
+                proc_stdout = STDOUT_FILENO;
+                break;
+            case ipc_actor_start_vm_request::USE_PIPE:
+                for (int i = 1 ; i != 4 ; ++i) {
+                    if (fds[i] != -1) {
+                        proc_stdout = fds[i];
+                        fds[i] = -1;
+                        break;
+                    }
                 }
+                assert(proc_stdout != -1);
+                break;
             }
-            assert(proc_stdout != -1);
-            break;
-        }
 
-        switch (request.stderr_action) {
-        case ipc_actor_start_vm_request::CLOSE_FD:
-            proc_stderr = -1;
-            break;
-        case ipc_actor_start_vm_request::SHARE_PARENT:
-            proc_stderr = STDERR_FILENO;
-            proc_stderr_has_color = request.stderr_has_color;
-            break;
-        case ipc_actor_start_vm_request::USE_PIPE:
-            for (int i = 1 ; i != 4 ; ++i) {
-                if (fds[i] != -1) {
-                    proc_stderr = fds[i];
-                    fds[i] = -1;
-                    break;
+            switch (request.stderr_action) {
+            case ipc_actor_start_vm_request::CLOSE_FD:
+                proc_stderr = -1;
+                break;
+            case ipc_actor_start_vm_request::SHARE_PARENT:
+                proc_stderr = STDERR_FILENO;
+                proc_stderr_has_color = request.stderr_has_color;
+                break;
+            case ipc_actor_start_vm_request::USE_PIPE:
+                for (int i = 1 ; i != 4 ; ++i) {
+                    if (fds[i] != -1) {
+                        proc_stderr = fds[i];
+                        fds[i] = -1;
+                        break;
+                    }
                 }
+                assert(proc_stderr != -1);
+                break;
             }
-            assert(proc_stderr != -1);
-            break;
-        }
-        assert(fds[1] == -1);
-        assert(fds[2] == -1);
-        assert(fds[3] == -1);
+            assert(fds[1] == -1);
+            assert(fds[2] == -1);
+            assert(fds[3] == -1);
 
-        has_lua_hook = request.has_lua_hook;
+            has_lua_hook = request.has_lua_hook;
 
-        ipc_actor_start_vm_reply reply;
-        int pidfd = -1;
+            ipc_actor_start_vm_reply reply;
+            int pidfd = -1;
 #if BOOST_OS_LINUX
-        request.clone_flags |= CLONE_PIDFD | SIGCHLD;
-        reply.childpid = clone(child_main, clone_stack_address,
-                               request.clone_flags, /*arg=*/nullptr, &pidfd);
-        reply.error = (reply.childpid == -1) ? errno : 0;
+            request.clone_flags |= CLONE_PIDFD | SIGCHLD;
+            reply.childpid = clone(
+                child_main, clone_stack_address, request.clone_flags,
+                /*arg=*/nullptr, &pidfd);
+            reply.error = (reply.childpid == -1) ? errno : 0;
 #else
-        pid_t childpid = pdfork(&pidfd, /*flags=*/0);
-        if (childpid == 0) {
-            return child_main(nullptr);
-        }
-        reply.error = (childpid == -1) ? errno : 0;
+            pid_t childpid = pdfork(&pidfd, /*flags=*/0);
+            if (childpid == 0) {
+                return child_main(nullptr);
+            }
+            reply.error = (childpid == -1) ? errno : 0;
 #endif // BOOST_OS_LINUX
 
-        switch (proc_stdin) {
-        case -1:
-        case STDIN_FILENO:
-            break;
-        default:
-            close(proc_stdin);
+            switch (proc_stdin) {
+            case -1:
+            case STDIN_FILENO:
+                break;
+            default:
+                close(proc_stdin);
+            }
+
+            switch (proc_stdout) {
+            case -1:
+            case STDOUT_FILENO:
+                break;
+            default:
+                close(proc_stdout);
+            }
+
+            switch (proc_stderr) {
+            case -1:
+            case STDERR_FILENO:
+                break;
+            default:
+                close(proc_stderr);
+            }
+
+            std::memset(&msg, 0, sizeof(msg));
+            iov.iov_base = &reply;
+            iov.iov_len = sizeof(reply);
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
+
+            if (pidfd != -1) {
+                msg.msg_control = cmsgu.buf;
+                msg.msg_controllen = CMSG_SPACE(sizeof(int));
+                struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+                cmsg->cmsg_level = SOL_SOCKET;
+                cmsg->cmsg_type = SCM_RIGHTS;
+                cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+                std::memcpy(CMSG_DATA(cmsg), &pidfd, sizeof(int));
+            }
+
+            sendmsg(inboxfd, &msg, MSG_NOSIGNAL);
+            close(inboxfd);
+            if (pidfd != -1)
+                close(pidfd);
+
+            continue;
+        }
         }
 
-        switch (proc_stdout) {
-        case -1:
-        case STDOUT_FILENO:
-            break;
-        default:
-            close(proc_stdout);
+        // We use goto instead of BOOST_SCOPE_EXIT_ALL() here because the
+        // implementation of this function should avoid C++ features that change
+        // the state of the call-stack in ways C code cannot change. The reason
+        // to worry about pursuing a slightly less unpredictable C call-stack
+        // here is because we fork() from this call-stack and we're worried
+        // about which memory is copied over to the new process and a C stack is
+        // easier to reason about. Even if a C++ feature won't leak important
+        // data now, it'll make the runtime call-stack harder to reason about.
+        if (false) {
+            static int exit_code = 0;
+        out_cleanup_and_return_failure:
+            exit_code = 1;
+        out_cleanup:
+            close_range(0, UINT_MAX, /*flags=*/0);
+            while (wait(NULL) > 0);
+            return exit_code;
         }
-
-        switch (proc_stderr) {
-        case -1:
-        case STDERR_FILENO:
-            break;
-        default:
-            close(proc_stderr);
-        }
-
-        std::memset(&msg, 0, sizeof(msg));
-        iov.iov_base = &reply;
-        iov.iov_len = sizeof(reply);
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-        if (pidfd != -1) {
-            msg.msg_control = cmsgu.buf;
-            msg.msg_controllen = CMSG_SPACE(sizeof(int));
-            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-            cmsg->cmsg_level = SOL_SOCKET;
-            cmsg->cmsg_type = SCM_RIGHTS;
-            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-            std::memcpy(CMSG_DATA(cmsg), &pidfd, sizeof(int));
-        }
-
-        sendmsg(inboxfd, &msg, MSG_NOSIGNAL);
-        close(inboxfd);
-        if (pidfd != -1)
-            close(pidfd);
     }
 }
 
