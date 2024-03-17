@@ -126,3 +126,14 @@ See cap_set_nsowner(3).
 === `__tostring()`
 
 See cap_to_text(3).
+
+== Bugs
+
+There's a libpsx bug that prevents thread synchronization to work:
+<https://bugzilla.kernel.org/show_bug.cgi?id=218607>. This affects:
+
+* `set_proc()`
+* `cap_drop_bound()`
+* `cap_set_ambient()`
+* `cap_reset_ambient()`
+* `cap_set_secbits()`

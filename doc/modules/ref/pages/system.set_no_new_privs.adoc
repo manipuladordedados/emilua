@@ -22,3 +22,11 @@ Set the `no_new_privs` attribute for the calling process (i.e. threads are
 synchronized even on Linux).
 
 NOTE: Only the master VM is allowed to use this function.
+
+== Bugs
+
+There's a libpsx bug that prevents thread synchronization to work:
+<https://bugzilla.kernel.org/show_bug.cgi?id=218607>.
+
+TIP: You may use `system.seccomp_set_mode_filter()` afterwards to synchronize
+the `no_new_privs` bit in all threads.

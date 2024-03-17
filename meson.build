@@ -806,6 +806,22 @@ if get_option('enable_tests')
                 'module8',
             ]
         }
+
+        if get_option('thread_support_level') >= 1 and get_option('enable_file_io')
+            test(
+                'libpsx1', shell, suite : 'libpsx',
+                args : [
+                    meson.current_source_dir() / 'test' / 'run_test.sh',
+                    meson.current_source_dir() / 'test' / 'run_test.awk',
+                    meson.current_source_dir() / 'test' / 'libpsx1',
+                ],
+                env : tests_env,
+
+                # there's a libpsx bug for C++ projects that hasn't been solved
+                # yet: https://bugzilla.kernel.org/show_bug.cgi?id=218607
+                should_fail : true,
+             )
+        endif
     endif
 
     foreach suite, t : tests
