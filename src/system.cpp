@@ -1182,11 +1182,8 @@ static int system_seccomp_set_mode_filter(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 2)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -1637,11 +1634,8 @@ static int system_setresuid(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -1713,11 +1707,8 @@ static int system_setresgid(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -1845,11 +1836,8 @@ static int system_setgroups(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 2)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = (
             (groups.size() != 0) ?
             CMSG_SPACE(sizeof(int) * 2) : CMSG_SPACE(sizeof(int)));
@@ -1951,11 +1939,8 @@ static int set_no_new_privs(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -2435,11 +2420,8 @@ static int linux_capabilities_set_proc(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 2)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -2724,11 +2706,8 @@ static int system_cap_drop_bound(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -2824,11 +2803,8 @@ static int system_cap_set_ambient(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -2893,11 +2869,8 @@ static int system_cap_reset_ambient(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -2971,11 +2944,8 @@ static int system_cap_set_secbits(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);

@@ -125,13 +125,9 @@ static int receive_with_fd(lua_State* L)
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    union
-    {
-        struct cmsghdr align;
-        char buf[CMSG_SPACE(sizeof(int))];
-    } cmsgu;
-    msg.msg_control = cmsgu.buf;
-    msg.msg_controllen = sizeof(cmsgu.buf);
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
 
     int res = recvmsg(fd, &msg, MSG_CMSG_CLOEXEC);
     int last_error = (res == -1) ? errno : 0;
@@ -181,11 +177,8 @@ static int send_with_fd(lua_State* L)
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    union {
-        struct cmsghdr align;
-        char buf[CMSG_SPACE(sizeof(int))];
-    } cmsgu;
-    msg.msg_control = cmsgu.buf;
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
     msg.msg_controllen = CMSG_SPACE(sizeof(int));
     struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
     cmsg->cmsg_level = SOL_SOCKET;
@@ -353,14 +346,10 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    union
-    {
-        struct cmsghdr align;
-        char buf[CMSG_SPACE(
-            sizeof(int) * EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
-    } cmsgu;
-    msg.msg_control = cmsgu.buf;
-    msg.msg_controllen = sizeof(cmsgu.buf);
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(
+        sizeof(int) * EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
 
     auto nread = recvmsg(service->sock.native_handle(), &msg, MSG_DONTWAIT);
     if (nread == -1) {
@@ -929,13 +918,9 @@ static int child_main(void*)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union
-        {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int))];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
-        msg.msg_controllen = sizeof(cmsgu.buf);
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = sizeof(cmsgbuf);
 
         auto nread = recvmsg(inboxfd, &msg, MSG_CMSG_CLOEXEC);
         if (
@@ -1293,10 +1278,7 @@ int app_context::ipc_actor_service_main(int sockfd)
     ipc_actor_start_vm_request request;
     struct iovec iov;
 
-    union {
-        struct cmsghdr align;
-        char buf[CMSG_SPACE(sizeof(int) * 4)];
-    } cmsgu;
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 4)];
 
     // WARNING: Any exit-path now must wait for all children to finish!
     for (;;) {
@@ -1305,8 +1287,8 @@ int app_context::ipc_actor_service_main(int sockfd)
         iov.iov_len = sizeof(request);
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
-        msg.msg_control = cmsgu.buf;
-        msg.msg_controllen = sizeof(cmsgu.buf);
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = sizeof(cmsgbuf);
 
         auto nread = recvmsg(sockfd, &msg, /*flags=*/0);
         switch (nread) {
@@ -1759,7 +1741,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             msg.msg_iovlen = 1;
 
             if (pidfd != -1) {
-                msg.msg_control = cmsgu.buf;
+                msg.msg_control = cmsgbuf;
                 msg.msg_controllen = CMSG_SPACE(sizeof(int));
                 struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
                 cmsg->cmsg_level = SOL_SOCKET;

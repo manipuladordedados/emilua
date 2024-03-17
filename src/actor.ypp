@@ -118,14 +118,9 @@ struct ipc_actor_send_op
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union
-        {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(
-                sizeof(int) *
-                EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(
+            sizeof(int) * EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -1590,12 +1585,9 @@ static int spawn_vm(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 4)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
-        msg.msg_controllen = sizeof(cmsgu.buf);
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 4)];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = sizeof(cmsgbuf);
 
         {
             struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -1648,7 +1640,7 @@ static int spawn_vm(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        msg.msg_control = cmsgu.buf;
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int));
 
         auto nread = recvmsg(channel[1], &msg, /*flags=*/0);
@@ -1708,7 +1700,7 @@ static int spawn_vm(lua_State* L)
             msg.msg_iovlen = 1;
 
             if (lua_hook_fd != -1) {
-                msg.msg_control = cmsgu.buf;
+                msg.msg_control = cmsgbuf;
                 msg.msg_controllen = CMSG_SPACE(sizeof(int));
                 struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
                 cmsg->cmsg_level = SOL_SOCKET;

@@ -3694,11 +3694,8 @@ static int current_working_directory(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 2)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
@@ -3830,11 +3827,8 @@ static int chroot(lua_State* L)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        union {
-            struct cmsghdr align;
-            char buf[CMSG_SPACE(sizeof(int) * 2)];
-        } cmsgu;
-        msg.msg_control = cmsgu.buf;
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
         msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
 
         struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
