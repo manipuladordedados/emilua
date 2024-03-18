@@ -27,7 +27,7 @@ if host_machine.system() == 'freebsd'
     add_project_link_arguments('-ljail', language : 'cpp')
 endif
 
-luajit = dependency('luajit', version : '>=2.0.5')
+luajit = dependency('luajit', version : '>=2.1.0')
 boost = dependency(
     'boost',
     version : '>=1.82',
