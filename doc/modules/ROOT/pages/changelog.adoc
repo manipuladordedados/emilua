@@ -5,6 +5,7 @@
 
 == 0.7
 
+* Add seccomp support.
 * Make subprocess.pid nullable. That's useful for synchronization when multiple
   fibers are observing parts of subprocess state.
 * Allow file_descriptor.close() to be called multiple times in a row.

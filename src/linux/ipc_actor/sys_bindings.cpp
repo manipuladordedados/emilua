@@ -4,8 +4,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <sys/sysmacros.h>
 #include <sys/capability.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 
 #include <linux/securebits.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
 #include <grp.h>
 
 #include <boost/scope_exit.hpp>
@@ -1016,6 +1019,47 @@ int posix_mt_index(lua_State* L)
                     int res = fexecve(fd, argv.data(), envp.data());
                     int last_error = errno;
                     CHECK_LAST_ERROR(L, last_error, "fexecve");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "seccomp_set_mode_filter",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    std::size_t len;
+                    const char* data = lua_tolstring(L, 1, &len);
+
+                    if (len == 0 || len % sizeof(struct sock_filter) != 0) {
+                        CHECK_LAST_ERROR(L, EINVAL, "seccomp_set_mode_filter");
+                        lua_pushinteger(L, -1);
+                        lua_pushinteger(L, EINVAL);
+                        return 2;
+                    }
+
+                    struct sock_fprog prog;
+                    prog.len = len / sizeof(struct sock_filter);
+
+                    if (
+                        reinterpret_cast<std::uintptr_t>(data) %
+                        alignof(sock_filter) == 0
+                    ) {
+                        // data already aligned
+                        prog.filter = reinterpret_cast<sock_filter*>(
+                            const_cast<char*>(data));
+                    } else {
+                        void* ud;
+                        lua_Alloc a = lua_getallocf(L, &ud);
+                        prog.filter =
+                            static_cast<sock_filter*>(a(ud, NULL, 0, len));
+                        std::memcpy(prog.filter, data, len);
+                    }
+
+                    int res = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "seccomp_set_mode_filter");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;

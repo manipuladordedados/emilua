@@ -13,9 +13,9 @@ Emilua - Lua execution engine
 endif::[]
 
 Emilua provides support for creating actors in isolated processes using
-Capsicum, FreeBSD jails, Linux namespaces or Landlock. The idea is to prevent
-potentially exploitable code from accessing resources beyond what has been
-explicitly handed to them. That's the basis for capability-based security
+Capsicum, FreeBSD jails, Seccomp, Linux namespaces or Landlock. The idea is to
+prevent potentially exploitable code from accessing resources beyond what has
+been explicitly handed to them. That's the basis for capability-based security
 systems, and it maps pretty well to APIs implementing the actor model such as
 Emilua.
 

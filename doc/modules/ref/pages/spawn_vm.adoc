@@ -562,6 +562,25 @@ These constants live inside the global table `C`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED`.
 
+=== `C.seccomp_set_mode_filter(bpf_fprogram: string) -> integer, integer`
+
+Set the secure computing (seccomp) mode for the calling process, to limit the
+available system calls. It's equivalent to:
+
+[source,c]
+----
+const char* bpf_fprogram = ...;
+size_t bpf_fprogram_size = ...;
+
+struct sock_fprog prog;
+prog.len = bpf_fprogram_size / sizeof(struct sock_filter);
+prog.filter = (struct sock_filter*)(bpf_fprogram);
+prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+----
+
+TIP: Use Kafel to generate the BPF bytecode. There's an Emilua plugin for Kafel
+integration.
+
 === `C.landlock_create_ruleset(attr: table|nil, flags: table|nil) -> integer, integer`
 
 Parameters:

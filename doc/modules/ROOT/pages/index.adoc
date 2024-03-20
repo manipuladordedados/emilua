@@ -122,10 +122,13 @@ Nystrom' two colors problem].].
 
 Emilua has first-class support for modern sandboxing technologies.
 
-* Linux namespaces.
-* Linux's Landlock.
-* FreeBSD's jails.
-* FreeBSD's Capsicum.
+* Linux.
+** Namespaces.
+** Seccomp.
+** Landlock.
+* FreeBSD.
+** Jails.
+** Capsicum.
 
 Mitigate risks by creating disposable cheap sandboxes to parse untrusted input
 data.
