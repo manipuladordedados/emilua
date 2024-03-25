@@ -228,6 +228,13 @@ Set the supplementary group IDs.
 
 NOTE: *Not* available on Windows.
 
+`set_no_new_privs: boolean = false`::
+
+Set the `no_new_privs` attribute.
++
+
+NOTE: *Not* available on Windows.
+
 `umask: integer|nil`::
 
 See umask(3p).

@@ -58,6 +58,7 @@ struct spawn_arguments_t
     gid_t rgid;
     gid_t egid;
     std::optional<std::vector<gid_t>> extra_groups;
+    bool no_new_privs;
     std::optional<mode_t> umask;
     std::optional<std::string> working_directory;
     int working_directoryfd;
@@ -448,6 +449,15 @@ static int subprocess_mt_index(lua_State* L)
             getresuid(&ignored_ruid, &args->euid, &ignored_suid);
         }
         if (setresuid(args->ruid, args->euid, args->euid) == -1) {
+            reply.code = errno;
+            write(args->closeonexecpipe, &reply, sizeof(reply));
+            std::exit(1);
+        }
+    }
+
+    if (args->no_new_privs) {
+        int data = PROC_NO_NEW_PRIVS_ENABLE;
+        if (procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             std::exit(1);
@@ -1351,6 +1361,20 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    bool no_new_privs = false;
+    lua_getfield(L, 1, "set_no_new_privs");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TBOOLEAN:
+        no_new_privs = lua_toboolean(L, -1);
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", "set_no_new_privs");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::optional<mode_t> umask;
     lua_getfield(L, 1, "umask");
     switch (lua_type(L, -1)) {
@@ -1478,6 +1502,7 @@ int system_spawn(lua_State* L)
     args.rgid = rgid;
     args.egid = egid;
     args.extra_groups = std::move(extra_groups);
+    args.no_new_privs = no_new_privs;
     args.umask = umask;
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;
