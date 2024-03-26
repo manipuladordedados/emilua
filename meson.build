@@ -64,6 +64,7 @@ endif
 
 if get_option('thread_support_level') == 0
     add_project_arguments('-DBOOST_ASIO_DISABLE_THREADS', language : 'cpp')
+    add_project_arguments('-DBOOST_SYSTEM_DISABLE_THREADS', language : 'cpp')
 endif
 
 if get_option('enable_io_uring')
@@ -375,6 +376,7 @@ pc_extra_cflags = []
 
 if get_option('thread_support_level') == 0
     pc_extra_cflags += '-DBOOST_ASIO_DISABLE_THREADS'
+    pc_extra_cflags += '-DBOOST_SYSTEM_DISABLE_THREADS'
 endif
 
 if get_option('enable_io_uring')
