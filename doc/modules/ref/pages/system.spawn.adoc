@@ -235,6 +235,13 @@ Set the `no_new_privs` attribute.
 
 NOTE: *Not* available on Windows.
 
+`seccomp_set_mode_filter: byte_span|nil`::
+
+Set the secure computing (seccomp) mode to limit the available system calls.
++
+
+NOTE: Only available on Linux.
+
 `umask: integer|nil`::
 
 See umask(3p).

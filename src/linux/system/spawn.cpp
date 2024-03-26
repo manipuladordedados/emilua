@@ -11,6 +11,9 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/scope_exit.hpp>
 
 #include <linux/close_range.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
@@ -18,6 +21,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
+#include <emilua/byte_span.hpp>
 
 #include <boost/asio/posix/stream_descriptor.hpp>
 EMILUA_GPERF_DECLS_END(includes)
@@ -62,6 +66,7 @@ struct spawn_arguments_t
     gid_t egid;
     std::optional<std::vector<gid_t>> extra_groups;
     bool no_new_privs;
+    struct sock_fprog seccomp_filter;
     std::optional<mode_t> umask;
     std::optional<std::string> working_directory;
     int working_directoryfd;
@@ -401,6 +406,18 @@ static int system_spawn_child_main(void* a)
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
         return 1;
+    }
+
+    // if we're root (the only way to install a seccomp filter w/o no-new-privs)
+    // then install the filter before we drop our credentials
+    if (!args->no_new_privs && args->seccomp_filter.len != 0) {
+        int res = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER,
+                        &args->seccomp_filter);
+        if (res == -1) {
+            reply.code = errno;
+            write(args->closeonexecpipe, &reply, sizeof(reply));
+            return 1;
+        }
     }
 
     if (
@@ -750,6 +767,21 @@ static int system_spawn_child_main(void* a)
         reply.code = errno;
         write(10, &reply, sizeof(reply));
         return 1;
+    }
+
+    // The seccomp filter is installed as the last step before exec because it
+    // could block a few of the syscalls that are necessary for the previous
+    // steps. Ideally we should be able to provide a filter to be installed
+    // during exec-transition, but that ain't happening:
+    // <https://lore.kernel.org/all/202010281500.855B950FE@keescook/T/>.
+    if (args->no_new_privs && args->seccomp_filter.len != 0) {
+        int res = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER,
+                        &args->seccomp_filter);
+        if (res == -1) {
+            reply.code = errno;
+            write(10, &reply, sizeof(reply));
+            return 1;
+        }
     }
 
     if (args->programfd != -1)
@@ -1408,6 +1440,56 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    std::shared_ptr<sock_filter[]> seccomp_filter;
+    unsigned short seccomp_filter_len;
+    lua_getfield(L, 1, "seccomp_set_mode_filter");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        seccomp_filter_len = 0;
+        break;
+    case LUA_TUSERDATA: {
+        auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument,
+                 "arg", "seccomp_set_mode_filter");
+            return lua_error(L);
+        }
+        rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+        if (!lua_rawequal(L, -1, -2)) {
+            push(L, std::errc::invalid_argument,
+                 "arg", "seccomp_set_mode_filter");
+            return lua_error(L);
+        }
+        lua_pop(L, 2);
+
+        if (bs->size == 0 || bs->size % sizeof(struct sock_filter) != 0) {
+            push(L, std::errc::invalid_argument,
+                 "arg", "seccomp_set_mode_filter");
+            return lua_error(L);
+        }
+
+        seccomp_filter_len = bs->size / sizeof(struct sock_filter);
+        if (
+            unsigned char* data = bs->data.get();
+            reinterpret_cast<std::uintptr_t>(data) % alignof(sock_filter) == 0
+        ) {
+            // data already aligned
+            seccomp_filter = std::shared_ptr<sock_filter[]>{
+                bs->data, reinterpret_cast<sock_filter*>(data)
+            };
+        } else {
+            seccomp_filter = std::make_shared_for_overwrite<sock_filter[]>(
+                seccomp_filter_len);
+            std::memcpy(seccomp_filter.get(), data, bs->size);
+        }
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "seccomp_set_mode_filter");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::optional<mode_t> umask;
     lua_getfield(L, 1, "umask");
     switch (lua_type(L, -1)) {
@@ -1672,6 +1754,8 @@ int system_spawn(lua_State* L)
     args.egid = egid;
     args.extra_groups = std::move(extra_groups);
     args.no_new_privs = no_new_privs;
+    args.seccomp_filter.len = seccomp_filter_len;
+    args.seccomp_filter.filter = seccomp_filter.get();
     args.umask = umask;
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;
