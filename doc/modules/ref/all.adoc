@@ -188,6 +188,8 @@ include::pages/inbox.adoc[]
 
 include::pages/spawn_vm.adoc[]
 
+include::pages/init.script.adoc[]
+
 include::pages/spawn_context_threads.adoc[]
 
 include::pages/stream.write_all.adoc[]
