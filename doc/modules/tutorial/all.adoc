@@ -7,6 +7,8 @@ include::pages/getting-started.adoc[]
 
 include::pages/streams.adoc[]
 
+include::pages/filesystem.adoc[]
+
 include::pages/alternatives.adoc[]
 
 include::pages/internals.adoc[]

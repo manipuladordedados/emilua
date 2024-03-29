@@ -1,0 +1,162 @@
+= Filesystem API
+
+:_:
+:cpp: C++
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+== Description
+
+endif::[]
+
+Emilua offers its own cross-platform filesystem API. The hard thing about a
+cross-platform filesystem API is basically Windows. As Ryan Gordon (from the SDL
+fame) succinctly put it:
+
+[quote, '<https://github.com/libsdl-org/SDL/issues/8129#issue-1855143179>']
+____
+Windows. Windows is the problem.
+
+* Windows wants you to mess with UTF-16 strings for Unicode filepaths,
+  everything else wants UTF-8.
+* Windows wants you to use Win32 APIs, everything else uses POSIX.
+* Windows wants you to use FILETIME (100-nanosecond increments since 1601),
+  everything else uses POSIX (time_t, Unix epoch).
+* Windows wants you to use `'\\'`, everything else uses `'/'`.
+* Windows has drive letters, everything else has mount points.
+* Windows sorta has symlinks in modern times, many other things always do. But
+  some things don't at all!
+____
+
+On top of what Ryan said, I'd add the following points:
+
+* Windows wants you to mess with `GetLastError()`, everything else wants
+  `errno`.
+* Windows is case-insensitive, everything else is case-sensitive.
+
+Except for case sensitivity, Emilua absorbs all of these problems on your behalf
+with an API that abstracts such differences away. On top of that, it'll use
+Microsoft's own implementation for such translation
+layers{_}footnote:[Microsoft's implementation of the standard library for
+{cpp}17.] when it's running on Windows (meaning: if you decide to not use
+“Emilua” abstractions because you don't trust our knowledge of the Windows API
+you're just avoiding Microsoft's own code which you can't really do).
+
+Of course a few non-Windows extensions are also offered. If you're not (only)
+targeting Windows, the common UNIX concepts are a must to have, and they're here
+(otherwise you wouldn't be able to use Emilua to build containers which is
+something we also support).
+
+== The object `filesystem.path`
+
+`filesystem.path` is the central piece in the architecture for our design. As
+the name implies, it represents a path. On the Lua side, you just deal with
+UTF-8 encoding. Internally, this class will keep the representation in the
+native format and translate to UTF-8 as needed to interact with Lua code.
+
+[source,lua]
+----
+local fs = require "filesystem"
+local my_path1 = fs.path.new("/home/user")
+local my_path2 = fs.path.from_generic("Downloads/music")
+----
+
+There are two constructors. One takes the path in the native format. The other
+uses a generic format. The generic format always use `"/"` as the directory
+separator. The native format receives no special handling here as for what `"/"`
+might mean and just relies on the native directory separator of the underlying
+platform (but it still handles conversions from UTF-8 to the native encoding).
+
+When you're composing paths, you can use the overloaded operators as they'll
+automatically use the native directory separator for the underlying platform:
+
+[source,lua]
+----
+function foobar(path)
+    return path / "Downloads" / "myfile" .. ".txt"
+end
+----
+
+You can also query their dynamic properties to perform path decomposition:
+
+[source,lua]
+----
+function foobar(path)
+    return path.parent_path, path.filename
+end
+----
+
+Or decompose them through iteration:
+
+[source,lua]
+----
+function foobar(path)
+    for component in path:iterator() do
+        print(component)
+    end
+end
+----
+
+Paths are immutable. Operations that modify a path always return a new path
+while the original is left untouched.
+
+No place in the Emilua API receives a string to handle file paths. You'll need
+to use path objects explicitly even in UNIX socket operations. This design helps
+to disambiguate cases where multiple types are accepted but mean different
+things (e.g. `program` in `system.spawn()`). It also helps to centralize
+platform differences related to path representation in a single class (e.g. just
+grep through your codebase and you can easily refactor stuff around or look for
+wrong assumptions).
+
+This class only handles the path itself. It's just an in-memory
+representation. When you use its member functions (e.g. `lexically_normal()`),
+you're *NOT* doing any operation on the filesystem itself. There's no danger in
+committing filesystem operations by just playing with the path object alone
+(that's also why some functions are non-members as a hint to indicate that they
+might touch the actual filesystem to complete their task).
+
+== Filesystem operations
+
+The module `filesystem` presents plenty of useful functions such as:
+
+* Directory iteration (flat and recursive).
+* Path normalization algorithms (e.g. resolve symlinks, make relative to some
+  base, etc).
+* Create a directory and any missing parent.
+* Copy subtrees.
+* Manipulate links.
+
+Any of these operations might fail and the platform will report the associated
+error. Emilua will just propagate the original error to your program. If you
+want to handle the error portably you may call the method `togeneric()` to
+convert the platform-specific error code into the POSIX errno-like object:
+
+[source,lua]
+----
+function handle_error(e)
+    if e:togeneric() == generic_error.EEXIST then
+        -- EEXIST on POSIX or
+        -- ERROR_ALREADY_EXISTS on Windows
+        return handle_eexist(e)
+    else
+        error(e)
+    end
+end
+----
+
+It's important to preserve the original error when you're actually trying to
+understand why an operation fail on some platform. That's why Emilua doesn't try
+to hide it away under `generic_error` automatically, and you must always opt-in
+for the translation here. Try to keep the original error value in logs and only
+convert it to `generic_error` when you're actually handling the error matching
+it against a set of conditions your program is able to handle.
+
+On Windows, the translation to POSIX error codes is done by code written by
+Microsoft. We do not hardcode any mapping ourselves. That's the closest as it
+gets to any form of official support from the native platform. You can't do any
+better than that, and you should feel safe to use the Emilua API directly
+instead of trying to bypass it.

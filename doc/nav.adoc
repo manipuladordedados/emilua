@@ -3,6 +3,7 @@
 * Tutorial
 ** xref:tutorial:getting-started.adoc[]
 ** xref:tutorial:streams.adoc[]
+** xref:tutorial:filesystem.adoc[]
 ** xref:tutorial:alternatives.adoc[]
 ** xref:tutorial:internals.adoc[]
 ** xref:tutorial:interruption.adoc[]
