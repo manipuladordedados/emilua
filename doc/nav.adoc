@@ -6,6 +6,7 @@
 ** xref:tutorial:filesystem.adoc[]
 ** xref:tutorial:alternatives.adoc[]
 ** xref:tutorial:internals.adoc[]
+** xref:tutorial:internals-sandboxes.adoc[]
 ** xref:tutorial:interruption.adoc[]
 ** xref:tutorial:lua51.adoc[]
 ** xref:tutorial:modules.adoc[]
