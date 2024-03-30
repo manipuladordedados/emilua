@@ -3,36 +3,42 @@
 :_:
 :cpp: C++
 
-== 0.7
+[id=0.7]
+== 0.7 - unreleased
+
+=== Added
 
 * Add seccomp support.
-* Make subprocess.pid nullable. That's useful for synchronization when multiple
-  fibers are observing parts of subprocess state.
-* Allow file_descriptor.close() to be called multiple times in a row.
 * Add `filesystem.mkdir()` to complement `filesystem.create_directory()`.
 * `filesystem.mode()` accepts new arguments now.
 * Add `filesystem.chroot()`.
 * Add extra optional parameter to filesystem.mknod().
+* Add more POSIX bindings to init.script API.
+
+=== Changed
+
+* Make subprocess.pid nullable. That's useful for synchronization when multiple
+  fibers are observing parts of subprocess state.
+* Allow file_descriptor.close() to be called multiple times in a row.
 * Change `filesystem.copy_file()` parameters.
 * Change every name in the module filesystem from ``hard_*`` to ``hard*``
   (e.g. `create_hard_link()` to `create_hardlink()`). This C++17 convention is
   dumb and Python's pathlib is the one who got it right.
 * Change default `record_separator` in `stream.scanner` to `"\n"`.
-* Add more POSIX bindings to init.script API.
 * Always start subprocess-based actors with umask 022.
+
+=== Fixed
+
 * Bug fixes.
 
-== 0.6
+[id=0.6]
+== 0.6 - 2024-01-06
+
+=== Added
 
 * Add FreeBSD's jails support.
 * Add function `format()` to format strings. The implementation uses
   https://fmt.dev/[{cpp}'s libfmt].
-* Convert decomposition functions from filesystem.path to properties:
-  `root_name`, `root_directory`, `root_path`, `relative_path`, `parent_path`,
-  `filename`, `stem`, `extension`.
-* Convert some filesystem.path properties to string: `root_name`,
-  `root_directory`, `filename`, `stem`, `extension`.
-* filesystem.path.iterator() will return strings at each iteration now.
 * Add more functions to the module filesystem: `exists()`, `is_block_file()`,
   `is_character_file()`, `is_directory()`, `is_fifo()`, `is_other()`,
   `is_regular_file()`, `is_socket()`, `is_symlink()`, `mode()`. It was already
@@ -42,46 +48,53 @@
   `makedev()`.
 * New UNIX socket options to retrieve security labels and credentials from the
   remote process.
-* Remove HTTP & WebSocket classes. They should be offered as separate plugins.
 * `file_descriptor` implemented for Windows pipes and `file.stream`.
 * Many improvements to Windows version of `system.spawn()`.
 
-== 0.5
+=== Changed
+
+* Convert decomposition functions from filesystem.path to properties:
+  `root_name`, `root_directory`, `root_path`, `relative_path`, `parent_path`,
+  `filename`, `stem`, `extension`.
+* Convert some filesystem.path properties to string: `root_name`,
+  `root_directory`, `filename`, `stem`, `extension`.
+* filesystem.path.iterator() will return strings at each iteration now.
+
+=== Removed
+
+* Remove HTTP & WebSocket classes. They should be offered as separate plugins.
+
+[id=0.5]
+== 0.5 - 2023-12-03
+
+=== Added
 
 * Add `mutex.try_lock()`.
 * Add module `recursive_mutex`.
 * Add module `future`.
 * Add `filesystem.chown()`.
 * Enable IPC-based actors on all UNIX systems.
-* spawn_vm() performs the same module path resolution from require() now. That
-  means it's possible to use root-imports from spawn_vm().
-* spawn_vm() parameters refactored (API break).
 * Add Linux Landlock support.
 * Add FreeBSD Capsicum support.
 
-== 0.4
+=== Changed
+
+* spawn_vm() performs the same module path resolution from require() now. That
+  means it's possible to use root-imports from spawn_vm().
+* spawn_vm() parameters refactored (API break).
+
+[id=0.4]
+== 0.4 - 2023-04-03
+
+=== Added
 
 * A new `byte_span` type akin to Go slices is used for IO ops.
 * Actor channels now can transceive file descriptors.
 * Support for Linux namespaces. Now you can set up sandboxes and run isolated
   actors (or just the well-known containers).
-* Upgrade to {cpp}20. The motivating feature for the upgrade was
-  `std::atomic<std::weak_ptr<T>>`. However, other {cpp}20 features are being
-  used as well.
-* Removed `println()`.
-* Removed `sleep_for`. Its functionality has been replaced by the module `time`.
-* Moved `steady_timer` to the new module `time`.
-* Removed `ip.tcp.resolver`. Its functionality has been replaced by
-  `ip.get_address_info()`.
-* `tls.ctx` renamed to `tls.context`.
 * Modules `ip` and `tls` grew a lot. The API for sockets now supports IO ops on
   `byte_span` instances, and plenty of new functions and classes (including UDP)
   were added.
-* `inbox.recv()` renamed to `inbox.receive()`
-* Module `cond` renamed to `condition_variable`.
-* `error_code.cat` renamed to `error_code.category`.
-* `spawn_ctx_threads()` renamed to `spawn_context_threads()`.
-* `inherit_ctx` renamed to `inherit_context` in `spawn_vm()`.
 * New modules.
 ** `time`: clocks and timers.
 ** `pipe`.
@@ -106,15 +119,41 @@
   `TransmitFile()`).
 * Add `http.request.upgrade_desired()`.
 * `http.socket` can work on top of UNIX domain stream sockets now.
-* Now Emilua is less liberal on accepted values for env var `EMILUA_COLORS`.
-* Finer-grained cancellation of IO ops.
-* Locales are set at application startup.
-* Bug fixes.
-* The build system now makes use of Meson's wrap system.
 * Documentation can now be installed as manpages.
 * Support for io_uring.
 
-== 0.3
+=== Changed
+
+* Upgrade to {cpp}20. The motivating feature for the upgrade was
+  `std::atomic<std::weak_ptr<T>>`. However, other {cpp}20 features are being
+  used as well.
+* Moved `steady_timer` to the new module `time`.
+* `tls.ctx` renamed to `tls.context`.
+* `inbox.recv()` renamed to `inbox.receive()`
+* Module `cond` renamed to `condition_variable`.
+* `error_code.cat` renamed to `error_code.category`.
+* `spawn_ctx_threads()` renamed to `spawn_context_threads()`.
+* `inherit_ctx` renamed to `inherit_context` in `spawn_vm()`.
+* Now Emilua is less liberal on accepted values for env var `EMILUA_COLORS`.
+* Finer-grained cancellation of IO ops.
+* Locales are set at application startup.
+* The build system now makes use of Meson's wrap system.
+
+=== Removed
+
+* Removed `println()`.
+* Removed `sleep_for`. Its functionality has been replaced by the module `time`.
+* Removed `ip.tcp.resolver`. Its functionality has been replaced by
+  `ip.get_address_info()`.
+
+=== Fixed
+
+* Bug fixes.
+
+[id=0.3]
+== 0.3 - 2021-03-04
+
+=== Added
 
 * HTTP request and response objects now use read-write locks and there is some
   limited sharing that you can do with them without stumbling upon EBUSY errors.
@@ -127,14 +166,29 @@
 * Add manpage.
 * `--version` CLI arg.
 * Build configure options to disable threading.
+
+=== Changed
+
 * Use fmtlib from host system.
 
-== 0.2
+[id=0.2]
+== 0.2 - 2021-01-31
 
-* Fix build when compiler is GCC.
+=== Added
+
+* Add HTTP query function: `http.request.continue_required()`.
+
+=== Changed
+
 * Refactor module system. The new module system is incompatible with the
   previous one. Please refer to the documentation.
-* Add HTTP query function: `http.request.continue_required()`.
+* Numeric values for error codes changed.
+
+=== Removed
+
 * Remove `failed_to_load_module` error code. Now you should see `"iostream
   error"` or other more informative error reasons upon a failed module load.
-* Numeric values for error codes changed.
+
+=== Fixed
+
+* Fix build when compiler is GCC.
