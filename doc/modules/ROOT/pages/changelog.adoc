@@ -26,6 +26,7 @@
   dumb and Python's pathlib is the one who got it right.
 * Change default `record_separator` in `stream.scanner` to `"\n"`.
 * Always start subprocess-based actors with umask 022.
+* Change `system.spawn()` parameters from `nsenter_*` to `setns_*`.
 
 === Fixed
 

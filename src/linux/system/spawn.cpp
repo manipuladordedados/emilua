@@ -71,11 +71,11 @@ struct spawn_arguments_t
     std::optional<std::string> working_directory;
     int working_directoryfd;
     std::optional<unsigned long> pdeathsig;
-    int nsenter_user;
-    int nsenter_mount;
-    int nsenter_uts;
-    int nsenter_ipc;
-    int nsenter_net;
+    int setns_user;
+    int setns_mount;
+    int setns_uts;
+    int setns_ipc;
+    int setns_net;
 };
 
 struct spawn_reaper
@@ -518,40 +518,40 @@ static int system_spawn_child_main(void* a)
         sigprocmask(SIG_UNBLOCK, &set, /*oldset=*/NULL);
     }
 
-    if (args->nsenter_user != -1) {
-        if (setns(args->nsenter_user, CLONE_NEWUSER) == -1) {
+    if (args->setns_user != -1) {
+        if (setns(args->setns_user, CLONE_NEWUSER) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
         }
     }
 
-    if (args->nsenter_mount != -1) {
-        if (setns(args->nsenter_mount, CLONE_NEWNS) == -1) {
+    if (args->setns_mount != -1) {
+        if (setns(args->setns_mount, CLONE_NEWNS) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
         }
     }
 
-    if (args->nsenter_uts != -1) {
-        if (setns(args->nsenter_uts, CLONE_NEWUTS) == -1) {
+    if (args->setns_uts != -1) {
+        if (setns(args->setns_uts, CLONE_NEWUTS) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
         }
     }
 
-    if (args->nsenter_ipc != -1) {
-        if (setns(args->nsenter_ipc, CLONE_NEWIPC) == -1) {
+    if (args->setns_ipc != -1) {
+        if (setns(args->setns_ipc, CLONE_NEWIPC) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
         }
     }
 
-    if (args->nsenter_net != -1) {
-        if (setns(args->nsenter_net, CLONE_NEWNET) == -1) {
+    if (args->setns_net != -1) {
+        if (setns(args->setns_net, CLONE_NEWNET) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
@@ -1567,8 +1567,8 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
-    int nsenter_user = -1;
-    lua_getfield(L, 1, "nsenter_user");
+    int setns_user = -1;
+    lua_getfield(L, 1, "setns_user");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
@@ -1576,29 +1576,29 @@ int system_spawn(lua_State* L)
         auto handle = static_cast<file_descriptor_handle*>(
             lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_user");
+            push(L, std::errc::invalid_argument, "arg", "setns_user");
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_user");
+            push(L, std::errc::invalid_argument, "arg", "setns_user");
             return lua_error(L);
         }
         lua_pop(L, 1);
         if (*handle == INVALID_FILE_DESCRIPTOR) {
-            push(L, std::errc::device_or_resource_busy, "arg", "nsenter_user");
+            push(L, std::errc::device_or_resource_busy, "arg", "setns_user");
             return lua_error(L);
         }
-        nsenter_user = *handle;
+        setns_user = *handle;
         break;
     }
     default:
-        push(L, std::errc::invalid_argument, "arg", "nsenter_user");
+        push(L, std::errc::invalid_argument, "arg", "setns_user");
         return lua_error(L);
     }
     lua_pop(L, 1);
 
-    int nsenter_mount = -1;
-    lua_getfield(L, 1, "nsenter_mount");
+    int setns_mount = -1;
+    lua_getfield(L, 1, "setns_mount");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
@@ -1606,29 +1606,29 @@ int system_spawn(lua_State* L)
         auto handle = static_cast<file_descriptor_handle*>(
             lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_mount");
+            push(L, std::errc::invalid_argument, "arg", "setns_mount");
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_mount");
+            push(L, std::errc::invalid_argument, "arg", "setns_mount");
             return lua_error(L);
         }
         lua_pop(L, 1);
         if (*handle == INVALID_FILE_DESCRIPTOR) {
-            push(L, std::errc::device_or_resource_busy, "arg", "nsenter_mount");
+            push(L, std::errc::device_or_resource_busy, "arg", "setns_mount");
             return lua_error(L);
         }
-        nsenter_mount = *handle;
+        setns_mount = *handle;
         break;
     }
     default:
-        push(L, std::errc::invalid_argument, "arg", "nsenter_mount");
+        push(L, std::errc::invalid_argument, "arg", "setns_mount");
         return lua_error(L);
     }
     lua_pop(L, 1);
 
-    int nsenter_uts = -1;
-    lua_getfield(L, 1, "nsenter_uts");
+    int setns_uts = -1;
+    lua_getfield(L, 1, "setns_uts");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
@@ -1636,29 +1636,29 @@ int system_spawn(lua_State* L)
         auto handle = static_cast<file_descriptor_handle*>(
             lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_uts");
+            push(L, std::errc::invalid_argument, "arg", "setns_uts");
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_uts");
+            push(L, std::errc::invalid_argument, "arg", "setns_uts");
             return lua_error(L);
         }
         lua_pop(L, 1);
         if (*handle == INVALID_FILE_DESCRIPTOR) {
-            push(L, std::errc::device_or_resource_busy, "arg", "nsenter_uts");
+            push(L, std::errc::device_or_resource_busy, "arg", "setns_uts");
             return lua_error(L);
         }
-        nsenter_uts = *handle;
+        setns_uts = *handle;
         break;
     }
     default:
-        push(L, std::errc::invalid_argument, "arg", "nsenter_uts");
+        push(L, std::errc::invalid_argument, "arg", "setns_uts");
         return lua_error(L);
     }
     lua_pop(L, 1);
 
-    int nsenter_ipc = -1;
-    lua_getfield(L, 1, "nsenter_ipc");
+    int setns_ipc = -1;
+    lua_getfield(L, 1, "setns_ipc");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
@@ -1666,29 +1666,29 @@ int system_spawn(lua_State* L)
         auto handle = static_cast<file_descriptor_handle*>(
             lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_ipc");
+            push(L, std::errc::invalid_argument, "arg", "setns_ipc");
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_ipc");
+            push(L, std::errc::invalid_argument, "arg", "setns_ipc");
             return lua_error(L);
         }
         lua_pop(L, 1);
         if (*handle == INVALID_FILE_DESCRIPTOR) {
-            push(L, std::errc::device_or_resource_busy, "arg", "nsenter_ipc");
+            push(L, std::errc::device_or_resource_busy, "arg", "setns_ipc");
             return lua_error(L);
         }
-        nsenter_ipc = *handle;
+        setns_ipc = *handle;
         break;
     }
     default:
-        push(L, std::errc::invalid_argument, "arg", "nsenter_ipc");
+        push(L, std::errc::invalid_argument, "arg", "setns_ipc");
         return lua_error(L);
     }
     lua_pop(L, 1);
 
-    int nsenter_net = -1;
-    lua_getfield(L, 1, "nsenter_net");
+    int setns_net = -1;
+    lua_getfield(L, 1, "setns_net");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
         break;
@@ -1696,23 +1696,23 @@ int system_spawn(lua_State* L)
         auto handle = static_cast<file_descriptor_handle*>(
             lua_touserdata(L, -1));
         if (!lua_getmetatable(L, -1)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_net");
+            push(L, std::errc::invalid_argument, "arg", "setns_net");
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-            push(L, std::errc::invalid_argument, "arg", "nsenter_net");
+            push(L, std::errc::invalid_argument, "arg", "setns_net");
             return lua_error(L);
         }
         lua_pop(L, 1);
         if (*handle == INVALID_FILE_DESCRIPTOR) {
-            push(L, std::errc::device_or_resource_busy, "arg", "nsenter_net");
+            push(L, std::errc::device_or_resource_busy, "arg", "setns_net");
             return lua_error(L);
         }
-        nsenter_net = *handle;
+        setns_net = *handle;
         break;
     }
     default:
-        push(L, std::errc::invalid_argument, "arg", "nsenter_net");
+        push(L, std::errc::invalid_argument, "arg", "setns_net");
         return lua_error(L);
     }
     lua_pop(L, 1);
@@ -1760,11 +1760,11 @@ int system_spawn(lua_State* L)
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;
     args.pdeathsig = pdeathsig;
-    args.nsenter_user = nsenter_user;
-    args.nsenter_mount = nsenter_mount;
-    args.nsenter_uts = nsenter_uts;
-    args.nsenter_ipc = nsenter_ipc;
-    args.nsenter_net = nsenter_net;
+    args.setns_user = setns_user;
+    args.setns_mount = setns_mount;
+    args.setns_uts = setns_uts;
+    args.setns_ipc = setns_ipc;
+    args.setns_net = setns_net;
 
     int clone_flags = CLONE_PIDFD;
     int pidfd = -1;

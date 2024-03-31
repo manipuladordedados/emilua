@@ -267,36 +267,36 @@ VMs are using it.
 +
 NOTE: *Not* available on Windows.
 
-`nsenter_user: file_descriptor|nil`::
+`setns_user: file_descriptor|nil`::
 
-Enter in this Linux user namespace. When `nsenter_user` is specified, Emilua
+Enter in this Linux user namespace. When `setns_user` is specified, Emilua
 always enter in the user namespace before any other namespace.
 +
 
 NOTE: Only available on Linux.
 
-`nsenter_mount: file_descriptor|nil`::
+`setns_mount: file_descriptor|nil`::
 
 Enter in this Linux mount namespace.
 +
 
 NOTE: Only available on Linux.
 
-`nsenter_uts: file_descriptor|nil`::
+`setns_uts: file_descriptor|nil`::
 
 Enter in this Linux UTS namespace.
 +
 
 NOTE: Only available on Linux.
 
-`nsenter_ipc: file_descriptor|nil`::
+`setns_ipc: file_descriptor|nil`::
 
 Enter in this Linux IPC namespace.
 +
 
 NOTE: Only available on Linux.
 
-`nsenter_net: file_descriptor|nil`::
+`setns_net: file_descriptor|nil`::
 
 Enter in this Linux net namespace.
 +
