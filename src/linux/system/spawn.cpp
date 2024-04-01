@@ -67,6 +67,7 @@ struct spawn_arguments_t
     std::optional<std::vector<gid_t>> extra_groups;
     bool no_new_privs;
     struct sock_fprog seccomp_filter;
+    int landlockfd;
     std::optional<mode_t> umask;
     std::optional<std::string> working_directory;
     int working_directoryfd;
@@ -408,6 +409,18 @@ static int system_spawn_child_main(void* a)
         return 1;
     }
 
+    // if we're root (the only way to use Landlock w/o no-new-privs)
+    // then enforce the ruleset before we drop our credentials
+    if (!args->no_new_privs && args->landlockfd != -1) {
+        int res = syscall(SYS_landlock_restrict_self, args->landlockfd,
+                          /*flags=*/0);
+        if (res == -1) {
+            reply.code = errno;
+            write(args->closeonexecpipe, &reply, sizeof(reply));
+            return 1;
+        }
+    }
+
     // if we're root (the only way to install a seccomp filter w/o no-new-privs)
     // then install the filter before we drop our credentials
     if (!args->no_new_privs && args->seccomp_filter.len != 0) {
@@ -455,6 +468,16 @@ static int system_spawn_child_main(void* a)
 
     if (args->no_new_privs) {
         if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1) {
+            reply.code = errno;
+            write(args->closeonexecpipe, &reply, sizeof(reply));
+            return 1;
+        }
+    }
+
+    if (args->no_new_privs && args->landlockfd != -1) {
+        int res = syscall(SYS_landlock_restrict_self, args->landlockfd,
+                          /*flags=*/0);
+        if (res == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
             return 1;
@@ -1490,6 +1513,39 @@ int system_spawn(lua_State* L)
     }
     lua_pop(L, 1);
 
+    int landlockfd = -1;
+    lua_getfield(L, 1, "landlock_restrict_self");
+    switch (lua_type(L, -1)) {
+    case LUA_TNIL:
+        break;
+    case LUA_TUSERDATA: {
+        auto handle = static_cast<file_descriptor_handle*>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1)) {
+            push(L, std::errc::invalid_argument,
+                 "arg", "landlock_restrict_self");
+            return lua_error(L);
+        }
+        if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+            push(L, std::errc::invalid_argument,
+                 "arg", "landlock_restrict_self");
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+        if (*handle == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy,
+                 "arg", "landlock_restrict_self");
+            return lua_error(L);
+        }
+        landlockfd = *handle;
+        break;
+    }
+    default:
+        push(L, std::errc::invalid_argument, "arg", "landlock_restrict_self");
+        return lua_error(L);
+    }
+    lua_pop(L, 1);
+
     std::optional<mode_t> umask;
     lua_getfield(L, 1, "umask");
     switch (lua_type(L, -1)) {
@@ -1756,6 +1812,7 @@ int system_spawn(lua_State* L)
     args.no_new_privs = no_new_privs;
     args.seccomp_filter.len = seccomp_filter_len;
     args.seccomp_filter.filter = seccomp_filter.get();
+    args.landlockfd = landlockfd;
     args.umask = umask;
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;

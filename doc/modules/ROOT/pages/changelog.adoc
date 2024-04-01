@@ -14,7 +14,8 @@
 * Add `filesystem.chroot()`.
 * Add extra optional parameter to filesystem.mknod().
 * Add more POSIX bindings to init.script API.
-* Now it's possible to configure Landlock mode for the calling process.
+* Now it's possible to configure Landlock mode for the calling process or
+  `system.spawn()` subprocesses.
 
 === Changed
 

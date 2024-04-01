@@ -242,6 +242,13 @@ Set the secure computing (seccomp) mode to limit the available system calls.
 
 NOTE: Only available on Linux.
 
+`landlock_restrict_self: file_descriptor|nil`::
+
+Enforce a Landlock ruleset.
++
+
+NOTE: Only available on Linux.
+
 `umask: integer|nil`::
 
 See umask(3p).
