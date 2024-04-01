@@ -14,7 +14,7 @@ endif::[]
 ----
 local fs = require "filesystem"
 fs.current_working_directory() -> fs.path -- <1>
-fs.current_working_directory(p: fs.path) -- <2>
+fs.current_working_directory(p: fs.path|file_descriptor) -- <2>
 ----
 <1> Get the current working directory.
 <2> Set the current working directory.

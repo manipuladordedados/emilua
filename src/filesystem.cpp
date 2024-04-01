@@ -6,6 +6,7 @@
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/predef/library/std.h>
 
+#include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/windows.hpp>
 #include <emilua/system.hpp>
@@ -3646,16 +3647,43 @@ static int current_working_directory(lua_State* L)
         return lua_error(L);
     }
 
-    auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
+    void* arg1 = lua_touserdata(L, 1);
+    fs::path* path = nullptr;
+#if BOOST_OS_UNIX
+    int dirfd = -1;
+    BOOST_SCOPE_EXIT_ALL(&) { if (path && dirfd != -1) close(dirfd); };
+#endif // BOOST_OS_UNIX
+
+    if (!arg1 || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
+        assert(!path);
+#if BOOST_OS_UNIX
+        rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+        if (!lua_rawequal(L, -1, -3)) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+        dirfd = *static_cast<file_descriptor_handle*>(arg1);
+        if (dirfd == INVALID_FILE_DESCRIPTOR) {
+            push(L, std::errc::device_or_resource_busy, "arg", 1);
+            return lua_error(L);
+        }
+#else
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
+#endif // BOOST_OS_UNIX
+    } else {
+        path = static_cast<fs::path*>(arg1);
     }
+#if BOOST_OS_UNIX
+    assert(path || dirfd != -1);
+#else
+    assert(path);
+#endif // BOOST_OS_UNIX
 
 #if BOOST_OS_UNIX
     if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
@@ -3670,10 +3698,19 @@ static int current_working_directory(lua_State* L)
             return lua_error(L);
         }
 
-        int dirfd = open(path->string().data(), O_RDONLY | O_DIRECTORY);
-        BOOST_SCOPE_EXIT_ALL(&) { if (dirfd != -1) close(dirfd); };
+        if (dirfd == -1) {
+            dirfd = open(path->string().data(), O_RDONLY | O_DIRECTORY);
 
-        if (dirfd == -1 || fchdir(dirfd) == -1) {
+            if (dirfd == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                lua_pushliteral(L, "path1");
+                lua_pushvalue(L, 1);
+                lua_rawset(L, -3);
+                return lua_error(L);
+            }
+        }
+
+        if (fchdir(dirfd) == -1) {
             push(L, std::error_code{errno, std::system_category()});
             lua_pushliteral(L, "path1");
             lua_pushvalue(L, 1);
