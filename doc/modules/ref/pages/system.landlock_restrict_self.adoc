@@ -1,0 +1,30 @@
+= system.landlock_restrict_self
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.landlock_restrict_self(ruleset_fd: file_descriptor)
+----
+
+== Description
+
+Enforce a Landlock ruleset for the calling process.
+
+NOTE: Only the master VM is allowed to use this function.
+
+NOTE: Only available on Linux.
+
+== Bugs
+
+There's a libpsx bug that prevents thread synchronization to work:
+<https://bugzilla.kernel.org/show_bug.cgi?id=218607>.

@@ -289,6 +289,10 @@ if host_machine.system() != 'windows'
     ]
 endif
 
+if host_machine.system() == 'linux'
+    src += 'src/linux/landlock.cpp'
+endif
+
 if get_option('enable_plugins')
     src += 'src/plugin.cpp'
 endif

@@ -244,6 +244,12 @@ include::pages/system.linux_capabilities.adoc[]
 
 include::pages/system.seccomp_set_mode_filter.adoc[]
 
+include::pages/system.landlock_create_ruleset.adoc[]
+
+include::pages/system.landlock_add_rule.adoc[]
+
+include::pages/system.landlock_restrict_self.adoc[]
+
 include::pages/system.getpid.adoc[]
 
 include::pages/system.getppid.adoc[]

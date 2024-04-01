@@ -1,0 +1,44 @@
+= system.landlock_create_ruleset
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.landlock_create_ruleset(attr: table|nil, flags: table|nil) -> file_descriptor|integer
+----
+
+== Description
+
+Creates a new file descriptor identifying a ruleset.
+
+NOTE: Only available on Linux.
+
+== Parameters
+
+* `attr.handled_access_fs: string[]`
+** `"execute"`
+** `"write_file"`
+** `"read_file"`
+** `"read_dir"`
+** `"remove_dir"`
+** `"remove_file"`
+** `"make_char"`
+** `"make_dir"`
+** `"make_reg"`
+** `"make_sock"`
+** `"make_fifo"`
+** `"make_block"`
+** `"make_sym"`
+** `"refer"`
+** `"truncate"`
+* `flags: string[]`
+** `"version"`

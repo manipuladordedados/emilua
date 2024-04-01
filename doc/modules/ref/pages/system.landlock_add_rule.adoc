@@ -1,0 +1,43 @@
+= system.landlock_add_rule
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.landlock_add_rule(ruleset_fd: file_descriptor, rule_type: "path_beneath", attr: table)
+----
+
+== Description
+
+Adds a new Landlock rule to an existing ruleset.
+
+NOTE: Only available on Linux.
+
+== Parameters
+
+* `attr.allowed_access: string[]`
+** `"execute"`
+** `"write_file"`
+** `"read_file"`
+** `"read_dir"`
+** `"remove_dir"`
+** `"remove_file"`
+** `"make_char"`
+** `"make_dir"`
+** `"make_reg"`
+** `"make_sock"`
+** `"make_fifo"`
+** `"make_block"`
+** `"make_sym"`
+** `"refer"`
+** `"truncate"`
+* `attr.parent_fd: integer`

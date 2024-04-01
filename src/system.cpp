@@ -7,6 +7,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/system.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/byte_span.hpp>
+#include <emilua/detail/landlock.hpp>
 
 #include <csignal>
 #include <cstdlib>
@@ -1212,6 +1213,319 @@ static int system_seccomp_set_mode_filter(lua_State* L)
             // is to SIGKILL when we cannot guarantee atomicity of failure
             std::exit(1);
         }
+    }
+
+    return 0;
+}
+
+static int system_landlock_create_ruleset(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    bool has_ruleset;
+    bool has_flags;
+
+    switch (lua_type(L, 1)) {
+    case LUA_TTABLE:
+        has_ruleset = true;
+        break;
+    case LUA_TNIL:
+        has_ruleset = false;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    switch (lua_type(L, 2)) {
+    case LUA_TTABLE:
+        has_flags = true;
+        break;
+    case LUA_TNIL:
+        has_flags = false;
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    struct landlock_ruleset_attr ruleset_attr;
+    std::memset(&ruleset_attr, 0, sizeof(ruleset_attr));
+
+    if (has_ruleset) {
+        lua_pushnil(L);
+        while (lua_next(L, 1) != 0) {
+            if (lua_type(L, -2) != LUA_TSTRING) {
+                push(L, std::errc::invalid_argument, "arg", 1);
+                return lua_error(L);
+            }
+
+            auto hkey = tostringview(L, -2);
+            auto errstr = EMILUA_GPERF_BEGIN(hkey)
+                EMILUA_GPERF_PPGUARD(BOOST_OS_LINUX)
+                EMILUA_GPERF_PARAM(
+                    const char* (*action)(lua_State*, landlock_ruleset_attr&))
+                EMILUA_GPERF_DEFAULT_VALUE(
+                    [](lua_State*, landlock_ruleset_attr&) {
+                        return "invalid ruleset attr";
+                    })
+                EMILUA_GPERF_PAIR(
+                    "handled_access_fs",
+                    [](lua_State* L, landlock_ruleset_attr& a) {
+                        using ::emilua::detail::landlock_handled_access_fs;
+
+                        if (lua_type(L, -1) != LUA_TTABLE) {
+                            return "invalid handled_access_fs";
+                        }
+
+                        auto r = landlock_handled_access_fs(L);
+                        if (r) {
+                            a.handled_access_fs = r.value();
+                            return (const char*)(NULL);
+                        } else {
+                            return r.error();
+                        }
+                    })
+            EMILUA_GPERF_END(hkey)(L, ruleset_attr);
+            if (errstr) {
+                push(L, std::errc::invalid_argument, "arg", errstr);
+                return lua_error(L);
+            }
+            lua_pop(L, 1);
+        }
+    }
+
+    std::uint32_t flags = 0;
+    if (has_flags) {
+        for (int i = 0 ;; ++i) {
+            lua_rawgeti(L, 2, i + 1);
+            switch (lua_type(L, -1)) {
+            case LUA_TNIL: {
+                lua_pop(L, 1);
+                goto end_for;
+            }
+            case LUA_TSTRING:
+                break;
+            default:
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            }
+
+            auto fkey = tostringview(L, -1);
+            auto flag = EMILUA_GPERF_BEGIN(fkey)
+                EMILUA_GPERF_PARAM(std::uint32_t action)
+                EMILUA_GPERF_DEFAULT_VALUE(0)
+                EMILUA_GPERF_PAIR("version", 1U << 0)
+            EMILUA_GPERF_END(fkey);
+            if (flag == 0) {
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
+            }
+            flags |= flag;
+            lua_pop(L, 1);
+        }
+    end_for:;
+    }
+
+    int res = syscall(SYS_landlock_create_ruleset,
+                      has_ruleset ? &ruleset_attr : NULL,
+                      has_ruleset ? sizeof(ruleset_attr) : 0,
+                      flags);
+
+    if (res == -1) {
+        std::error_code ec{errno, std::system_category()};
+        push(L, ec);
+        return lua_error(L);
+    }
+
+    if (flags == /*version=*/(1U << 0)) {
+        lua_pushinteger(L, res);
+        return 1;
+    }
+
+    int rawfd = res;
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (rawfd != INVALID_FILE_DESCRIPTOR) {
+            int res = close(rawfd);
+            boost::ignore_unused(res);
+        }
+    };
+
+    auto fdhandle = static_cast<file_descriptor_handle*>(
+        lua_newuserdata(L, sizeof(file_descriptor_handle))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    setmetatable(L, -2);
+
+    *fdhandle = rawfd;
+    rawfd = INVALID_FILE_DESCRIPTOR;
+    return 1;
+}
+
+static int system_landlock_add_rule(lua_State* L)
+{
+    lua_settop(L, 4);
+
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    if (tostringview(L, 2) != "path_beneath") {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    if (lua_type(L, 3) != LUA_TTABLE) {
+        push(L, std::errc::invalid_argument, "arg", 3);
+        return lua_error(L);
+    }
+
+    switch (lua_type(L, 4)) {
+    case LUA_TNIL:
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", 4);
+        return lua_error(L);
+    }
+
+    struct landlock_path_beneath_attr path_beneath_attr;
+    std::memset(&path_beneath_attr, 0, sizeof(path_beneath_attr));
+    path_beneath_attr.parent_fd = -1;
+
+    lua_pushnil(L);
+    while (lua_next(L, 3) != 0) {
+        if (lua_type(L, -2) != LUA_TSTRING) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+
+        auto hkey = tostringview(L, -2);
+        auto errstr = EMILUA_GPERF_BEGIN(hkey)
+            EMILUA_GPERF_PPGUARD(BOOST_OS_LINUX)
+            EMILUA_GPERF_PARAM(
+                const char* (*action)(lua_State*, landlock_path_beneath_attr&))
+            EMILUA_GPERF_DEFAULT_VALUE(
+                [](lua_State*, landlock_path_beneath_attr&) {
+                    return "invalid path_beneath attr";
+                })
+            EMILUA_GPERF_PAIR(
+                "allowed_access",
+                [](lua_State* L, landlock_path_beneath_attr& at) {
+                    using ::emilua::detail::landlock_handled_access_fs;
+
+                    if (lua_type(L, -1) != LUA_TTABLE) {
+                        return "invalid allowed_access";
+                    }
+
+                    auto res = landlock_handled_access_fs(L);
+                    if (res) {
+                        at.allowed_access = res.value();
+                        return (const char*)(NULL);
+                    } else {
+                        return res.error();
+                    }
+                })
+            EMILUA_GPERF_PAIR(
+                "parent_fd",
+                [](lua_State* L, landlock_path_beneath_attr& at) {
+                    auto handle = static_cast<file_descriptor_handle*>(
+                        lua_touserdata(L, -1));
+                    if (!handle || !lua_getmetatable(L, -1)) {
+                        return "invalid parent_fd";
+                    }
+                    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                    BOOST_SCOPE_EXIT_ALL(&) { lua_pop(L, 2); };
+                    if (!lua_rawequal(L, -1, -2))
+                        return "invalid parent_fd";
+
+                    if (*handle == INVALID_FILE_DESCRIPTOR)
+                        return "busy parent_fd";
+
+                    at.parent_fd = *handle;
+                    return (const char*)(NULL);
+                })
+        EMILUA_GPERF_END(hkey)(L, path_beneath_attr);
+        if (errstr) {
+            push(L, std::errc::invalid_argument, "arg", errstr);
+            return lua_error(L);
+        }
+        lua_pop(L, 1);
+    }
+
+    int res = syscall(
+        SYS_landlock_add_rule,
+        *handle,
+        /*LANDLOCK_RULE_PATH_BENEATH=*/1,
+        &path_beneath_attr,
+        /*flags=*/0);
+
+    if (res == -1) {
+        std::error_code ec{errno, std::system_category()};
+        push(L, ec);
+        return lua_error(L);
+    }
+
+    return 0;
+}
+
+static int system_landlock_restrict_self(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    switch (lua_type(L, 2)) {
+    case LUA_TNIL:
+        break;
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+    auto res = psx_syscall3(
+        SYS_landlock_restrict_self, *handle, /*flags=*/0,
+        /*unused_call_padding=*/0);
+#else // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+    int res = syscall(SYS_landlock_restrict_self, *handle, /*flags=*/0);
+#endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+
+    if (res == -1) {
+        std::error_code ec{errno, std::system_category()};
+        push(L, ec);
+        return lua_error(L);
     }
 
     return 0;
@@ -3006,6 +3320,36 @@ static int system_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_LINUX
                 lua_pushcfunction(L, system_seccomp_set_mode_filter);
+#else // BOOST_OS_LINUX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_create_ruleset",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, system_landlock_create_ruleset);
+#else // BOOST_OS_LINUX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_add_rule",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, system_landlock_add_rule);
+#else // BOOST_OS_LINUX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "landlock_restrict_self",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+                lua_pushcfunction(L, system_landlock_restrict_self);
 #else // BOOST_OS_LINUX
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_LINUX
