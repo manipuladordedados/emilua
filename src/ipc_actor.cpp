@@ -1210,8 +1210,12 @@ static int child_main(void*)
     }
 
     try {
-        // for some reason the C runtime won't flush `stdout` on clone()d
-        // processes
+        // The glibc runtime won't flush `stdout` on clone()d processes because
+        // doing so is generally unsafe since buffered data would then be
+        // flushed twice. However the IO buffers were empty at the time we were
+        // forked to eventually arrive here, so manually flushing is safe here
+        // (and if we don't flush, the glibc runtime won't... which would be a
+        // bug).
         std::cout << std::flush;
     } catch (const std::ios_base::failure&) {}
 

@@ -398,7 +398,7 @@ static int subprocess_mt_index(lua_State* L)
         if (sched_setscheduler(/*pid=*/0, *args->scheduler_policy, &sp) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     } else if (args->scheduler_priority) {
         struct sched_param sp;
@@ -406,20 +406,20 @@ static int subprocess_mt_index(lua_State* L)
         if (sched_setparam(/*pid=*/0, &sp) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
     if (args->start_new_session && setsid() == -1) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (args->process_group && setpgid(/*pid=*/0, *args->process_group) == -1) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (
@@ -428,7 +428,7 @@ static int subprocess_mt_index(lua_State* L)
     ) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (args->rgid != (gid_t)(-1) || args->egid != (gid_t)(-1)) {
@@ -439,7 +439,7 @@ static int subprocess_mt_index(lua_State* L)
         if (setresgid(args->rgid, args->egid, args->egid) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -451,7 +451,7 @@ static int subprocess_mt_index(lua_State* L)
         if (setresuid(args->ruid, args->euid, args->euid) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -460,7 +460,7 @@ static int subprocess_mt_index(lua_State* L)
         if (procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -472,7 +472,7 @@ static int subprocess_mt_index(lua_State* L)
     ) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (
@@ -480,7 +480,7 @@ static int subprocess_mt_index(lua_State* L)
     ) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     // operations on file descriptors that will not change the file descriptor
@@ -492,14 +492,14 @@ static int subprocess_mt_index(lua_State* L)
     ) {
         reply.code = errno;
         write(args->closeonexecpipe, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (args->set_ctty != -1) {
         if (ioctl(args->set_ctty, TIOCSCTTY, /*force=*/0) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     } else if (args->foreground != -1) {
         pid_t pgrp;
@@ -518,7 +518,7 @@ static int subprocess_mt_index(lua_State* L)
         if (tcsetpgrp(args->foreground, pgrp) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
 
         sigprocmask(SIG_UNBLOCK, &set, /*oldset=*/NULL);
@@ -538,12 +538,12 @@ static int subprocess_mt_index(lua_State* L)
         if (pipe(pipefd) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         if (dup2(pipefd[0], STDIN_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         break;
     }
@@ -553,7 +553,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->proc_stdin, STDIN_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -563,12 +563,12 @@ static int subprocess_mt_index(lua_State* L)
         if (pipe(pipefd) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         break;
     }
@@ -578,7 +578,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->proc_stdout, STDOUT_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -588,12 +588,12 @@ static int subprocess_mt_index(lua_State* L)
         if (pipe(pipefd) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         if (dup2(pipefd[1], STDERR_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         break;
     }
@@ -603,7 +603,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->proc_stderr, STDERR_FILENO) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -642,7 +642,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->closeonexecpipe, dst) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         args->closeonexecpipe = dst;
     }
@@ -652,7 +652,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->programfd, dst) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         args->programfd = dst;
     }
@@ -665,7 +665,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(src, src2) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
         src = src2;
     }
@@ -682,7 +682,7 @@ static int subprocess_mt_index(lua_State* L)
             if (dup2(src, dst) == -1) {
                 reply.code = errno;
                 write(args->closeonexecpipe, &reply, sizeof(reply));
-                std::exit(1);
+                _exit(1);
             }
 
             inherit = true;
@@ -700,7 +700,7 @@ static int subprocess_mt_index(lua_State* L)
         if (dup2(args->closeonexecpipe, 10) == -1) {
             reply.code = errno;
             write(args->closeonexecpipe, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -709,7 +709,7 @@ static int subprocess_mt_index(lua_State* L)
         if (fcntl(10, F_SETFD, oldflags | FD_CLOEXEC) == -1) {
             reply.code = errno;
             write(10, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -717,14 +717,14 @@ static int subprocess_mt_index(lua_State* L)
         if (args->programfd != 11 && dup2(args->programfd, 11) == -1) {
             reply.code = errno;
             write(10, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
 
         int oldflags = fcntl(11, F_GETFD);
         if (fcntl(11, F_SETFD, oldflags | FD_CLOEXEC) == -1) {
             reply.code = errno;
             write(10, &reply, sizeof(reply));
-            std::exit(1);
+            _exit(1);
         }
     }
 
@@ -732,7 +732,7 @@ static int subprocess_mt_index(lua_State* L)
     if (close_range(first, /*last=*/UINT_MAX, /*flags=*/0) == -1) {
         reply.code = errno;
         write(10, &reply, sizeof(reply));
-        std::exit(1);
+        _exit(1);
     }
 
     if (args->programfd != -1) {
@@ -746,7 +746,7 @@ static int subprocess_mt_index(lua_State* L)
 
     reply.code = errno;
     write(10, &reply, sizeof(reply));
-    std::exit(1);
+    _exit(1);
 }
 
 int system_spawn(lua_State* L)
