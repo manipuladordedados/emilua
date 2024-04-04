@@ -2309,6 +2309,25 @@ static int file_clock_epoch(lua_State* L)
     return 1;
 }
 
+static int file_clock_unix_epoch(lua_State* L)
+{
+    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
+    setmetatable(L, -2);
+    new (tp) std::chrono::file_clock::time_point{};
+#if BOOST_LIB_STD_GNU || BOOST_LIB_STD_CXX
+    // current libstdc++ hasn't got clock_cast yet
+    *tp = std::chrono::file_clock::from_sys(
+        std::chrono::system_clock::time_point{});
+#else
+    *tp = std::chrono::clock_cast<std::chrono::file_clock>(
+        std::chrono::system_clock::time_point{});
+#endif
+    return 1;
+}
+
 static int file_clock_from_system(lua_State* L)
 {
     auto tp = static_cast<std::chrono::system_clock::time_point*>(
@@ -4429,6 +4448,12 @@ static int clock_ctors_mt_index(lua_State* L)
             "epoch",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, file_clock_epoch);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "unix_epoch",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, file_clock_unix_epoch);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

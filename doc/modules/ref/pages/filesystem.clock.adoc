@@ -23,6 +23,11 @@ A clock to represent file time. Its epoch is unspecified.
 
 Returns a new time point representing the epoch of the clock.
 
+=== `unix_epoch() -> clock.time_point`
+
+Returns a new time point representing 00:00:00 Coordinated Universal Time (UTC),
+Thursday, 1 January 1970.
+
 === `from_system(tp: time.system_clock.time_point) -> clock.time_point`
 
 Converts `tp` to a clock.time_point representing the same point in time.
