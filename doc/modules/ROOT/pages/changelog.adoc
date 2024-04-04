@@ -18,6 +18,10 @@
 * Add more POSIX bindings to init.script API.
 * Now it's possible to configure Landlock mode for the calling process or
   `system.spawn()` subprocesses.
+* Add `byte_span` methods for primitive types serialization (e.g. reading i32le
+  from a 4-sized buffer). It also works as an endianness handling
+  interface. 64-bit integers are omitted from the interface because LuaJIT only
+  offers a hacky way to handle them.
 
 === Changed
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 Vinícius dos Santos Oliveira
+/* Copyright (c) 2021, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -9,12 +9,18 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <cstring>
 
 #include <boost/safe_numerics/safe_integer.hpp>
+#include <boost/endian/conversion.hpp>
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
 
 char byte_span_key;
 char byte_span_mt_key;
+
+EMILUA_GPERF_DECLS_BEGIN(includes)
+EMILUA_GPERF_NAMESPACE(emilua)
+namespace endian = boost::endian;
+EMILUA_GPERF_DECLS_END(includes)
 
 int byte_span_new(lua_State* L)
 {
@@ -836,6 +842,1193 @@ static int byte_span_trimmed(lua_State* L)
     return 1;
 }
 
+static int byte_span_get_u16be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_u16(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u16le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_u16(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u24be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_u24(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u24le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_u24(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u32be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_u32(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u32le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_u32(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u40be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_u40(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u40le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_u40(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u48be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_u48(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_u48le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_u48(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i8(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 1) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::int8_t ret;
+    std::memcpy(&ret, bs->data.get(), 1);
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i16be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_s16(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i16le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_s16(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i24be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_s24(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i24le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_s24(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i32be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_s32(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i32le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_s32(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i40be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_s40(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i40le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_s40(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i48be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_big_s48(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_i48le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::load_little_s48(bs->data.get());
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+static int byte_span_get_f32be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto r = endian::endian_load<float, 4, endian::order::big>(bs->data.get());
+    if (std::isnan(r)) r = std::numeric_limits<float>::quiet_NaN();
+    lua_pushnumber(L, r);
+    return 1;
+}
+
+static int byte_span_get_f32le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::endian_load<float, 4, endian::order::little>(
+        bs->data.get());
+    if (std::isnan(ret)) ret = std::numeric_limits<float>::quiet_NaN();
+    lua_pushnumber(L, ret);
+    return 1;
+}
+
+static int byte_span_get_f64be(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 8) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto r = endian::endian_load<double, 8, endian::order::big>(bs->data.get());
+    if (std::isnan(r)) r = std::numeric_limits<double>::quiet_NaN();
+    lua_pushnumber(L, r);
+    return 1;
+}
+
+static int byte_span_get_f64le(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 8) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto ret = endian::endian_load<double, 8, endian::order::little>(
+        bs->data.get());
+    if (std::isnan(ret)) ret = std::numeric_limits<double>::quiet_NaN();
+    lua_pushnumber(L, ret);
+    return 1;
+}
+
+static int byte_span_set_u16be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_u16(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u16le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_u16(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u24be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_u24(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u24le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_u24(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u32be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_u32(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u32le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_u32(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u40be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_u40(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u40le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_u40(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u48be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_u48(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_u48le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_u48(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i8(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 1) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    std::int8_t n = luaL_checkinteger(L, 2);
+    std::memcpy(bs->data.get(), &n, 1);
+    return 0;
+}
+
+static int byte_span_set_i16be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_s16(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i16le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 2) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_s16(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i24be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_s24(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i24le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 3) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_s24(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i32be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_s32(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i32le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_s32(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i40be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_s40(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i40le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 5) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_s40(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i48be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_big_s48(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_i48le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 6) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::store_little_s48(bs->data.get(), luaL_checkinteger(L, 2));
+    return 0;
+}
+
+static int byte_span_set_f32be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::endian_store<float, 4, endian::order::big>(
+        bs->data.get(), luaL_checknumber(L, 2));
+    return 0;
+}
+
+static int byte_span_set_f32le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 4) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::endian_store<float, 4, endian::order::little>(
+        bs->data.get(), luaL_checknumber(L, 2));
+    return 0;
+}
+
+static int byte_span_set_f64be(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 8) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::endian_store<double, 8, endian::order::big>(
+        bs->data.get(), luaL_checknumber(L, 2));
+    return 0;
+}
+
+static int byte_span_set_f64le(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (bs->size != 8) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    endian::endian_store<double, 8, endian::order::little>(
+        bs->data.get(), luaL_checknumber(L, 2));
+    return 0;
+}
+
 inline int byte_span_capacity(lua_State* L)
 {
     auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
@@ -1012,6 +2205,306 @@ static int byte_span_mt_index(lua_State* L)
             "trimmed",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, byte_span_trimmed);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u16be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u16be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u16le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u16le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u24be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u24be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u24le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u24le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u40be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u40be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u40le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u40le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u48be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u48be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_u48le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_u48le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i8",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i8);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i16be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i16be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i16le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i16le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i24be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i24be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i24le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i24le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i40be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i40be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i40le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i40le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i48be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i48be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_i48le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_i48le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_f32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_f32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_f32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_f32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_f64be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_f64be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_f64le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_get_f64le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u16be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u16be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u16le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u16le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u24be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u24be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u24le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u24le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u40be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u40be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u40le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u40le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u48be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u48be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_u48le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_u48le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i8",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i8);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i16be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i16be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i16le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i16le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i24be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i24be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i24le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i24le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i40be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i40be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i40le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i40le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i48be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i48be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_i48le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_i48le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_f32be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_f32be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_f32le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_f32le);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_f64be",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_f64be);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "set_f64le",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_set_f64le);
                 return 1;
             })
         EMILUA_GPERF_PAIR("capacity", byte_span_capacity)

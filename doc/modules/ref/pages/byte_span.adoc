@@ -136,6 +136,266 @@ returns its index, or `nil` if not found.
 Returns a slice from `self` that doesn't start nor ends with any octet from
 `lws`.
 
+== Functions (primitive types serialization)
+
+These functions operate in terms of bytes, and are endianness-aware. They throw
+`EINVAL` if you use a `byte_span` of the wrong size. Data doesn't need to be
+aligned.
+
+=== `get_u16be(self) -> integer`
+
+Interpret `self` (must be 2 bytes long) as an unsigned 16-bit integer (big
+endian order) and return the result.
+
+=== `get_u16le(self) -> integer`
+
+Interpret `self` (must be 2 bytes long) as an unsigned 16-bit integer (little
+endian order) and return the result.
+
+=== `get_u24be(self) -> integer`
+
+Interpret `self` (must be 3 bytes long) as an unsigned 24-bit integer (big
+endian order) and return the result.
+
+=== `get_u24le(self) -> integer`
+
+Interpret `self` (must be 3 bytes long) as an unsigned 24-bit integer (little
+endian order) and return the result.
+
+=== `get_u32be(self) -> integer`
+
+Interpret `self` (must be 4 bytes long) as an unsigned 32-bit integer (big
+endian order) and return the result.
+
+=== `get_u32le(self) -> integer`
+
+Interpret `self` (must be 4 bytes long) as an unsigned 32-bit integer (little
+endian order) and return the result.
+
+=== `get_u40be(self) -> integer`
+
+Interpret `self` (must be 5 bytes long) as an unsigned 40-bit integer (big
+endian order) and return the result.
+
+=== `get_u40le(self) -> integer`
+
+Interpret `self` (must be 5 bytes long) as an unsigned 40-bit integer (little
+endian order) and return the result.
+
+=== `get_u48be(self) -> integer`
+
+Interpret `self` (must be 6 bytes long) as an unsigned 48-bit integer (big
+endian order) and return the result.
+
+=== `get_u48le(self) -> integer`
+
+Interpret `self` (must be 6 bytes long) as an unsigned 48-bit integer (little
+endian order) and return the result.
+
+=== `get_i8(self) -> integer`
+
+Interpret `self` (must be 1 byte long) as a signed 8-bit integer and return the
+result.
+
+NOTE: `get_u8()` doesn't exist as you can just index instead.
+
+=== `get_i16be(self) -> integer`
+
+Interpret `self` (must be 2 bytes long) as an signed 16-bit integer (big endian
+order) and return the result.
+
+=== `get_i16le(self) -> integer`
+
+Interpret `self` (must be 2 bytes long) as an signed 16-bit integer (little
+endian order) and return the result.
+
+=== `get_i24be(self) -> integer`
+
+Interpret `self` (must be 3 bytes long) as an signed 24-bit integer (big endian
+order) and return the result.
+
+=== `get_i24le(self) -> integer`
+
+Interpret `self` (must be 3 bytes long) as an signed 24-bit integer (little
+endian order) and return the result.
+
+=== `get_i32be(self) -> integer`
+
+Interpret `self` (must be 4 bytes long) as an signed 32-bit integer (big endian
+order) and return the result.
+
+=== `get_i32le(self) -> integer`
+
+Interpret `self` (must be 4 bytes long) as an signed 32-bit integer (little
+endian order) and return the result.
+
+=== `get_i40be(self) -> integer`
+
+Interpret `self` (must be 5 bytes long) as an signed 40-bit integer (big endian
+order) and return the result.
+
+=== `get_i40le(self) -> integer`
+
+Interpret `self` (must be 5 bytes long) as an signed 40-bit integer (little
+endian order) and return the result.
+
+=== `get_i48be(self) -> integer`
+
+Interpret `self` (must be 6 bytes long) as an signed 48-bit integer (big endian
+order) and return the result.
+
+=== `get_i48le(self) -> integer`
+
+Interpret `self` (must be 6 bytes long) as an signed 48-bit integer (little
+endian order) and return the result.
+
+=== `get_f32be(self) -> number`
+
+Interpret `self` (must be 4 bytes long) as a 32-bit floating point number (big
+endian order) and return the result.
+
+=== `get_f32le(self) -> number`
+
+Interpret `self` (must be 4 bytes long) as a 32-bit floating point number
+(little endian order) and return the result.
+
+=== `get_f64be(self) -> number`
+
+Interpret `self` (must be 8 bytes long) as a 64-bit floating point number (big
+endian order) and return the result.
+
+=== `get_f64le(self) -> number`
+
+Interpret `self` (must be 8 bytes long) as a 64-bit floating point number
+(little endian order) and return the result.
+
+=== `set_u16be(self, n: integer)`
+
+Set the stored byte sequence (must be 2 bytes long) to represent the unsigned
+16-bit integer (big endian order) `n`.
+
+=== `set_u16le(self, n: integer)`
+
+Set the stored byte sequence (must be 2 bytes long) to represent the unsigned
+16-bit integer (little endian order) `n`.
+
+=== `set_u24be(self, n: integer)`
+
+Set the stored byte sequence (must be 3 bytes long) to represent the unsigned
+24-bit integer (big endian order) `n`.
+
+=== `set_u24le(self, n: integer)`
+
+Set the stored byte sequence (must be 3 bytes long) to represent the unsigned
+24-bit integer (little endian order) `n`.
+
+=== `set_u32be(self, n: integer)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the unsigned
+32-bit integer (big endian order) `n`.
+
+=== `set_u32le(self, n: integer)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the unsigned
+32-bit integer (little endian order) `n`.
+
+=== `set_u40be(self, n: integer)`
+
+Set the stored byte sequence (must be 5 bytes long) to represent the unsigned
+40-bit integer (big endian order) `n`.
+
+=== `set_u40le(self, n: integer)`
+
+Set the stored byte sequence (must be 5 bytes long) to represent the unsigned
+40-bit integer (little endian order) `n`.
+
+=== `set_u48be(self, n: integer)`
+
+Set the stored byte sequence (must be 6 bytes long) to represent the unsigned
+48-bit integer (big endian order) `n`.
+
+=== `set_u48le(self, n: integer)`
+
+Set the stored byte sequence (must be 6 bytes long) to represent the unsigned
+48-bit integer (little endian order) `n`.
+
+=== `set_i8(self, n: integer)`
+
+Set the stored byte sequence (must be 1 bytes long) to represent the signed byte
+`n`.
+
+NOTE: `set_u8()` doesn't exist as you can just index instead.
+
+=== `set_i16be(self, n: integer)`
+
+Set the stored byte sequence (must be 2 bytes long) to represent the signed
+16-bit integer (big endian order) `n`.
+
+=== `set_i16le(self, n: integer)`
+
+Set the stored byte sequence (must be 2 bytes long) to represent the signed
+16-bit integer (little endian order) `n`.
+
+=== `set_i24be(self, n: integer)`
+
+Set the stored byte sequence (must be 3 bytes long) to represent the signed
+24-bit integer (big endian order) `n`.
+
+=== `set_i24le(self, n: integer)`
+
+Set the stored byte sequence (must be 3 bytes long) to represent the signed
+24-bit integer (little endian order) `n`.
+
+=== `set_i32be(self, n: integer)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the signed
+32-bit integer (big endian order) `n`.
+
+=== `set_i32le(self, n: integer)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the signed
+32-bit integer (little endian order) `n`.
+
+=== `set_i40be(self, n: integer)`
+
+Set the stored byte sequence (must be 5 bytes long) to represent the signed
+40-bit integer (big endian order) `n`.
+
+=== `set_i40le(self, n: integer)`
+
+Set the stored byte sequence (must be 5 bytes long) to represent the signed
+40-bit integer (little endian order) `n`.
+
+=== `set_i48be(self, n: integer)`
+
+Set the stored byte sequence (must be 6 bytes long) to represent the signed
+48-bit integer (big endian order) `n`.
+
+=== `set_i48le(self, n: integer)`
+
+Set the stored byte sequence (must be 6 bytes long) to represent the signed
+48-bit integer (little endian order) `n`.
+
+=== `set_f32be(self, n: number)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the 32-bit
+floating point number (big endian order) `n`.
+
+=== `set_f32le(self, n: number)`
+
+Set the stored byte sequence (must be 4 bytes long) to represent the 32-bit
+floating point number (little endian order) `n`.
+
+=== `set_f64be(self, n: number)`
+
+Set the stored byte sequence (must be 8 bytes long) to represent the 64-bit
+floating point number (big endian order) `n`.
+
+=== `set_f64le(self, n: number)`
+
+Set the stored byte sequence (must be 8 bytes long) to represent the 64-bit
+floating point number (little endian order) `n`.
+
 == Properties
 
 === `capacity: integer`
