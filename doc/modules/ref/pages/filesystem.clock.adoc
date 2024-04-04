@@ -19,6 +19,10 @@ A clock to represent file time. Its epoch is unspecified.
 
 == Functions
 
+=== `now() -> clock.time_point`
+
+Returns a new time point representing the current value of the clock.
+
 === `epoch() -> clock.time_point`
 
 Returns a new time point representing the epoch of the clock.

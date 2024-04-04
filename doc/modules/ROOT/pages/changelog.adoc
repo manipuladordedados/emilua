@@ -20,7 +20,7 @@
   something. However there are more attributes besides last-write-time you need
   to care about if you're planning to play with reproducible builds (be
   warned!).
-* Add `filesystem.clock.unix_epoch()`.
+* Add `filesystem.clock.unix_epoch()` and `filesystem.clock.now()`.
 * Add more POSIX bindings to init.script API.
 * Now it's possible to configure Landlock mode for the calling process or
   `system.spawn()` subprocesses.
