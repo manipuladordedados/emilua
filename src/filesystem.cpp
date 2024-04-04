@@ -2298,6 +2298,17 @@ int recursive_directory_iterator::make(lua_State* L)
 
 EMILUA_GPERF_DECLS_BEGIN(clock_ctors)
 EMILUA_GPERF_NAMESPACE(emilua)
+static int file_clock_epoch(lua_State* L)
+{
+    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
+    setmetatable(L, -2);
+    new (tp) std::chrono::file_clock::time_point{};
+    return 1;
+}
+
 static int file_clock_from_system(lua_State* L)
 {
     auto tp = static_cast<std::chrono::system_clock::time_point*>(
@@ -4414,6 +4425,12 @@ static int clock_ctors_mt_index(lua_State* L)
             push(L, errc::bad_index, "index", 2);
             return lua_error(L);
         })
+        EMILUA_GPERF_PAIR(
+            "epoch",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, file_clock_epoch);
+                return 1;
+            })
         EMILUA_GPERF_PAIR(
             "from_system",
             [](lua_State* L) -> int {

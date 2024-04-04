@@ -15,6 +15,11 @@
 * `filesystem.current_working_directory()` accepts `file_descriptor` objects on
   UNIX now.
 * Add extra optional parameter to filesystem.mknod().
+* Add `filesystem.clock.epoch()`. It's useful to set the last modification date
+  of every file in some directory for the purposes of a reproducible build or
+  something. However there are more attributes besides last-write-time you need
+  to care about if you're planning to play with reproducible builds (be
+  warned!).
 * Add more POSIX bindings to init.script API.
 * Now it's possible to configure Landlock mode for the calling process or
   `system.spawn()` subprocesses.
