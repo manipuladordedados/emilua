@@ -4,7 +4,7 @@
 :cpp: C++
 
 [id=0.7]
-== 0.7 - unreleased
+== 0.7 - 2024-04-17
 
 === Added
 
@@ -45,7 +45,10 @@
 
 === Fixed
 
-* Bug fixes.
+* Close file descriptors from builtin PID1 so EPIPE propagates sooner.
+* Fix races in `filesystem.current_working_directory()`. Now `fchdir()` is used.
+* Small documentation issues.
+* Avoid potential IO double-flush on FreeBSD after `fork()`.
 
 [id=0.6]
 == 0.6 - 2024-01-06
