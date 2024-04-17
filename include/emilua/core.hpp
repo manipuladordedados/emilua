@@ -59,6 +59,10 @@ extern "C" {
 #include <lua.h>
 }
 
+#if BOOST_OS_LINUX
+#include <csetjmp>
+#endif // BOOST_OS_LINUX
+
 #include <emilua/config.h>
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
@@ -864,6 +868,12 @@ inline int finalizer(lua_State* L)
 }
 
 int throw_enosys(lua_State* L);
+
+// FreeBSD can be supported as well as soon as it adds pthread_sigqueue()
+#if BOOST_OS_LINUX
+extern thread_local sigjmp_buf* longjmp_on_rtsigno_env;
+void longjmp_on_rtsigno(int signo, siginfo_t* info, void* context);
+#endif // BOOST_OS_LINUX
 
 enum class lua_errc
 {

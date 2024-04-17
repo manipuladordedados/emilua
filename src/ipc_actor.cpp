@@ -1075,6 +1075,23 @@ static int child_main(void*)
         }
     }
 
+#if BOOST_OS_LINUX
+    if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
+        struct sigaction sa;
+        std::memset(&sa, 0, sizeof(struct sigaction));
+
+        // from SIG_UNBLOCK to SIG_BLOCK, execution MUST only use
+        // async-signal-safe code
+        sigemptyset(&sa.sa_mask);
+        sigaddset(&sa.sa_mask, EMILUA_CONFIG_EINTR_RTSIGNO);
+        sigprocmask(SIG_BLOCK, &sa.sa_mask, /*oldset=*/NULL);
+
+        sa.sa_sigaction = emilua::longjmp_on_rtsigno;
+        sa.sa_flags = SA_RESTART | SA_SIGINFO;
+        sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
+    }
+#endif // BOOST_OS_LINUX
+
     int main_ctx_concurrency_hint;
     fs::path entry_point;
 

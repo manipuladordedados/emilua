@@ -121,3 +121,31 @@ On Linux, you also need to initialize `emilua::clone_stack_address`.
 
 If you don't intend to have Lua VMs tied to their own processes triggered by Lua
 programs then you can skip this step.
+
+== RT signals
+
+Emilua reserves a RT signal for internal uses (cancelling IO operations which
+have poor system APIs). This signal can be configured at build time:
+
+[source,shell]
+----
+meson configure -Deintr_rtsigno=RTSIGNO
+----
+
+If you choose the value `0`, this support is disabled altogether and Emilua
+won't reserve any RT signal by itself. If this support is enabled, you must add
+some code similar to the following one in `main()`:
+
+[source,cpp]
+----
+struct sigaction sa;
+std::memset(&sa, 0, sizeof(struct sigaction));
+
+sigemptyset(&sa.sa_mask);
+sigaddset(&sa.sa_mask, EMILUA_CONFIG_EINTR_RTSIGNO);
+sigprocmask(SIG_BLOCK, &sa.sa_mask, /*oldset=*/NULL);
+
+sa.sa_sigaction = emilua::longjmp_on_rtsigno;
+sa.sa_flags = SA_RESTART | SA_SIGINFO;
+sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
+----

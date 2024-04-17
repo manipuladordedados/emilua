@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <csetjmp>
 #include <cstdlib>
 #include <fstream>
 #include <variant>

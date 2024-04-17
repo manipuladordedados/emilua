@@ -22,6 +22,7 @@
   warned!).
 * Add `filesystem.clock.unix_epoch()` and `filesystem.clock.now()`.
 * Add more POSIX bindings to init.script API.
+* Add the `flock()` family to `file.stream` and `file.random_access`.
 * Now it's possible to configure Landlock mode for the calling process or
   `system.spawn()` subprocesses.
 * Add `byte_span` methods for primitive types serialization (e.g. reading i32le

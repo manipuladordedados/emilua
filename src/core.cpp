@@ -35,6 +35,7 @@ char raw_getmetatable_key;
 
 #if BOOST_OS_LINUX
 void* clone_stack_address;
+thread_local sigjmp_buf* longjmp_on_rtsigno_env;
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
@@ -677,6 +678,84 @@ int throw_enosys(lua_State* L)
     push(L, std::errc::function_not_supported);
     return lua_error(L);
 }
+
+#if BOOST_OS_LINUX
+// GDB does a similar trick:
+// https://sourceware.org/git/?p=binutils-gdb.git;a=commitdiff;h=3b3978bca2a204a772563c8e121e4a02be72e802
+void longjmp_on_rtsigno(int /*signo*/, siginfo_t* info, void* /*context*/)
+{
+    if (info->si_code != SI_QUEUE || info->si_pid != getpid()) {
+        // * Until glibc 2.24, getpid() would be cached. Depending on how this
+        //   cache was implemented, getpid() would NOT be
+        //   async-signal-safe. Anyways, the cache was problematic and removed
+        //   later. Now getpid() just calls the syscall directly (which is safe
+        //   here).
+        // * glibc and libpsx do a similar trick: compare si_pid against
+        //   getpid().
+        // * Non-privileged users can't send signals to processes owned by
+        //   different users. However this law doesn't hold for suid binaries.
+        //   If you're programming a suid binary, unprivileged users will be
+        //   able to send UNIX signals to your process. And you need to worry
+        //   because Linux will NOT validate siginfo_t in this scenario (tested
+        //   on ArchLinux 2024.04). Therefore, the check here is definitively
+        //   NOT enough. Send a patch to kernel devs if you want this issue
+        //   fixed.
+        // * The whole point of this bailing-out early is to protect the process
+        //   in case your program is a suid binary. However given the previous
+        //   point you're pretty much fucked anyways. There's nothing you can do
+        //   really. I _could_ write a neat workaround here, but there's just
+        //   too much of them already. Just go home (or send a kernel patch to
+        //   fix the real issue here).
+        // * The mitigation you can employ is simple: never call a function that
+        //   depends on this sighandler, but did you know that glibc always
+        //   installs TWO sighandlers for internal purposes? And you also have
+        //   libpsx's sighandler. Are those sighandlers benign for suid
+        //   binaries? Go ask them. I already wasted too many days digging
+        //   through this mess.
+        // * Back to the original topic: the correct behaviour (leaving the
+        //   Linux mess aside for a moment) is to ignore the extraneous signal
+        //   even if the default sighandler would have killed the process. The
+        //   rationale is simple: we've stolen signo from the user, so he can no
+        //   longer manually ignore it. One can always use different signals if
+        //   the intent is to really kill the process (e.g. SIGTERM, SIGKILL,
+        //   SIGABRT).
+        return;
+    }
+
+    // TLS-access (longjmp_on_rtsigno_env) from this async sighandler is legal.
+    //
+    // * signo should be blocked all the time, and only unblocked after you've
+    //   already set this thread_local value. TLS-access is safe then (not as
+    //   defined by the C++ standard, but as partially defined by POSIX and as
+    //   implemented in modern POSIX systems).
+    // * pthread_sigqueue() must be used to send signo, so the correct thread
+    //   won't miss our event.
+    // * The undesired signal that was ignored at the start of the function was
+    //   also sent for threads that already had the TLS variable allocated
+    //   (because every other thread blocks signo). There are no compiler
+    //   barriers to prevent the optimizer from reordering accesses here, so we
+    //   really do block the sighandler globally and only unblock it from
+    //   threads that have set/allocated the TLS variable. The C++ memory model
+    //   wasn't designed to prevent the kind of reordering that would be useful
+    //   to us here, so we don't even try to use it (again: just block signo
+    //   globally and call it a day). C++ doesn't even have real barriers. All
+    //   "barriers" are defined in terms of acquire-release semantics for
+    //   synchronization between different threads (IOW, accesses in the same
+    //   thread can still face some reordering which is completely non-intuitive
+    //   for old-school assembly coders used to asm fences).
+    sigjmp_buf* env = nullptr;
+    std::swap(env, longjmp_on_rtsigno_env);
+
+    // shouldn't happen (or there's some code elsewhere misusing the expected
+    // longjmp_on_rtsigno pattern), but we choose to terminate instead of UB
+    if (env == nullptr)
+        std::abort();
+
+    // this is legal (and an old trick as well):
+    // http://www.gnu.org/software/libc/manual/html_node/Longjmp-in-Handler.html
+    siglongjmp(*env, info->si_value.sival_int);
+}
+#endif // BOOST_OS_LINUX
 
 class lua_category_impl: public std::error_category
 {

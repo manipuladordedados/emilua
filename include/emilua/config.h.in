@@ -33,3 +33,15 @@
 // <https://www.boost.org/doc/libs/1_72_0/doc/html/boost_asio/overview/core/concurrency_hint.html>
 // for more info.
 #define EMILUA_CONFIG_THREAD_SUPPORT_LEVEL @THREAD_SUPPORT_LEVEL@
+
+// On non-zero, one may assume that pthread_sigqueue() can be used to perform a
+// siglongjmp() (useful to unblock a thread blocked on a syscall such as
+// flock()). IOW, there is a sighandler for this RT-signal siglongjmp()ing to a
+// thread_local sigjmp_buf.
+//
+// SA_RESTART is still set on this sighandler. You have to resort to
+// siglongjmp() to interrupt whatever was running in the target
+// thread. Sanitization already happens in the sighandler using siginfo_t before
+// actually doing the siglongjmp() (e.g. ignoring signals sent from unprivileged
+// users when we're suid).
+#define EMILUA_CONFIG_EINTR_RTSIGNO @EINTR_RTSIGNO@

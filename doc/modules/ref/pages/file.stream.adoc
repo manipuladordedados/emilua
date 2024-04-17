@@ -100,6 +100,54 @@ file.
 IMPORTANT: Lua conventions on index starting at `1` are ignored. Indexes here
 are OS-mandated and start at `0`.
 
+=== `lock(self)`
+
+Acquires an exclusive advisory lock on the file.
+
+See flock(2).
+
+NOTE: *Not* available on Windows.
+
+=== `lock_shared(self)`
+
+Acquires a shared advisory lock on the file.
+
+See flock(2).
+
+NOTE: *Not* available on Windows.
+
+=== `try_lock(self) -> boolean`
+
+Tries to acquire an exclusive advisory lock on the file. Returns whether lock
+acquisition was successful.
+
+See flock(2).
+
+NOTE: The current fiber is never suspended.
+
+NOTE: *Not* available on Windows.
+
+=== `try_lock_shared(self) -> boolean`
+
+Tries to acquire a shared advisory lock on the file. Returns whether lock
+acquisition was successful.
+
+See flock(2).
+
+NOTE: The current fiber is never suspended.
+
+NOTE: *Not* available on Windows.
+
+=== `unlock(self)`
+
+Releases an existing advisory lock on the file held by this process.
+
+See flock(2).
+
+NOTE: The current fiber is never suspended.
+
+NOTE: *Not* available on Windows.
+
 === `read_some(self, buffer: byte_span) -> integer`
 
 Read data from the stream file and blocks current fiber until it completes or
@@ -123,3 +171,12 @@ Whether the file is open.
 === `size: integer`
 
 The size of the file.
+
+== Bugs
+
+Do not use `flock()` in suid binaries. `flock()` requires us to use a RT-signal
+to cancel the operation. However the Linux kernel (tested on ArchLinux 2024.04)
+doesn't validate `siginfo_t::si_pid` (nor any field really) for signals
+originating from unprivileged users. The problem is even worse because glibc
+does the same sanity check as Emilua and is just as vulnerable to this kernel
+bug.

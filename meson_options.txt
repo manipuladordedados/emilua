@@ -58,3 +58,10 @@ option(
     description : 'Maximum number of fields that may be sent in a single ' +
         'message'
 )
+
+option(
+    'eintr_rtsigno', type : 'string', value : 'SIGRTMAX',
+    description : 'The RT-signal number to use (or zero to disable this' +
+        ' feature altogether) for a sighandler that will longjmp() to unblock' +
+        ' a thread (only needed for old partially abandoned syscalls)'
+)
