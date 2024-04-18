@@ -7,7 +7,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/system.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/byte_span.hpp>
-#include <emilua/detail/landlock.hpp>
 
 #include <csignal>
 #include <cstdlib>
@@ -42,6 +41,8 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
 #  include <sys/psx_syscall.h>
 # endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+
+#include <emilua/detail/landlock.hpp>
 
 #include <linux/securebits.h>
 #include <linux/seccomp.h>
