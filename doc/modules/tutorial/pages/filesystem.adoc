@@ -160,3 +160,16 @@ Microsoft. We do not hardcode any mapping ourselves. That's the closest as it
 gets to any form of official support from the native platform. You can't do any
 better than that, and you should feel safe to use the Emilua API directly
 instead of trying to bypass it.
+
+== Async IO and threading
+
+Unfortunately, async filesystem operations never really gained traction in any
+mainstream operating system (and the scenario is unlikely to change). Read/write
+on files may make use async IO, but moving files, iterating on directories, etc
+all rely on blocking operations. It'd be terribly inefficient to create a thread
+for each of these operations. Using thread pools instead of plain threads would
+also have huge drawbacks. Therefore, Emilua opts to just *block* on all of these
+operations. If you need to perform operations from the module `filesystem` w/o
+blocking the current thread, use `spawn_vm{inherit_context=false}` to spawn an
+actor in a new thread from which you can unapologetically perform blocking
+operations.
