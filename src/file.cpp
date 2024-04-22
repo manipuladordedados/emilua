@@ -94,6 +94,7 @@ struct flock_operation : public pending_operation
                     thread.native_handle(), EMILUA_CONFIG_EINTR_RTSIGNO, val);
                 if (error != EAGAIN)
                     break;
+                std::this_thread::yield();
             }
         }
 #endif // BOOST_OS_LINUX
@@ -465,6 +466,7 @@ static int stream_basic_lock(lua_State* L, int operation)
                         EMILUA_CONFIG_EINTR_RTSIGNO, val);
                     if (error != EAGAIN)
                         break;
+                    std::this_thread::yield();
                 }
             }
             return 0;
@@ -1224,6 +1226,7 @@ static int random_access_basic_lock(lua_State* L, int operation)
                         EMILUA_CONFIG_EINTR_RTSIGNO, val);
                     if (error != EAGAIN)
                         break;
+                    std::this_thread::yield();
                 }
             }
             return 0;
