@@ -95,6 +95,7 @@
 *** xref:ref:ip.get_address_info.adoc[get_address_info]
 *** xref:ref:ip.get_name_info.adoc[get_name_info]
 *** xref:ref:ip.connect.adoc[connect]
+*** xref:ref:ip.dial.adoc[dial]
 *** xref:ref:ip.host_name.adoc[host_name]
 *** xref:ref:ip.tostring.adoc[tostring]
 *** xref:ref:ip.toendpoint.adoc[toendpoint]
@@ -168,6 +169,7 @@
 *** xref:ref:tls.context_flag.adoc[context_flag]
 *** xref:ref:tls.socket.adoc[socket]
 ** unix
+*** xref:ref:unix.dial.adoc[dial]
 *** xref:ref:unix.datagram.socket.adoc[datagram.socket]
 *** xref:ref:unix.message_flag.adoc[message_flag]
 *** xref:ref:unix.stream.acceptor.adoc[stream.acceptor]

@@ -134,6 +134,8 @@ include::pages/ip.get_name_info.adoc[]
 
 include::pages/ip.connect.adoc[]
 
+include::pages/ip.dial.adoc[]
+
 include::pages/ip.host_name.adoc[]
 
 include::pages/ip.tostring.adoc[]
@@ -279,6 +281,8 @@ include::pages/tls.context.adoc[]
 include::pages/tls.context_flag.adoc[]
 
 include::pages/tls.socket.adoc[]
+
+include::pages/unix.dial.adoc[]
 
 include::pages/unix.datagram.socket.adoc[]
 

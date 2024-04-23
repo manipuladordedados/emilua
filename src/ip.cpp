@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Vinícius dos Santos Oliveira
+/* Copyright (c) 2020, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -36,6 +36,8 @@ namespace emilua {
 
 extern unsigned char ip_connect_bytecode[];
 extern std::size_t ip_connect_bytecode_size;
+extern unsigned char ip_dial_bytecode[];
+extern std::size_t ip_dial_bytecode_size;
 
 char ip_key;
 char ip_address_mt_key;
@@ -6385,7 +6387,7 @@ void init_ip(lua_State* L)
 
         lua_pushliteral(L, "tcp");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/6);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/7);
 
             lua_pushliteral(L, "socket");
             {
@@ -6446,12 +6448,29 @@ void init_ip(lua_State* L)
                 lua_call(L, 2, 1);
             }
             lua_rawset(L, -3);
+
+            lua_pushliteral(L, "dial");
+            int res = luaL_loadbuffer(
+                L, reinterpret_cast<char*>(ip_dial_bytecode),
+                ip_dial_bytecode_size, nullptr);
+            assert(res == 0); boost::ignore_unused(res);
+            {
+                lua_pushliteral(L, "get_address_info");
+                lua_rawget(L, -4);
+            }
+            lua_pushcfunction(L, tcp_socket_new);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_next_key);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_pcall_key);
+            push(L, make_error_code(asio::error::not_found));
+            lua_call(L, 6, 1);
+            lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "udp");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/5);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/6);
 
             lua_pushliteral(L, "socket");
             {
@@ -6501,6 +6520,23 @@ void init_ip(lua_State* L)
                 lua_pushcfunction(L, udp_get_name_info);
                 lua_call(L, 2, 1);
             }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "dial");
+            int res = luaL_loadbuffer(
+                L, reinterpret_cast<char*>(ip_dial_bytecode),
+                ip_dial_bytecode_size, nullptr);
+            assert(res == 0); boost::ignore_unused(res);
+            {
+                lua_pushliteral(L, "get_address_info");
+                lua_rawget(L, -4);
+            }
+            lua_pushcfunction(L, udp_socket_new);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_next_key);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_pcall_key);
+            push(L, make_error_code(asio::error::not_found));
+            lua_call(L, 6, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);

@@ -25,6 +25,9 @@ EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
 
+extern unsigned char unix_dial_bytecode[];
+extern std::size_t unix_dial_bytecode_size;
+
 char unix_key;
 
 EMILUA_GPERF_DECLS_BEGIN(unix)
@@ -507,6 +510,39 @@ struct send_with_fds_op
 
     static constexpr auto opt_args = vm_context::options::arguments;
 };
+
+static int path_new(lua_State* L)
+{
+    namespace fs = std::filesystem;
+
+    assert(lua_gettop(L) == 1);
+    assert(lua_type(L, 1) == LUA_TSTRING);
+
+    auto input = tostringview(L, 1);
+
+    auto path = static_cast<fs::path*>(lua_newuserdata(L, sizeof(fs::path)));
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    setmetatable(L, -2);
+    new (path) fs::path{};
+
+    try {
+        if (input.starts_with('@')) {
+            std::string i{input};
+            i[0] = '\0';
+            *path = fs::path{i, fs::path::native_format};
+        } else {
+            *path = fs::path{input, fs::path::native_format};
+        }
+    } catch (const std::system_error& e) {
+        push(L, e.code());
+        return lua_error(L);
+    } catch (const std::exception& e) {
+        lua_pushstring(L, e.what());
+        return lua_error(L);
+    }
+
+    return 1;
+}
 
 EMILUA_GPERF_DECLS_BEGIN(unix_datagram_socket)
 EMILUA_GPERF_NAMESPACE(emilua)
@@ -5711,7 +5747,7 @@ void init_unix(lua_State* L)
 
         lua_pushliteral(L, "datagram");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/1);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
             lua_pushliteral(L, "socket");
             {
@@ -5726,12 +5762,23 @@ void init_unix(lua_State* L)
                 lua_rawset(L, -3);
             }
             lua_rawset(L, -3);
+
+            lua_pushliteral(L, "dial");
+            int res = luaL_loadbuffer(
+                L, reinterpret_cast<char*>(unix_dial_bytecode),
+                unix_dial_bytecode_size, nullptr);
+            assert(res == 0); boost::ignore_unused(res);
+            lua_pushcfunction(L, unix_datagram_socket_new);
+            lua_pushcfunction(L, path_new);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
+            lua_call(L, 3, 1);
+            lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "stream");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
             lua_pushliteral(L, "socket");
             {
@@ -5756,12 +5803,23 @@ void init_unix(lua_State* L)
                 lua_rawset(L, -3);
             }
             lua_rawset(L, -3);
+
+            lua_pushliteral(L, "dial");
+            int res = luaL_loadbuffer(
+                L, reinterpret_cast<char*>(unix_dial_bytecode),
+                unix_dial_bytecode_size, nullptr);
+            assert(res == 0); boost::ignore_unused(res);
+            lua_pushcfunction(L, unix_stream_socket_new);
+            lua_pushcfunction(L, path_new);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
+            lua_call(L, 3, 1);
+            lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "seqpacket");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
             lua_pushliteral(L, "socket");
             {
@@ -5785,6 +5843,17 @@ void init_unix(lua_State* L)
                 lua_pushcfunction(L, unix_seqpacket_acceptor_new);
                 lua_rawset(L, -3);
             }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "dial");
+            int res = luaL_loadbuffer(
+                L, reinterpret_cast<char*>(unix_dial_bytecode),
+                unix_dial_bytecode_size, nullptr);
+            assert(res == 0); boost::ignore_unused(res);
+            lua_pushcfunction(L, unix_seqpacket_socket_new);
+            lua_pushcfunction(L, path_new);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
+            lua_call(L, 3, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);

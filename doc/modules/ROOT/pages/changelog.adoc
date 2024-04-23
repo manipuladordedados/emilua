@@ -6,6 +6,10 @@
 [id=0.8]
 == 0.8 - unreleased
 
+=== Added
+
+* Add function `dial()` from the likes of Golang.
+
 === Changed
 
 * Split module `unix` into submodules.

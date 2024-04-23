@@ -271,6 +271,10 @@ bytecode_src = [
 
     # ip
     'bytecode/ip_connect.lua',
+    'bytecode/ip_dial.lua',
+
+    # unix
+    'bytecode/unix_dial.lua',
 
     # filesystem
     'bytecode/mode.lua',
