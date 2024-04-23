@@ -6,6 +6,15 @@
 [id=0.8]
 == 0.8 - unreleased
 
+=== Changed
+
+* Split module `unix` into submodules.
+** `unix.datagram_socket` -> `unix.datagram.socket`.
+** `unix.stream_socket` -> `unix.stream.socket`.
+** `unix.stream_acceptor` -> `unix.stream.acceptor`.
+** `unix.seqpacket_socket` -> `unix.seqpacket.socket`.
+** `unix.seqpacket_acceptor` -> `unix.seqpacket.acceptor`.
+
 [id=0.7]
 == 0.7 - 2024-04-17
 

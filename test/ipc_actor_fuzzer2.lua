@@ -13,7 +13,7 @@ if _CONTEXT ~= 'main' then
 
     local host = inbox:receive()
     local NITER = inbox:receive()
-    local utf8_converter = unix.seqpacket_socket.new(inbox:receive())
+    local utf8_converter = unix.seqpacket.socket.new(inbox:receive())
 
     local function to_base64(value)
         if #value == 0 then
@@ -91,7 +91,7 @@ else
     my_channel:send(inbox)
     my_channel:send(NITER)
     do
-        local utf8_converter = {unix.seqpacket_socket.pair()}
+        local utf8_converter = {unix.seqpacket.socket.pair()}
         utf8_converter[2] = utf8_converter[2]:release()
         my_channel:send(utf8_converter[2])
         utf8_converter[2]:close()

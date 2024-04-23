@@ -41,7 +41,7 @@ local init_script = [[
     C.read(arg, 1)
 ]]
 
-local shost, sguest = unix.seqpacket_socket.pair()
+local shost, sguest = unix.seqpacket.socket.pair()
 sguest = sguest:release()
 
 spawn_vm{
@@ -109,7 +109,7 @@ local init_script = [[
     C.read(arg, 1)
 ]]
 
-local shost, sguest = unix.seqpacket_socket.pair()
+local shost, sguest = unix.seqpacket.socket.pair()
 sguest = sguest:release()
 
 spawn_vm{
@@ -190,7 +190,7 @@ local init_script = [[
     C.read(arg, 1)
 ]]
 
-local shost, sguest = unix.seqpacket_socket.pair()
+local shost, sguest = unix.seqpacket.socket.pair()
 sguest = sguest:release()
 
 spawn_vm{
@@ -408,7 +408,7 @@ local init_script = [[
     C.cap_set_proc('=')
 ]]
 
-local shost, sguest = unix.seqpacket_socket.pair()
+local shost, sguest = unix.seqpacket.socket.pair()
 sguest = sguest:release()
 
 local my_channel = spawn_vm{

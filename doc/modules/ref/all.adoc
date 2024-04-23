@@ -280,17 +280,17 @@ include::pages/tls.context_flag.adoc[]
 
 include::pages/tls.socket.adoc[]
 
-include::pages/unix.datagram_socket.adoc[]
+include::pages/unix.datagram.socket.adoc[]
 
 include::pages/unix.message_flag.adoc[]
 
-include::pages/unix.stream_acceptor.adoc[]
+include::pages/unix.stream.acceptor.adoc[]
 
-include::pages/unix.stream_socket.adoc[]
+include::pages/unix.stream.socket.adoc[]
 
-include::pages/unix.seqpacket_acceptor.adoc[]
+include::pages/unix.seqpacket.acceptor.adoc[]
 
-include::pages/unix.seqpacket_socket.adoc[]
+include::pages/unix.seqpacket.socket.adoc[]
 
 include::pages/file_descriptor.adoc[]
 

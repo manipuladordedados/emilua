@@ -1,4 +1,4 @@
-= unix.seqpacket_socket
+= unix.seqpacket.socket
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -12,7 +12,7 @@ endif::[]
 
 [source,lua]
 ----
-local sock = unix.seqpacket_socket.new()
+local sock = unix.seqpacket.socket.new()
 sock.open()
 sock.bind(filesystem.path.new('/tmp/9Lq7BNBnBycd6nxy.socket'))
 
@@ -65,7 +65,7 @@ sent. `SOCK_STREAM` and `SOCK_DGRAM` will have their own caveats.
 
 == Functions
 
-=== `new() -> unix.seqpacket_socket`
+=== `new() -> unix.seqpacket.socket`
 
 [source,lua]
 ----
@@ -73,9 +73,9 @@ new()                    -- <1>
 new(fd: file_descriptor) -- <2>
 ----
 <1> Default constructor.
-<2> Converts a file descriptor into an `unix.seqpacket_socket` object.
+<2> Converts a file descriptor into an `unix.seqpacket.socket` object.
 
-=== `pair() -> unix.seqpacket_socket, unix.seqpacket_socket`
+=== `pair() -> unix.seqpacket.socket, unix.seqpacket.socket`
 
 Create a pair of connected sockets.
 

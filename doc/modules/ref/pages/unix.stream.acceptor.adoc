@@ -1,4 +1,4 @@
-= unix.seqpacket_acceptor
+= unix.stream.acceptor
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -12,7 +12,7 @@ endif::[]
 
 [source,lua]
 ----
-local a = unix.seqpacket_acceptor.new()
+local a = unix.stream.acceptor.new()
 a:open()
 a:bind(filesystem.path.new('/tmp/9Lq7BNBnBycd6nxy.socket'))
 a:listen()
@@ -27,7 +27,7 @@ end
 
 == Functions
 
-=== `new() -> unix.seqpacket_acceptor`
+=== `new() -> unix.stream.acceptor`
 
 [source,lua]
 ----
@@ -35,7 +35,7 @@ new()                    -- <1>
 new(fd: file_descriptor) -- <2>
 ----
 <1> Default constructor.
-<2> Converts a file descriptor into an `unix.seqpacket_acceptor` object.
+<2> Converts a file descriptor into an `unix.stream.acceptor` object.
 
 === `open(self)`
 
@@ -80,7 +80,7 @@ Place the acceptor into the state where it will listen for new connections.
 `backlog` is the maximum length of the queue of pending connections. If not
 provided, an implementation defined maximum length will be used.
 
-=== `accept(self) -> unix.seqpacket_socket`
+=== `accept(self) -> unix.stream.socket`
 
 Initiate an accept operation and blocks current fiber until it completes or
 errs.

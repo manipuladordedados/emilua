@@ -1,4 +1,4 @@
-= unix.stream_socket
+= unix.stream.socket
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -12,7 +12,7 @@ endif::[]
 
 [source,lua]
 ----
-local a, b = unix.stream_socket.pair()
+local a, b = unix.stream.socket.pair()
 
 spawn(function()
     local buf = byte_span.new(1024)
@@ -26,7 +26,7 @@ print(nwritten)
 
 == Functions
 
-=== `new() -> unix.stream_socket`
+=== `new() -> unix.stream.socket`
 
 [source,lua]
 ----
@@ -34,9 +34,9 @@ new()                    -- <1>
 new(fd: file_descriptor) -- <2>
 ----
 <1> Default constructor.
-<2> Converts a file descriptor into an `unix.stream_socket` object.
+<2> Converts a file descriptor into an `unix.stream.socket` object.
 
-=== `pair() -> unix.stream_socket, unix.stream_socket`
+=== `pair() -> unix.stream.socket, unix.stream.socket`
 
 Create a pair of connected sockets.
 

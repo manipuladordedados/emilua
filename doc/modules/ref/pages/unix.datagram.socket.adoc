@@ -1,4 +1,4 @@
-= unix.datagram_socket
+= unix.datagram.socket
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -12,7 +12,7 @@ endif::[]
 
 [source,lua]
 ----
-local sock = unix.datagram_socket.new()
+local sock = unix.datagram.socket.new()
 sock.open()
 sock.bind(filesystem.path.new('/tmp/9Lq7BNBnBycd6nxy.socket'))
 
@@ -23,7 +23,7 @@ print(buf:slice(1, nread))
 
 == Functions
 
-=== `new() -> unix.datagram_socket`
+=== `new() -> unix.datagram.socket`
 
 [source,lua]
 ----
@@ -31,9 +31,9 @@ new()                    -- <1>
 new(fd: file_descriptor) -- <2>
 ----
 <1> Default constructor.
-<2> Converts a file descriptor into an `unix.datagram_socket` object.
+<2> Converts a file descriptor into an `unix.datagram.socket` object.
 
-=== `pair() -> unix.datagram_socket, unix.datagram_socket`
+=== `pair() -> unix.datagram.socket, unix.datagram.socket`
 
 Create a pair of connected sockets.
 

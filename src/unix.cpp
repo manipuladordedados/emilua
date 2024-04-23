@@ -5697,7 +5697,7 @@ void init_unix(lua_State* L)
 {
     lua_pushlightuserdata(L, &unix_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/6);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/4);
 
         lua_pushliteral(L, "message_flag");
         {
@@ -5709,64 +5709,82 @@ void init_unix(lua_State* L)
         }
         lua_rawset(L, -3);
 
-        lua_pushliteral(L, "datagram_socket");
+        lua_pushliteral(L, "datagram");
         {
             lua_createtable(L, /*narr=*/0, /*nrec=*/1);
 
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, unix_datagram_socket_new);
-            lua_rawset(L, -3);
+            lua_pushliteral(L, "socket");
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
-            lua_pushliteral(L, "pair");
-            lua_pushcfunction(L, unix_datagram_socket_pair);
+                lua_pushliteral(L, "new");
+                lua_pushcfunction(L, unix_datagram_socket_new);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pair");
+                lua_pushcfunction(L, unix_datagram_socket_pair);
+                lua_rawset(L, -3);
+            }
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
 
-        lua_pushliteral(L, "stream_socket");
+        lua_pushliteral(L, "stream");
         {
             lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, unix_stream_socket_new);
+            lua_pushliteral(L, "socket");
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+                lua_pushliteral(L, "new");
+                lua_pushcfunction(L, unix_stream_socket_new);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pair");
+                lua_pushcfunction(L, unix_stream_socket_pair);
+                lua_rawset(L, -3);
+            }
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "pair");
-            lua_pushcfunction(L, unix_stream_socket_pair);
+            lua_pushliteral(L, "acceptor");
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/1);
+
+                lua_pushliteral(L, "new");
+                lua_pushcfunction(L, unix_stream_acceptor_new);
+                lua_rawset(L, -3);
+            }
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
 
-        lua_pushliteral(L, "stream_acceptor");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/1);
-
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, unix_stream_acceptor_new);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "seqpacket_socket");
+        lua_pushliteral(L, "seqpacket");
         {
             lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, unix_seqpacket_socket_new);
+            lua_pushliteral(L, "socket");
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+                lua_pushliteral(L, "new");
+                lua_pushcfunction(L, unix_seqpacket_socket_new);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "pair");
+                lua_pushcfunction(L, unix_seqpacket_socket_pair);
+                lua_rawset(L, -3);
+            }
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "pair");
-            lua_pushcfunction(L, unix_seqpacket_socket_pair);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
+            lua_pushliteral(L, "acceptor");
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/1);
 
-        lua_pushliteral(L, "seqpacket_acceptor");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/1);
-
-            lua_pushliteral(L, "new");
-            lua_pushcfunction(L, unix_seqpacket_acceptor_new);
+                lua_pushliteral(L, "new");
+                lua_pushcfunction(L, unix_seqpacket_acceptor_new);
+                lua_rawset(L, -3);
+            }
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
@@ -5778,7 +5796,7 @@ void init_unix(lua_State* L)
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "unix.datagram_socket");
+        lua_pushliteral(L, "unix.datagram.socket");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
@@ -5796,7 +5814,7 @@ void init_unix(lua_State* L)
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "unix.stream_socket");
+        lua_pushliteral(L, "unix.stream.socket");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
@@ -5814,7 +5832,7 @@ void init_unix(lua_State* L)
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "unix.stream_acceptor");
+        lua_pushliteral(L, "unix.stream.acceptor");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
@@ -5832,7 +5850,7 @@ void init_unix(lua_State* L)
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "unix.seqpacket_socket");
+        lua_pushliteral(L, "unix.seqpacket.socket");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
@@ -5850,7 +5868,7 @@ void init_unix(lua_State* L)
         lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "__metatable");
-        lua_pushliteral(L, "unix.seqpacket_acceptor");
+        lua_pushliteral(L, "unix.seqpacket.acceptor");
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__index");
