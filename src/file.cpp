@@ -82,22 +82,18 @@ struct flock_operation : public pending_operation
 
     void cancel() noexcept override
     {
-#if BOOST_OS_LINUX
         if (!thread.joinable())
             return;
 
         if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
-            sigval val;
-            val.sival_int = 2;
             for (;;) {
-                int error = pthread_sigqueue(
-                    thread.native_handle(), EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                int error = pthread_kill(
+                    thread.native_handle(), EMILUA_CONFIG_EINTR_RTSIGNO);
                 if (error != EAGAIN)
                     break;
                 std::this_thread::yield();
             }
         }
-#endif // BOOST_OS_LINUX
     }
 
     std::thread thread;
@@ -450,7 +446,6 @@ static int stream_basic_lock(lua_State* L, int operation)
     auto handle = new flock_operation;
     vm_ctx->pending_operations.push_back(*handle);
 
-#if BOOST_OS_LINUX
     lua_pushlightuserdata(L, handle);
     lua_pushcclosure(
         L,
@@ -458,12 +453,10 @@ static int stream_basic_lock(lua_State* L, int operation)
             auto handle = static_cast<flock_operation*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
             if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
-                sigval val;
-                val.sival_int = 1;
                 for (;;) {
-                    int error = pthread_sigqueue(
+                    int error = pthread_kill(
                         handle->thread.native_handle(),
-                        EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                        EMILUA_CONFIG_EINTR_RTSIGNO);
                     if (error != EAGAIN)
                         break;
                     std::this_thread::yield();
@@ -473,7 +466,6 @@ static int stream_basic_lock(lua_State* L, int operation)
         },
         1);
     set_interrupter(L, *vm_ctx);
-#endif // BOOST_OS_LINUX
 
     boost::system::error_code ignored_ec;
     auto fdbox = std::make_shared<file_descriptor_box>(
@@ -1210,7 +1202,6 @@ static int random_access_basic_lock(lua_State* L, int operation)
     auto handle = new flock_operation;
     vm_ctx->pending_operations.push_back(*handle);
 
-#if BOOST_OS_LINUX
     lua_pushlightuserdata(L, handle);
     lua_pushcclosure(
         L,
@@ -1218,12 +1209,10 @@ static int random_access_basic_lock(lua_State* L, int operation)
             auto handle = static_cast<flock_operation*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
             if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
-                sigval val;
-                val.sival_int = 1;
                 for (;;) {
-                    int error = pthread_sigqueue(
+                    int error = pthread_kill(
                         handle->thread.native_handle(),
-                        EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                        EMILUA_CONFIG_EINTR_RTSIGNO);
                     if (error != EAGAIN)
                         break;
                     std::this_thread::yield();
@@ -1233,7 +1222,6 @@ static int random_access_basic_lock(lua_State* L, int operation)
         },
         1);
     set_interrupter(L, *vm_ctx);
-#endif // BOOST_OS_LINUX
 
     boost::system::error_code ignored_ec;
     auto fdbox = std::make_shared<file_descriptor_box>(

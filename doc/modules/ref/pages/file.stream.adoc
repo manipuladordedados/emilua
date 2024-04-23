@@ -171,12 +171,3 @@ Whether the file is open.
 === `size: integer`
 
 The size of the file.
-
-== Bugs
-
-Do not use `flock()` in suid binaries. `flock()` requires us to use a RT-signal
-to cancel the operation. However the Linux kernel (tested on ArchLinux 2024.04)
-doesn't validate `siginfo_t::si_pid` (nor any field really) for signals
-originating from unprivileged users. The problem is even worse because glibc
-does the same sanity check as Emilua and is just as vulnerable to this kernel
-bug.
