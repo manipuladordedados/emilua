@@ -11,12 +11,18 @@ conf.set_quoted(
 )
 conf.set_quoted('LIBROOTDIR', get_option('prefix') / get_option('libdir'))
 conf.set10('ENABLE_PLUGINS', get_option('enable_plugins'))
-conf.set10('ENABLE_COLOR', not get_option('disable_color'))
 conf.set10('ENABLE_FILE_IO', get_option('enable_file_io'))
 conf.set('THREAD_SUPPORT_LEVEL',  get_option('thread_support_level'))
 conf.set('IPC_ACTOR_MSG_MAX_MEMBERS_NUMBER',
          get_option('ipc_actor_msg_max_members_number'))
-conf.set('EINTR_RTSIGNO', get_option('eintr_rtsigno'))
+
+if host_machine.system() == 'windows'
+    conf.set10('ENABLE_COLOR', false)
+    conf.set('EINTR_RTSIGNO', 0)
+else
+    conf.set10('ENABLE_COLOR', not get_option('disable_color'))
+    conf.set('EINTR_RTSIGNO', get_option('eintr_rtsigno'))
+endif
 
 configure_file(
     input : 'config.h.in',
