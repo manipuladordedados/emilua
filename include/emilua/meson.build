@@ -24,6 +24,21 @@ else
     conf.set('EINTR_RTSIGNO', get_option('eintr_rtsigno'))
 endif
 
+if meson.get_compiler('cpp').compiles('''
+    #include <pthread.h>
+    #include <csignal>
+
+    int main()
+    {
+        sigval value;
+        pthread_sigqueue(pthread_self(), 0, value);
+    }
+''')
+    conf.set10('HAVE_PTHREAD_SIGQUEUE', true)
+else
+    conf.set10('HAVE_PTHREAD_SIGQUEUE', false)
+endif
+
 configure_file(
     input : 'config.h.in',
     output : 'config.h',

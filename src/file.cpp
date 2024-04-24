@@ -86,6 +86,19 @@ struct flock_operation : public pending_operation
             return;
 
         if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
+#if EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
+            sigval val;
+            val.sival_int = 2;
+            for (;;) {
+                int error = pthread_sigqueue(
+                    thread.native_handle(), EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                if (error != EAGAIN)
+                    break;
+                std::this_thread::yield();
+            }
+#else
+            // Linux has pthread_sigqueue(), but it's useless (even dangerous)
+            // given the kernel doesn't validate siginfo_t.
             for (;;) {
                 int error = pthread_kill(
                     thread.native_handle(), EMILUA_CONFIG_EINTR_RTSIGNO);
@@ -93,6 +106,7 @@ struct flock_operation : public pending_operation
                     break;
                 std::this_thread::yield();
             }
+#endif // EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
         }
     }
 
@@ -453,6 +467,20 @@ static int stream_basic_lock(lua_State* L, int operation)
             auto handle = static_cast<flock_operation*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
             if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
+#if EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
+                sigval val;
+                val.sival_int = 1;
+                for (;;) {
+                    int error = pthread_sigqueue(
+                        handle->thread.native_handle(),
+                        EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                    if (error != EAGAIN)
+                        break;
+                    std::this_thread::yield();
+                }
+#else
+                // Linux has pthread_sigqueue(), but it's useless (even
+                // dangerous) given the kernel doesn't validate siginfo_t.
                 for (;;) {
                     int error = pthread_kill(
                         handle->thread.native_handle(),
@@ -461,6 +489,7 @@ static int stream_basic_lock(lua_State* L, int operation)
                         break;
                     std::this_thread::yield();
                 }
+#endif // EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
             }
             return 0;
         },
@@ -1209,6 +1238,20 @@ static int random_access_basic_lock(lua_State* L, int operation)
             auto handle = static_cast<flock_operation*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
             if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
+#if EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
+                sigval val;
+                val.sival_int = 1;
+                for (;;) {
+                    int error = pthread_sigqueue(
+                        handle->thread.native_handle(),
+                        EMILUA_CONFIG_EINTR_RTSIGNO, val);
+                    if (error != EAGAIN)
+                        break;
+                    std::this_thread::yield();
+                }
+#else
+                // Linux has pthread_sigqueue(), but it's useless (even
+                // dangerous) given the kernel doesn't validate siginfo_t.
                 for (;;) {
                     int error = pthread_kill(
                         handle->thread.native_handle(),
@@ -1217,6 +1260,7 @@ static int random_access_basic_lock(lua_State* L, int operation)
                         break;
                     std::this_thread::yield();
                 }
+#endif // EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE && !BOOST_OS_LINUX
             }
             return 0;
         },

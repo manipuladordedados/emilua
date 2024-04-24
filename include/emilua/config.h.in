@@ -45,3 +45,9 @@
 // actually doing the siglongjmp() (e.g. ignoring signals sent from unprivileged
 // users when we're suid).
 #define EMILUA_CONFIG_EINTR_RTSIGNO @EINTR_RTSIGNO@
+
+// ######################
+// # FEATURES DETECTION #
+// ######################
+
+#define EMILUA_CONFIG_HAVE_PTHREAD_SIGQUEUE @HAVE_PTHREAD_SIGQUEUE@
