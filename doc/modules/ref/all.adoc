@@ -144,6 +144,8 @@ include::pages/ip.toendpoint.adoc[]
 
 include::pages/ip.message_flag.adoc[]
 
+include::pages/ip.tcp.listen.adoc[]
+
 include::pages/ip.tcp.acceptor.adoc[]
 
 include::pages/ip.tcp.socket.adoc[]
@@ -283,6 +285,8 @@ include::pages/tls.context_flag.adoc[]
 include::pages/tls.socket.adoc[]
 
 include::pages/unix.dial.adoc[]
+
+include::pages/unix.listen.adoc[]
 
 include::pages/unix.datagram.socket.adoc[]
 

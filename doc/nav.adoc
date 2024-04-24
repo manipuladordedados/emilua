@@ -100,6 +100,7 @@
 *** xref:ref:ip.tostring.adoc[tostring]
 *** xref:ref:ip.toendpoint.adoc[toendpoint]
 *** xref:ref:ip.message_flag.adoc[message_flag]
+*** xref:ref:ip.tcp.listen.adoc[tcp.listen]
 *** xref:ref:ip.tcp.acceptor.adoc[tcp.acceptor]
 *** xref:ref:ip.tcp.socket.adoc[tcp.socket]
 *** xref:ref:ip.udp.socket.adoc[udp.socket]
@@ -170,6 +171,7 @@
 *** xref:ref:tls.socket.adoc[socket]
 ** unix
 *** xref:ref:unix.dial.adoc[dial]
+*** xref:ref:unix.listen.adoc[listen]
 *** xref:ref:unix.datagram.socket.adoc[datagram.socket]
 *** xref:ref:unix.message_flag.adoc[message_flag]
 *** xref:ref:unix.stream.acceptor.adoc[stream.acceptor]

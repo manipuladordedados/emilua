@@ -3878,6 +3878,111 @@ static int tcp_get_name_info(lua_State* L)
     return lua_yield(L, 0);
 }
 
+static int tcp_listen(lua_State* L)
+{
+    luaL_checktype(L, 1, LUA_TSTRING);
+
+    auto& vm_ctx = get_vm_context(L);
+
+    std::string_view host = tostringview(L, 1);
+    std::uint16_t port;
+
+    boost::system::error_code ec;
+
+    {
+        auto idx = host.rfind(':');
+        if (idx == std::string_view::npos) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+
+        std::string_view p = host.substr(idx + 1);
+        if ((p.starts_with("0") && p.size() != 1) || p.size() == 0) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+
+        auto res = std::from_chars(p.data(), p.data() + p.size(), port);
+        if (res.ec != std::errc{} || res.ptr != p.data() + p.size()) {
+            asio::ip::tcp::resolver resolver{vm_ctx.strand().context()};
+            asio::ip::tcp::resolver::flags flags =
+                asio::ip::resolver_base::numeric_host;
+            auto results = resolver.resolve("0.0.0.0", p, flags, ec);
+            if (ec) {
+                push(L, static_cast<std::error_code>(ec));
+                return lua_error(L);
+            }
+            if (results.size() == 0) {
+                ec = asio::error::addrinfo_errors::service_not_found;
+                push(L, static_cast<std::error_code>(ec));
+                return lua_error(L);
+            }
+            port = results.begin()->endpoint().port();
+        }
+
+        host.remove_suffix(p.size() + 1);
+    }
+
+    bool is_ipv6 = false;
+    if (host.starts_with("[")) {
+        if (host.back() != ']') {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+        host.remove_suffix(1);
+        host.remove_prefix(1);
+        is_ipv6 = true;
+    }
+
+    auto addr = asio::ip::make_address(host, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    if ((is_ipv6 && addr.is_v4()) || (!is_ipv6 && addr.is_v6())) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto a = static_cast<asio::ip::tcp::acceptor*>(
+        lua_newuserdata(L, sizeof(asio::ip::tcp::acceptor))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &ip_tcp_acceptor_mt_key);
+    setmetatable(L, -2);
+    new (a) asio::ip::tcp::acceptor{vm_ctx.strand().context()};
+
+    if (is_ipv6) {
+        a->open(asio::ip::tcp::v6(), ec);
+    } else {
+        a->open(asio::ip::tcp::v4(), ec);
+    }
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    a->set_option(asio::socket_base::reuse_address{true}, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    a->bind({addr, port}, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    a->listen(asio::socket_base::max_listen_connections, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    return 1;
+}
+
 static int udp_socket_new(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
@@ -6387,7 +6492,7 @@ void init_ip(lua_State* L)
 
         lua_pushliteral(L, "tcp");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/7);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/8);
 
             lua_pushliteral(L, "socket");
             {
@@ -6447,6 +6552,10 @@ void init_ip(lua_State* L)
                 lua_pushcfunction(L, tcp_get_name_info);
                 lua_call(L, 2, 1);
             }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "listen");
+            lua_pushcfunction(L, tcp_listen);
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "dial");

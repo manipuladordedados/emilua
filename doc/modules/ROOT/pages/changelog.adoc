@@ -8,7 +8,7 @@
 
 === Added
 
-* Add function `dial()` from the likes of Golang.
+* Add functions `dial()` and `listen()` from the likes of Golang.
 
 === Changed
 

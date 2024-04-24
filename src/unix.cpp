@@ -3855,6 +3855,78 @@ static int unix_stream_acceptor_new(lua_State* L)
     return 1;
 }
 
+static int unix_stream_listen(lua_State* L)
+{
+    lua_settop(L, 2);
+    luaL_checktype(L, 1, LUA_TSTRING);
+
+    auto& vm_ctx = get_vm_context(L);
+    std::string_view ep = tostringview(L, 1);
+    mode_t mode, omask;
+    bool has_mode;
+
+    switch (lua_type(L, 2)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    case LUA_TNIL:
+        has_mode = false;
+        break;
+    case LUA_TNUMBER:
+        if (!vm_ctx.is_master()) {
+            push(L, std::errc::operation_not_permitted);
+            return lua_error(L);
+        }
+
+        mode = lua_tointeger(L, 2);
+        has_mode = true;
+        break;
+    }
+
+    auto a = static_cast<asio::local::stream_protocol::acceptor*>(
+        lua_newuserdata(L, sizeof(asio::local::stream_protocol::acceptor))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_mt_key);
+    setmetatable(L, -2);
+    new (a) asio::local::stream_protocol::acceptor{vm_ctx.strand().context()};
+
+    boost::system::error_code ec;
+    a->open(asio::local::stream_protocol{}, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    if (has_mode) {
+        mode_t mask = (mode ^ 0777) & 0777;
+        omask = umask(mask);
+    }
+
+    if (ep.starts_with('@')) {
+        std::string e{ep};
+        e[0] = '\0';
+        a->bind(e, ec);
+    } else {
+        a->bind(ep, ec);
+    }
+
+    if (has_mode)
+        umask(omask);
+
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    a->listen(asio::socket_base::max_listen_connections, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    return 1;
+}
+
 EMILUA_GPERF_DECLS_BEGIN(unix_seqpacket_socket)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_seqpacket_socket_open(lua_State* L)
@@ -5729,6 +5801,79 @@ static int unix_seqpacket_acceptor_new(lua_State* L)
     return 1;
 }
 
+static int unix_seqpacket_listen(lua_State* L)
+{
+    lua_settop(L, 2);
+    luaL_checktype(L, 1, LUA_TSTRING);
+
+    auto& vm_ctx = get_vm_context(L);
+    std::string_view ep = tostringview(L, 1);
+    mode_t mode, omask;
+    bool has_mode;
+
+    switch (lua_type(L, 2)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    case LUA_TNIL:
+        has_mode = false;
+        break;
+    case LUA_TNUMBER:
+        if (!vm_ctx.is_master()) {
+            push(L, std::errc::operation_not_permitted);
+            return lua_error(L);
+        }
+
+        mode = lua_tointeger(L, 2);
+        has_mode = true;
+        break;
+    }
+
+    auto a = static_cast<asio::local::seq_packet_protocol::acceptor*>(
+        lua_newuserdata(L, sizeof(asio::local::seq_packet_protocol::acceptor))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_seqpacket_acceptor_mt_key);
+    setmetatable(L, -2);
+    new (a) asio::local::seq_packet_protocol::acceptor{
+        vm_ctx.strand().context()};
+
+    boost::system::error_code ec;
+    a->open(asio::local::seq_packet_protocol{}, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    if (has_mode) {
+        mode_t mask = (mode ^ 0777) & 0777;
+        omask = umask(mask);
+    }
+
+    if (ep.starts_with('@')) {
+        std::string e{ep};
+        e[0] = '\0';
+        a->bind(e, ec);
+    } else {
+        a->bind(ep, ec);
+    }
+
+    if (has_mode)
+        umask(omask);
+
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    a->listen(asio::socket_base::max_listen_connections, ec);
+    if (ec) {
+        push(L, static_cast<std::error_code>(ec));
+        return lua_error(L);
+    }
+
+    return 1;
+}
+
 void init_unix(lua_State* L)
 {
     lua_pushlightuserdata(L, &unix_key);
@@ -5778,7 +5923,7 @@ void init_unix(lua_State* L)
 
         lua_pushliteral(L, "stream");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/4);
 
             lua_pushliteral(L, "socket");
             {
@@ -5804,6 +5949,10 @@ void init_unix(lua_State* L)
             }
             lua_rawset(L, -3);
 
+            lua_pushliteral(L, "listen");
+            lua_pushcfunction(L, unix_stream_listen);
+            lua_rawset(L, -3);
+
             lua_pushliteral(L, "dial");
             int res = luaL_loadbuffer(
                 L, reinterpret_cast<char*>(unix_dial_bytecode),
@@ -5819,7 +5968,7 @@ void init_unix(lua_State* L)
 
         lua_pushliteral(L, "seqpacket");
         {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+            lua_createtable(L, /*narr=*/0, /*nrec=*/4);
 
             lua_pushliteral(L, "socket");
             {
@@ -5843,6 +5992,10 @@ void init_unix(lua_State* L)
                 lua_pushcfunction(L, unix_seqpacket_acceptor_new);
                 lua_rawset(L, -3);
             }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "listen");
+            lua_pushcfunction(L, unix_seqpacket_listen);
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "dial");

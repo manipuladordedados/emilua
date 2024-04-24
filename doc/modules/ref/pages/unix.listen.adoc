@@ -1,0 +1,86 @@
+= unix.listen
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local unix = require "unix"
+
+unix.stream.listen()
+unix.seqpacket.listen()
+
+function(ep: string[, mode: integer]) -> acceptor
+----
+
+== Description
+
+1. Creates a socket.
+2. Set common options.
+3. If `mode` is given, changes the process file mode creation mask (umask) such
+   that the next call to `bind()` will create an UNIX socket whose permissions
+   will be `bit.band(mode, filesystem.mode(7,7,7))`. Old umask is saved.
+4. Binds the socket to `ep`. On errors, old umask (if umask was modified on the
+   previous step) is restored before the error is propagated up.
+5. If `mode` is given, restores the old umask now.
+6. Put the socket in the listening state.
+7. Returns the socket.
+
+NOTE: If `ep` starts with `@` then it's assumed to represent an abstract UNIX
+socket.
+
+NOTE: If `mode` is given, only the master VM is allowed to use this function.
+
+== Rationale
+
+=== `mode` as an extra parameter
+
+To understand why `mode` is not part of the address string, we must understand
+why port is part of the address string in `ip.tcp.listen()`. `ip.tcp.listen()`
+accepts the port number as part of the address string because this info is
+usually stored in config files where there's a single string to identify the
+endpoint to bind to. Having this logic embedded in `ip.tcp.listen()` makes it
+easier to parse these config files.
+
+However the permission access mode is not part of the endpoint address. `mode`
+is not an address. It doesn't identify an endpoint. It's a separate value in the
+config file (possibly fully omitted from the config altogether and hardcoded in
+the program logic). It's not even required in many situations (hence why it's an
+optional parameter here).
+
+=== `mode` is only usable in the master VM
+
+It'd be possible to make this function fallback to change the permissions of the
+socket afterwards when it's not called from the master VM. However this approach
+would not be atomic and would be unsafe as an unwanted client could connect in
+the window of time where the file held the wrong permissions.
+
+During code refactors, the call to this function could be moved to the wrong VM
+and the dangerous approach would be chosen w/o the user's knowledge. This
+property is undesired and that's a strong reason why we don't do it.
+
+If the lack of atomicity is not a problem, the user can explicitly call
+`filesystem.chmod()` after `listen()` returns.
+
+=== (Not) Removing files by default
+
+This function could simplify the user's life even further if it also removed the
+file pointed to by `ep` before it binds the socket. However it'd make the
+function unusable in scenarios where the file must be removed by a different
+process (e.g. a supervised daemon, or many processes contending over the address
+with custom fallback code).
+
+In other words, the presence/possibility of `EADDRINUSE` may be a desired
+property in this algorithm by some programs.
+
+This function is a high-level API and it's not intended to replace every usage
+of the lower-level API so the previous point may not be that strong of a reason.
+However an explicit call to `filesystem.remove()` in user's code is not that big
+of a deal. It doesn't add that much boilerplate.

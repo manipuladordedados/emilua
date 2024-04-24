@@ -1,0 +1,26 @@
+= ip.tcp.listen
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local ip = require "ip"
+
+ip.tcp.listen(ep: string) -> ip.tcp.acceptor
+----
+
+== Description
+
+1. Creates a socket.
+2. Set common options (e.g. reuse-address).
+3. Binds the socket to `ep`.
+4. Put the socket in the listening state.
+5. Returns the socket.
