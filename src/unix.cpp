@@ -5916,7 +5916,9 @@ void init_unix(lua_State* L)
             lua_pushcfunction(L, unix_datagram_socket_new);
             lua_pushcfunction(L, path_new);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
-            lua_call(L, 3, 1);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+            push(L, std::errc::invalid_argument);
+            lua_call(L, 5, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
@@ -5961,7 +5963,9 @@ void init_unix(lua_State* L)
             lua_pushcfunction(L, unix_stream_socket_new);
             lua_pushcfunction(L, path_new);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
-            lua_call(L, 3, 1);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+            push(L, std::errc::invalid_argument);
+            lua_call(L, 5, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
@@ -6006,7 +6010,9 @@ void init_unix(lua_State* L)
             lua_pushcfunction(L, unix_seqpacket_socket_new);
             lua_pushcfunction(L, path_new);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_type_key);
-            lua_call(L, 3, 1);
+            rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+            push(L, std::errc::invalid_argument);
+            lua_call(L, 5, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);

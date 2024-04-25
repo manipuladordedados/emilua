@@ -258,6 +258,54 @@ static int ip_toendpoint(lua_State* L)
     return 2;
 }
 
+static int ip_toendpoint2(lua_State* L)
+{
+    luaL_checktype(L, 1, LUA_TSTRING);
+
+    std::string_view host = tostringview(L, 1);
+    std::string_view port;
+
+    {
+        auto idx = host.rfind(':');
+        if (idx == std::string_view::npos) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+
+        port = host.substr(idx + 1);
+        if (port.starts_with("0") && port.size() != 1) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+
+        host.remove_suffix(port.size() + 1);
+    }
+
+    bool is_ipv6 = false;
+    if (host.starts_with("[")) {
+        if (host.back() != ']') {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+        host.remove_suffix(1);
+        host.remove_prefix(1);
+        is_ipv6 = true;
+    }
+
+    boost::system::error_code ec;
+    asio::ip::address addr{asio::ip::make_address(host, ec)};
+    if (!ec) {
+        if ((is_ipv6 && addr.is_v4()) || (!is_ipv6 && addr.is_v6())) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+    }
+
+    push(L, host);
+    push(L, port);
+    return 2;
+}
+
 static int address_new(lua_State* L)
 {
     lua_settop(L, 1);
@@ -6568,11 +6616,12 @@ void init_ip(lua_State* L)
                 lua_rawget(L, -4);
             }
             lua_pushcfunction(L, tcp_socket_new);
+            lua_pushcfunction(L, ip_toendpoint2);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_next_key);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_pcall_key);
             push(L, make_error_code(asio::error::not_found));
-            lua_call(L, 6, 1);
+            lua_call(L, 7, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);
@@ -6641,11 +6690,12 @@ void init_ip(lua_State* L)
                 lua_rawget(L, -4);
             }
             lua_pushcfunction(L, udp_socket_new);
+            lua_pushcfunction(L, ip_toendpoint2);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_next_key);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_pcall_key);
             push(L, make_error_code(asio::error::not_found));
-            lua_call(L, 6, 1);
+            lua_call(L, 7, 1);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);

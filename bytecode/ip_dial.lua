@@ -1,6 +1,6 @@
-local get_address_info, socket_new, error, next, pcall, e_not_found = ...
-return function(host, service)
-    local resolve_results = get_address_info(host, service)
+local get_address_info, socket_new, toendpoint, error, next, pcall, e_not_found = ...
+return function(ep)
+    local resolve_results = get_address_info(toendpoint(ep))
     local sock = socket_new()
 
     local last_error

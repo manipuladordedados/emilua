@@ -19,16 +19,16 @@ unix.stream.dial()
 unix.seqpacket.dial()
 unix.datagram.dial()
 
-function(p: string|fs.path) -> socket
+function(ep: string) -> socket
 ----
 
 == Description
 
 1. Creates a socket.
-2. Connects the created socket to `p`.
+2. Connects the created socket to `ep`.
 3. Returns the connected socket.
 
-NOTE: If `p` is a string and starts with `@` then it's assumed to represent an
-abstract UNIX socket.
+NOTE: If `ep` starts with `@` then it's assumed to represent an abstract UNIX
+socket.
 
 Current fiber is suspended until operation finishes.

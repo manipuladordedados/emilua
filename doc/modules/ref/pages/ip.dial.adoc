@@ -17,18 +17,15 @@ local ip = require "ip"
 ip.tcp.dial()
 ip.udp.dial()
 
-function(host: string|ip.address, service: string|integer) -> socket
+function(ep: string) -> socket
 ----
 
 == Description
 
 1. Creates a socket.
-2. Forward-resolves host and service into a list of endpoints.
-3. Connects the created socket to any of the resolved endpoints.
-4. Returns the connected socket.
+2. Breaks `ep` into host and service.
+3. Forward-resolves host and service into a list of endpoints.
+4. Connects the created socket to any of the resolved endpoints.
+5. Returns the connected socket.
 
 Current fiber is suspended until operation finishes.
-
-If `host` is an `ip.address` then no host name resolution should be attempted.
-
-If `service` is a number then no service name resolution should be attempted.
