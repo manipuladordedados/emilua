@@ -3989,11 +3989,23 @@ static int tcp_listen(lua_State* L)
 
     auto addr = asio::ip::make_address(host, ec);
     if (ec) {
-        push(L, static_cast<std::error_code>(ec));
-        return lua_error(L);
-    }
-
-    if ((is_ipv6 && addr.is_v4()) || (!is_ipv6 && addr.is_v6())) {
+        asio::ip::tcp::resolver resolver{vm_ctx.strand().context()};
+        asio::ip::tcp::resolver::flags flags =
+            asio::ip::resolver_base::numeric_service |
+            asio::ip::resolver_base::passive;
+        auto results = resolver.resolve(host, "0", flags, ec);
+        if (ec) {
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+        if (results.size() == 0) {
+            ec = asio::error::netdb_errors::host_not_found;
+            push(L, static_cast<std::error_code>(ec));
+            return lua_error(L);
+        }
+        addr = results.begin()->endpoint().address();
+        is_ipv6 = addr.is_v6();
+    } else if ((is_ipv6 && addr.is_v4()) || (!is_ipv6 && addr.is_v6())) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
