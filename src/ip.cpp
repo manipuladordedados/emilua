@@ -3945,27 +3945,32 @@ static int tcp_listen(lua_State* L)
         }
 
         std::string_view p = host.substr(idx + 1);
-        if ((p.starts_with("0") && p.size() != 1) || p.size() == 0) {
+        if (p.starts_with("0") && p.size() != 1) {
             push(L, std::errc::invalid_argument, "arg", 1);
             return lua_error(L);
         }
 
-        auto res = std::from_chars(p.data(), p.data() + p.size(), port);
-        if (res.ec != std::errc{} || res.ptr != p.data() + p.size()) {
-            asio::ip::tcp::resolver resolver{vm_ctx.strand().context()};
-            asio::ip::tcp::resolver::flags flags =
-                asio::ip::resolver_base::numeric_host;
-            auto results = resolver.resolve("0.0.0.0", p, flags, ec);
-            if (ec) {
-                push(L, static_cast<std::error_code>(ec));
-                return lua_error(L);
+        if (p.size() == 0) {
+            port = 0;
+        } else {
+            auto res = std::from_chars(p.data(), p.data() + p.size(), port);
+            if (res.ec != std::errc{} || res.ptr != p.data() + p.size()) {
+                asio::ip::tcp::resolver resolver{vm_ctx.strand().context()};
+                asio::ip::tcp::resolver::flags flags =
+                    asio::ip::resolver_base::numeric_host |
+                    asio::ip::resolver_base::passive;
+                auto results = resolver.resolve("", p, flags, ec);
+                if (ec) {
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                if (results.size() == 0) {
+                    ec = asio::error::addrinfo_errors::service_not_found;
+                    push(L, static_cast<std::error_code>(ec));
+                    return lua_error(L);
+                }
+                port = results.begin()->endpoint().port();
             }
-            if (results.size() == 0) {
-                ec = asio::error::addrinfo_errors::service_not_found;
-                push(L, static_cast<std::error_code>(ec));
-                return lua_error(L);
-            }
-            port = results.begin()->endpoint().port();
         }
 
         host.remove_suffix(p.size() + 1);
