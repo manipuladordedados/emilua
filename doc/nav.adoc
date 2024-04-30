@@ -21,7 +21,7 @@
 ** actor system
 *** xref:ref:inbox.adoc[]
 *** xref:ref:spawn_vm.adoc[]
-**** xref:ref:init.script.adoc[]
+*** xref:ref:init.script.adoc[]
 *** xref:ref:spawn_context_threads.adoc[]
 ** xref:ref:byte_span.adoc[]
 ** filesystem
