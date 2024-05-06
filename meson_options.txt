@@ -59,6 +59,21 @@ option(
         'message'
 )
 
+# Nix-based systems depend on unusually large environment blocks so we use
+# separate limits for the first message. This way, we don't incur a larger
+# overhead on every message. Also we don't want a huge proliferation of
+# ipc_actor_msg_max_members_number values (the workaround that was available
+# previously) because it'd work kinda like an ABI where application developers
+# learn to rely on a minimal value there and its default shouldn't change too
+# much among systems without a really good reason. OTOH changing the size just
+# for the first message is mostly fine.
+option(
+    'ipc_actor_max_config_msg_size', type : 'integer', value : 20480,
+    description : 'The maximum size (in bytes) of the first message sent to ' +
+        'VMs in subprocesses (used to pack config such as init.script + env ' +
+        'vars)'
+)
+
 option(
     'eintr_rtsigno', type : 'string', value : 'SIGRTMAX',
     description : 'The RT-signal number to use (or zero to disable this' +
