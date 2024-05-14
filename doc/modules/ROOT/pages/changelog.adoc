@@ -18,6 +18,13 @@
 ** `unix.stream_acceptor` -> `unix.stream.acceptor`.
 ** `unix.seqpacket_socket` -> `unix.seqpacket.socket`.
 ** `unix.seqpacket_acceptor` -> `unix.seqpacket.acceptor`.
+* Removed tables for `bit.bor()` operations. Flags are now passed as lists of
+  strings.
+** `file.open_flag`.
+** `ip.address_info_flag`.
+** `ip.message_flag`.
+** `tls.context_flag`.
+** `unix.message_flag`.
 
 [id=0.7]
 == 0.7 - 2024-04-17

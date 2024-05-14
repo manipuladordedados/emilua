@@ -10,7 +10,7 @@ local sock = acceptor:accept()
 
 spawn(function()
     local buf = byte_span.new(1)
-    sock:receive(buf, ip.message_flag.out_of_band)
+    sock:receive(buf, {'out_of_band'})
     print('received OOB: ' .. tostring(buf))
 end):detach()
 

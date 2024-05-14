@@ -139,25 +139,19 @@ errs.
 
 Returns the number of bytes written.
 
-=== `receive(self, buffer: byte_span, flags: integer) -> integer`
+=== `receive(self, buffer: byte_span, flags: string[]) -> integer`
 
 Read data from the stream socket and blocks current fiber until it completes or
 errs.
 
 Returns the number of bytes read.
 
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
-
-=== `send(self, buffer: byte_span, flags: integer) -> integer`
+=== `send(self, buffer: byte_span, flags: string[]) -> integer`
 
 Write data to the stream socket and blocks current fiber until it completes or
 errs.
 
 Returns the number of bytes written.
-
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
 
 === `send_file(self, file: file.random_access, offset: integer, size_in_bytes: integer[, head: byte_span[, tail: byte_span[, n_number_of_bytes_per_send: integer]]]) -> integer`
 
@@ -294,6 +288,48 @@ Boost.Asio documentation].
 `"v6_only"`::
 https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/ip%5F_v6_only.html[Check
 Boost.Asio documentation].
+
+== Function flags
+
+=== `do_not_route`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_do_not_route.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Specify that the data should not be subject to routing.
+____
+
+=== `end_of_record`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_end_of_record.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Specifies that the data marks the end of a record.
+____
+
+=== `out_of_band`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_out_of_band.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Process out-of-band data.
+____
+
+=== `peek`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_peek.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Peek at incoming data without removing it from the input queue.
+____
 
 == Properties
 

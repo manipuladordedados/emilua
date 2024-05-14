@@ -121,7 +121,7 @@ EMILUA_GPERF_DECLS_BEGIN(stream)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int stream_open(lua_State* L)
 {
-    luaL_checktype(L, 3, LUA_TNUMBER);
+    luaL_checktype(L, 3, LUA_TTABLE);
 
     auto file = static_cast<asio::stream_file*>(lua_touserdata(L, 1));
     if (!file || !lua_getmetatable(L, 1)) {
@@ -156,7 +156,41 @@ static int stream_open(lua_State* L)
         return lua_error(L);
     }
 
-    auto flags = static_cast<asio::file_base::flags>(lua_tointeger(L, 3));
+    asio::file_base::flags flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 3, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::file_base::flags action)
+            EMILUA_GPERF_PAIR("append", asio::file_base::append)
+            EMILUA_GPERF_PAIR("create", asio::file_base::create)
+            EMILUA_GPERF_PAIR("exclusive", asio::file_base::exclusive)
+            EMILUA_GPERF_PAIR("read_only", asio::file_base::read_only)
+            EMILUA_GPERF_PAIR("read_write", asio::file_base::read_write)
+            EMILUA_GPERF_PAIR(
+                "sync_all_on_write", asio::file_base::sync_all_on_write)
+            EMILUA_GPERF_PAIR("truncate", asio::file_base::truncate)
+            EMILUA_GPERF_PAIR("write_only", asio::file_base::write_only)
+        EMILUA_GPERF_END(s);
+        if (!f) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+        flags |= *f;
+    }
+ end_for:
 
     boost::system::error_code ec;
     file->open(path, flags, ec);
@@ -936,7 +970,7 @@ EMILUA_GPERF_DECLS_BEGIN(random_access)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int random_access_open(lua_State* L)
 {
-    luaL_checktype(L, 3, LUA_TNUMBER);
+    luaL_checktype(L, 3, LUA_TTABLE);
 
     auto file = static_cast<asio::random_access_file*>(lua_touserdata(L, 1));
     if (!file || !lua_getmetatable(L, 1)) {
@@ -971,7 +1005,41 @@ static int random_access_open(lua_State* L)
         return lua_error(L);
     }
 
-    auto flags = static_cast<asio::file_base::flags>(lua_tointeger(L, 3));
+    asio::file_base::flags flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 3, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::file_base::flags action)
+            EMILUA_GPERF_PAIR("append", asio::file_base::append)
+            EMILUA_GPERF_PAIR("create", asio::file_base::create)
+            EMILUA_GPERF_PAIR("exclusive", asio::file_base::exclusive)
+            EMILUA_GPERF_PAIR("read_only", asio::file_base::read_only)
+            EMILUA_GPERF_PAIR("read_write", asio::file_base::read_write)
+            EMILUA_GPERF_PAIR(
+                "sync_all_on_write", asio::file_base::sync_all_on_write)
+            EMILUA_GPERF_PAIR("truncate", asio::file_base::truncate)
+            EMILUA_GPERF_PAIR("write_only", asio::file_base::write_only)
+        EMILUA_GPERF_END(s);
+        if (!f) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+        flags |= *f;
+    }
+ end_for:
 
     boost::system::error_code ec;
     file->open(path, flags, ec);
@@ -1720,45 +1788,7 @@ void init_file(lua_State* L)
 {
     lua_pushlightuserdata(L, &file_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/5);
-
-        lua_pushliteral(L, "open_flag");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/8);
-
-            lua_pushliteral(L, "append");
-            lua_pushinteger(L, asio::file_base::append);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "create");
-            lua_pushinteger(L, asio::file_base::create);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "exclusive");
-            lua_pushinteger(L, asio::file_base::exclusive);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "read_only");
-            lua_pushinteger(L, asio::file_base::read_only);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "read_write");
-            lua_pushinteger(L, asio::file_base::read_write);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "sync_all_on_write");
-            lua_pushinteger(L, asio::file_base::sync_all_on_write);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "truncate");
-            lua_pushinteger(L, asio::file_base::truncate);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "write_only");
-            lua_pushinteger(L, asio::file_base::write_only);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/4);
 
         lua_pushliteral(L, "write_all_at");
         {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 Vinícius dos Santos Oliveira
+/* Copyright (c) 2022, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -1035,18 +1035,42 @@ static int unix_datagram_socket_receive(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -1111,18 +1135,42 @@ static int unix_datagram_socket_receive_from(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -1204,18 +1252,42 @@ static int unix_datagram_socket_send(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -1301,18 +1373,42 @@ static int unix_datagram_socket_send_to(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 4)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 4);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 4);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 4, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 4);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 4);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -4288,18 +4384,42 @@ static int unix_seqpacket_socket_receive(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -4367,18 +4487,42 @@ static int unix_seqpacket_socket_send(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -5878,17 +6022,7 @@ void init_unix(lua_State* L)
 {
     lua_pushlightuserdata(L, &unix_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/4);
-
-        lua_pushliteral(L, "message_flag");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/1);
-
-            lua_pushliteral(L, "peek");
-            lua_pushinteger(L, asio::socket_base::message_peek);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "datagram");
         {

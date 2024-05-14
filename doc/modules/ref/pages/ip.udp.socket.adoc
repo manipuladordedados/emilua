@@ -115,47 +115,35 @@ be passed the `boost::asio::error::operation_aborted` error. Ownership of the
 native socket is then transferred to the caller.
 ____
 
-=== `receive(self, buffer: byte_span[, flags: integer]) -> integer`
+=== `receive(self, buffer: byte_span[, flags: string[]]) -> integer`
 
 Receive a datagram and blocks current fiber until it completes or errs.
 
 Returns the number of bytes read.
 
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
-
-=== `receive_from(self, buffer: byte_span[, flags: integer]) -> integer, ip.address, integer`
+=== `receive_from(self, buffer: byte_span[, flags: string[]]) -> integer, ip.address, integer`
 
 Receive a datagram and blocks current fiber until it completes or errs.
 
 Returns the number of bytes read plus the endpoint (address {plus} port) of the
 remote sender of the datagram.
 
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
-
-=== `send(self, buffer: byte_span[, flags: integer]) -> integer`
+=== `send(self, buffer: byte_span[, flags: string[]]) -> integer`
 
 Send data on the datagram socket and blocks current fiber until it completes or
 errs.
 
 Returns the number of bytes written.
 
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
-
 NOTE: The `send` operation can only be used with a connected socket. Use the
 `send_to` function to send data on an unconnected datagram socket.
 
-=== `send_to(self, buffer: byte_span, remote_addr: ip.address, remote_port: integer[, flags: integer]) -> integer`
+=== `send_to(self, buffer: byte_span, remote_addr: ip.address, remote_port: integer[, flags: string[]]) -> integer`
 
 Send a datagram to the specified remote endpoint and blocks current fiber until
 it completes or errs.
 
 Returns the number of bytes written.
-
-`flags` is `0` or an or-combination of values from
-xref:ip.message_flag.adoc[ip.message_flag(3em)].
 
 === `set_option(self, opt: string, val)`
 
@@ -269,6 +257,48 @@ Currently available commands are:
 
 `"bytes_readable"`:: Expects no arguments. Get the amount of data that can be
 read without blocking. Implements the `FIONREAD` IO control command.
+
+== Function flags
+
+=== `do_not_route`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_do_not_route.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Specify that the data should not be subject to routing.
+____
+
+=== `end_of_record`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_end_of_record.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Specifies that the data marks the end of a record.
+____
+
+=== `out_of_band`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_out_of_band.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Process out-of-band data.
+____
+
+=== `peek`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_peek.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Peek at incoming data without removing it from the input queue.
+____
 
 == Properties
 

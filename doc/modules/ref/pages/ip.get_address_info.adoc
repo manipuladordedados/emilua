@@ -21,7 +21,7 @@ ip.udp.get_address_info()
 ip.udp.get_address_v4_info()
 ip.udp.get_address_v6_info()
 
-function(host: string|ip.address, service: string|integer[, flags: integer])
+function(host: string|ip.address, service: string|integer[, flags: string[]])
     -> { address: ip.address, port: integer, canonical_name: string|nil }[]
 ----
 
@@ -29,9 +29,6 @@ function(host: string|ip.address, service: string|integer[, flags: integer])
 
 Forward-resolves host and service into a list of endpoint entries. Current fiber
 is suspended until operation finishes.
-
-`flags` is `0` or an or-combination of values from
-xref:ip.address_info_flag.adoc[ip.address_info_flag(3em)].
 
 NOTE: If no `flags` are passed to this function (i.e. `flags` is `nil`) then
 this function will follow the glibc defaults even on non-glibc systems:
@@ -43,8 +40,7 @@ members:
 * `address: ip.address`.
 * `port: integer`.
 
-If `ip.address_info_flag.canonical_name` is passed in `flags` then each entry
-will also include:
+If `"canonical_name"` is passed in `flags` then each entry will also include:
 
 * `canonical_name: string`.
 
@@ -54,3 +50,59 @@ info on Boost.Asio documentation].
 If `host` is an `ip.address` then no host name resolution should be attempted.
 
 If `service` is a number then no service name resolution should be attempted.
+
+== Flags
+
+=== `address_configured`
+
+https://www.boost.org/doc/libs/1_70_0/doc/html/boost_asio/reference/ip__resolver_base/address_configured.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Only return IPv4 addresses if a non-loopback IPv4 address is configured for the
+system. Only return IPv6 addresses if a non-loopback IPv6 address is configured
+for the system.
+____
+
+=== `all_matching`
+
+https://www.boost.org/doc/libs/1_70_0/doc/html/boost_asio/reference/ip__resolver_base/all_matching.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+If used with v4_mapped, return all matching IPv6 and IPv4 addresses.
+____
+
+=== `canonical_name`
+
+https://www.boost.org/doc/libs/1_70_0/doc/html/boost_asio/reference/ip__resolver_base/canonical_name.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Determine the canonical name of the host specified in the query.
+____
+
+=== `passive`
+
+https://www.boost.org/doc/libs/1_70_0/doc/html/boost_asio/reference/ip__resolver_base/passive.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Indicate that returned endpoint is intended for use as a locally bound socket
+endpoint.
+____
+
+=== `v4_mapped`
+
+https://www.boost.org/doc/libs/1_70_0/doc/html/boost_asio/reference/ip__resolver_base/v4_mapped.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+If the query protocol family is specified as IPv6, return IPv4-mapped IPv6
+addresses on finding no IPv6 addresses.
+____

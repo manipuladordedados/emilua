@@ -157,24 +157,18 @@ errs.
 Dissolve the socket's association by resetting the socket's peer address
 (i.e. connect(3) will be called with an `AF_UNSPEC` address).
 
-=== `receive(self, buffer: byte_span[, flags: integer]) -> integer`
+=== `receive(self, buffer: byte_span[, flags: string[]]) -> integer`
 
 Receive a datagram and blocks current fiber until it completes or errs.
 
 Returns the number of bytes read.
 
-`flags` is `0` or an or-combination of values from
-xref:unix.message_flag.adoc[unix.message_flag(3em)].
-
-=== `send(self, buffer: byte_span[, flags: integer]) -> integer`
+=== `send(self, buffer: byte_span[, flags: string[]]) -> integer`
 
 Send data on the seqpacket socket and blocks current fiber until it completes or
 errs.
 
 Returns the number of bytes written.
-
-`flags` is `0` or an or-combination of values from
-xref:unix.message_flag.adoc[unix.message_flag(3em)].
 
 === `receive_with_fds(self, buffer: byte_span, maxfds: integer) -> integer, file_descriptor[]`
 
@@ -253,6 +247,18 @@ Currently available commands are:
 
 `"bytes_readable"`:: Expects no arguments. Get the amount of data that can be
 read without blocking. Implements the `FIONREAD` IO control command.
+
+== Function flags
+
+=== `peek`
+
+https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio/reference/socket_base/message_peek.html[The
+flag with same name in Boost.Asio]:
+
+[quote]
+____
+Peek at incoming data without removing it from the input queue.
+____
 
 == Properties
 

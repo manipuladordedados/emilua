@@ -82,7 +82,6 @@
 *** xref:ref:condition_variable.adoc[]
 *** xref:ref:future.adoc[]
 ** file
-*** xref:ref:file.open_flag.adoc[open_flag]
 *** xref:ref:file.random_access.adoc[random_access]
 *** xref:ref:file.stream.adoc[stream]
 *** xref:ref:file.read_all_at.adoc[read_all_at]
@@ -91,7 +90,6 @@
 *** xref:ref:file.write_at_least_at.adoc[write_at_least_at]
 ** ip
 *** xref:ref:ip.address.adoc[address]
-*** xref:ref:ip.address_info_flag.adoc[address_info_flag]
 *** xref:ref:ip.get_address_info.adoc[get_address_info]
 *** xref:ref:ip.get_name_info.adoc[get_name_info]
 *** xref:ref:ip.connect.adoc[connect]
@@ -99,7 +97,6 @@
 *** xref:ref:ip.host_name.adoc[host_name]
 *** xref:ref:ip.tostring.adoc[tostring]
 *** xref:ref:ip.toendpoint.adoc[toendpoint]
-*** xref:ref:ip.message_flag.adoc[message_flag]
 *** xref:ref:ip.tcp.listen.adoc[tcp.listen]
 *** xref:ref:ip.tcp.acceptor.adoc[tcp.acceptor]
 *** xref:ref:ip.tcp.socket.adoc[tcp.socket]
@@ -167,13 +164,11 @@
 **** xref:ref:system.jailparam_all.adoc[jailparam_all]
 ** tls
 *** xref:ref:tls.context.adoc[context]
-*** xref:ref:tls.context_flag.adoc[context_flag]
 *** xref:ref:tls.socket.adoc[socket]
 ** unix
 *** xref:ref:unix.dial.adoc[dial]
 *** xref:ref:unix.listen.adoc[listen]
 *** xref:ref:unix.datagram.socket.adoc[datagram.socket]
-*** xref:ref:unix.message_flag.adoc[message_flag]
 *** xref:ref:unix.stream.acceptor.adoc[stream.acceptor]
 *** xref:ref:unix.stream.socket.adoc[stream.socket]
 *** xref:ref:unix.seqpacket.acceptor.adoc[seqpacket.acceptor]

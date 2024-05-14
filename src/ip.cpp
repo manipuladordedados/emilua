@@ -1326,7 +1326,7 @@ static int tcp_socket_write_some(lua_State* L)
 
 static int tcp_socket_receive(lua_State* L)
 {
-    luaL_checktype(L, 3, LUA_TNUMBER);
+    luaL_checktype(L, 3, LUA_TTABLE);
 
     auto vm_ctx = get_vm_context(L).shared_from_this();
     auto current_fiber = vm_ctx->current_fiber();
@@ -1354,12 +1354,47 @@ static int tcp_socket_receive(lua_State* L)
         return lua_error(L);
     }
 
+    asio::socket_base::message_flags flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 3, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+            EMILUA_GPERF_DEFAULT_VALUE({})
+            EMILUA_GPERF_PAIR(
+                "do_not_route", asio::socket_base::message_do_not_route)
+            EMILUA_GPERF_PAIR(
+                "end_of_record", asio::socket_base::message_end_of_record)
+            EMILUA_GPERF_PAIR(
+                "out_of_band", asio::socket_base::message_out_of_band)
+            EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+        EMILUA_GPERF_END(s);
+        if (f == 0) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+        flags |= f;
+    }
+ end_for:
+
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
     ++s->nbusy;
     s->socket.async_receive(
         asio::buffer(bs->data.get(), bs->size),
-        lua_tointeger(L, 3),
+        flags,
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
@@ -1389,7 +1424,7 @@ static int tcp_socket_receive(lua_State* L)
 
 static int tcp_socket_send(lua_State* L)
 {
-    luaL_checktype(L, 3, LUA_TNUMBER);
+    luaL_checktype(L, 3, LUA_TTABLE);
 
     auto vm_ctx = get_vm_context(L).shared_from_this();
     auto current_fiber = vm_ctx->current_fiber();
@@ -1417,12 +1452,47 @@ static int tcp_socket_send(lua_State* L)
         return lua_error(L);
     }
 
+    asio::socket_base::message_flags flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 3, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+            EMILUA_GPERF_DEFAULT_VALUE({})
+            EMILUA_GPERF_PAIR(
+                "do_not_route", asio::socket_base::message_do_not_route)
+            EMILUA_GPERF_PAIR(
+                "end_of_record", asio::socket_base::message_end_of_record)
+            EMILUA_GPERF_PAIR(
+                "out_of_band", asio::socket_base::message_out_of_band)
+            EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+        EMILUA_GPERF_END(s);
+        if (f == 0) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+        flags |= f;
+    }
+ end_for:
+
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
     ++s->nbusy;
     s->socket.async_send(
         asio::buffer(bs->data.get(), bs->size),
-        lua_tointeger(L, 3),
+        flags,
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
@@ -2907,8 +2977,7 @@ static int tcp_get_address_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
@@ -2917,9 +2986,44 @@ static int tcp_get_address_info(lua_State* L)
         flags = asio::ip::resolver_base::address_configured |
             asio::ip::resolver_base::v4_mapped;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -2957,7 +3061,7 @@ static int tcp_get_address_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = PF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
@@ -3145,9 +3249,7 @@ static int tcp_get_address_info(lua_State* L)
         true : false;
 
     service->tcp_resolver.async_resolve(
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::tcp::resolver::flags>(flags),
+        host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -3217,18 +3319,51 @@ static int tcp_get_address_v4_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -3266,7 +3401,7 @@ static int tcp_get_address_v4_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
@@ -3454,10 +3589,7 @@ static int tcp_get_address_v4_info(lua_State* L)
         true : false;
 
     service->tcp_resolver.async_resolve(
-        asio::ip::tcp::v4(),
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::tcp::resolver::flags>(flags),
+        asio::ip::tcp::v4(), host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -3527,8 +3659,7 @@ static int tcp_get_address_v6_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
@@ -3536,9 +3667,44 @@ static int tcp_get_address_v6_info(lua_State* L)
     case LUA_TNIL:
         flags = asio::ip::resolver_base::v4_mapped;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -3577,7 +3743,7 @@ static int tcp_get_address_v6_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = AF_INET6;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
@@ -3765,10 +3931,7 @@ static int tcp_get_address_v6_info(lua_State* L)
         true : false;
 
     service->tcp_resolver.async_resolve(
-        asio::ip::tcp::v6(),
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::tcp::resolver::flags>(flags),
+        asio::ip::tcp::v6(), host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -4884,18 +5047,48 @@ static int udp_socket_receive(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "do_not_route", asio::socket_base::message_do_not_route)
+                EMILUA_GPERF_PAIR(
+                    "end_of_record", asio::socket_base::message_end_of_record)
+                EMILUA_GPERF_PAIR(
+                    "out_of_band", asio::socket_base::message_out_of_band)
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -4959,18 +5152,48 @@ static int udp_socket_receive_from(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "do_not_route", asio::socket_base::message_do_not_route)
+                EMILUA_GPERF_PAIR(
+                    "end_of_record", asio::socket_base::message_end_of_record)
+                EMILUA_GPERF_PAIR(
+                    "out_of_band", asio::socket_base::message_out_of_band)
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -5049,18 +5272,48 @@ static int udp_socket_send(lua_State* L)
         return lua_error(L);
     }
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "do_not_route", asio::socket_base::message_do_not_route)
+                EMILUA_GPERF_PAIR(
+                    "end_of_record", asio::socket_base::message_end_of_record)
+                EMILUA_GPERF_PAIR(
+                    "out_of_band", asio::socket_base::message_out_of_band)
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -5142,18 +5395,48 @@ static int udp_socket_send_to(lua_State* L)
     }
     port = lua_tointeger(L, 4);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::socket_base::message_flags flags = {};
     switch (lua_type(L, 5)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 5);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 5);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 5, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 5);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::socket_base::message_flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "do_not_route", asio::socket_base::message_do_not_route)
+                EMILUA_GPERF_PAIR(
+                    "end_of_record", asio::socket_base::message_end_of_record)
+                EMILUA_GPERF_PAIR(
+                    "out_of_band", asio::socket_base::message_out_of_band)
+                EMILUA_GPERF_PAIR("peek", asio::socket_base::message_peek)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 5);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
@@ -5427,8 +5710,7 @@ static int udp_get_address_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
@@ -5437,9 +5719,44 @@ static int udp_get_address_info(lua_State* L)
         flags = asio::ip::resolver_base::address_configured |
             asio::ip::resolver_base::v4_mapped;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -5477,7 +5794,7 @@ static int udp_get_address_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = PF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
@@ -5665,9 +5982,7 @@ static int udp_get_address_info(lua_State* L)
         true : false;
 
     service->udp_resolver.async_resolve(
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::udp::resolver::flags>(flags),
+        host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -5737,18 +6052,51 @@ static int udp_get_address_v4_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
         return lua_error(L);
     case LUA_TNIL:
-        flags = 0;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -5786,7 +6134,7 @@ static int udp_get_address_v4_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
@@ -5974,10 +6322,7 @@ static int udp_get_address_v4_info(lua_State* L)
         true : false;
 
     service->udp_resolver.async_resolve(
-        asio::ip::udp::v4(),
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::udp::resolver::flags>(flags),
+        asio::ip::udp::v4(), host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -6047,8 +6392,7 @@ static int udp_get_address_v6_info(lua_State* L)
     auto current_fiber = vm_ctx->current_fiber();
     EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
-    // Lua BitOp underlying type is int32
-    std::int32_t flags;
+    asio::ip::resolver_base::flags flags = {};
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
@@ -6056,9 +6400,44 @@ static int udp_get_address_v6_info(lua_State* L)
     case LUA_TNIL:
         flags = asio::ip::resolver_base::v4_mapped;
         break;
-    case LUA_TNUMBER:
-        flags = lua_tointeger(L, 3);
+    case LUA_TTABLE:
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 3, i);
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            }
+
+            auto s = tostringview(L);
+            lua_pop(L, 1);
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(asio::ip::resolver_base::flags action)
+                EMILUA_GPERF_DEFAULT_VALUE({})
+                EMILUA_GPERF_PAIR(
+                    "address_configured",
+                    asio::ip::resolver_base::address_configured)
+                EMILUA_GPERF_PAIR(
+                    "all_matching", asio::ip::resolver_base::all_matching)
+                EMILUA_GPERF_PAIR(
+                    "canonical_name", asio::ip::resolver_base::canonical_name)
+                EMILUA_GPERF_PAIR("passive", asio::ip::resolver_base::passive)
+                EMILUA_GPERF_PAIR(
+                    "v4_mapped", asio::ip::resolver_base::v4_mapped)
+            EMILUA_GPERF_END(s);
+            if (f == 0) {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+            flags |= f;
+        }
     }
+ end_for:
 
     std::string host;
     switch (lua_type(L, 1)) {
@@ -6096,7 +6475,7 @@ static int udp_get_address_v6_info(lua_State* L)
 
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
     ADDRINFOEXW hints;
-    hints.ai_flags = flags;
+    hints.ai_flags = static_cast<int>(flags);
     hints.ai_family = AF_INET6;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
@@ -6284,10 +6663,7 @@ static int udp_get_address_v6_info(lua_State* L)
         true : false;
 
     service->udp_resolver.async_resolve(
-        asio::ip::udp::v6(),
-        host,
-        tostringview(L, 2),
-        static_cast<asio::ip::udp::resolver::flags>(flags),
+        asio::ip::udp::v6(), host, tostringview(L, 2), flags,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
@@ -6449,7 +6825,7 @@ void init_ip(lua_State* L)
 {
     lua_pushlightuserdata(L, &ip_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/9);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/7);
 
         lua_pushliteral(L, "tostring");
         lua_pushcfunction(L, ip_tostring);
@@ -6503,54 +6879,6 @@ void init_ip(lua_State* L)
 
             lua_pushliteral(L, "broadcast_v4");
             lua_pushcfunction(L, address_broadcast_v4);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "message_flag");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/4);
-
-            lua_pushliteral(L, "do_not_route");
-            lua_pushinteger(L, asio::socket_base::message_do_not_route);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "end_of_record");
-            lua_pushinteger(L, asio::socket_base::message_end_of_record);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "out_of_band");
-            lua_pushinteger(L, asio::socket_base::message_out_of_band);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "peek");
-            lua_pushinteger(L, asio::socket_base::message_peek);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "address_info_flag");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/7);
-
-            lua_pushliteral(L, "address_configured");
-            lua_pushinteger(L, asio::ip::resolver_base::address_configured);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "all_matching");
-            lua_pushinteger(L, asio::ip::resolver_base::all_matching);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "canonical_name");
-            lua_pushinteger(L, asio::ip::resolver_base::canonical_name);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "passive");
-            lua_pushinteger(L, asio::ip::resolver_base::passive);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "v4_mapped");
-            lua_pushinteger(L, asio::ip::resolver_base::v4_mapped);
             lua_rawset(L, -3);
         }
         lua_rawset(L, -3);

@@ -24,8 +24,7 @@ end
 
 local status = stream.scanner.new{ field_separator = ':\t' }
 status.stream = file.stream.new()
-status.stream:open(
-    fs.path.new('/proc/thread-self/status'), file.open_flag.read_only)
+status.stream:open(fs.path.new('/proc/thread-self/status'), {'read_only'})
 while true do
     local fields = status:get_line()
     if tostring(fields[1]) == 'NoNewPrivs' then

@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, 2022 Vinícius dos Santos Oliveira
+/* Copyright (c) 2020, 2022, 2024 Vinícius dos Santos Oliveira
 
    Distributed under the Boost Software License, Version 1.0. (See accompanying
    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) */
@@ -252,7 +252,7 @@ static int context_add_verify_path(lua_State* L)
 
 static int context_clear_options(lua_State* L)
 {
-    luaL_checktype(L, 2, LUA_TNUMBER);
+    luaL_checktype(L, 2, LUA_TTABLE);
 
     auto ctx = static_cast<std::shared_ptr<asio::ssl::context>*>(
         lua_touserdata(L, 1)
@@ -267,8 +267,49 @@ static int context_clear_options(lua_State* L)
         return lua_error(L);
     }
 
+    asio::ssl::context_base::options flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 2, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::ssl::context_base::options action)
+            EMILUA_GPERF_DEFAULT_VALUE({})
+            EMILUA_GPERF_PAIR(
+                "default_workarounds",
+                asio::ssl::context_base::default_workarounds)
+            EMILUA_GPERF_PAIR(
+                "no_compression", asio::ssl::context_base::no_compression)
+            EMILUA_GPERF_PAIR("no_sslv2", asio::ssl::context_base::no_sslv2)
+            EMILUA_GPERF_PAIR("no_sslv3", asio::ssl::context_base::no_sslv3)
+            EMILUA_GPERF_PAIR("no_tlsv1", asio::ssl::context_base::no_tlsv1)
+            EMILUA_GPERF_PAIR("no_tlsv1_1", asio::ssl::context_base::no_tlsv1_1)
+            EMILUA_GPERF_PAIR("no_tlsv1_2", asio::ssl::context_base::no_tlsv1_2)
+            EMILUA_GPERF_PAIR("no_tlsv1_3", asio::ssl::context_base::no_tlsv1_3)
+            EMILUA_GPERF_PAIR(
+                "single_dh_use", asio::ssl::context_base::single_dh_use)
+        EMILUA_GPERF_END(s);
+        if (f == 0) {
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        }
+        flags |= f;
+    }
+ end_for:
+
     boost::system::error_code ec;
-    (*ctx)->clear_options(lua_tointeger(L, 2), ec);
+    (*ctx)->clear_options(flags, ec);
     if (ec) {
         push(L, ec);
         return lua_error(L);
@@ -350,7 +391,7 @@ static int context_set_default_verify_paths(lua_State* L)
 
 static int context_set_options(lua_State* L)
 {
-    luaL_checktype(L, 2, LUA_TNUMBER);
+    luaL_checktype(L, 2, LUA_TTABLE);
 
     auto ctx = static_cast<std::shared_ptr<asio::ssl::context>*>(
         lua_touserdata(L, 1)
@@ -365,8 +406,49 @@ static int context_set_options(lua_State* L)
         return lua_error(L);
     }
 
+    asio::ssl::context_base::options flags = {};
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 2, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(asio::ssl::context_base::options action)
+            EMILUA_GPERF_DEFAULT_VALUE({})
+            EMILUA_GPERF_PAIR(
+                "default_workarounds",
+                asio::ssl::context_base::default_workarounds)
+            EMILUA_GPERF_PAIR(
+                "no_compression", asio::ssl::context_base::no_compression)
+            EMILUA_GPERF_PAIR("no_sslv2", asio::ssl::context_base::no_sslv2)
+            EMILUA_GPERF_PAIR("no_sslv3", asio::ssl::context_base::no_sslv3)
+            EMILUA_GPERF_PAIR("no_tlsv1", asio::ssl::context_base::no_tlsv1)
+            EMILUA_GPERF_PAIR("no_tlsv1_1", asio::ssl::context_base::no_tlsv1_1)
+            EMILUA_GPERF_PAIR("no_tlsv1_2", asio::ssl::context_base::no_tlsv1_2)
+            EMILUA_GPERF_PAIR("no_tlsv1_3", asio::ssl::context_base::no_tlsv1_3)
+            EMILUA_GPERF_PAIR(
+                "single_dh_use", asio::ssl::context_base::single_dh_use)
+        EMILUA_GPERF_END(s);
+        if (f == 0) {
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        }
+        flags |= f;
+    }
+ end_for:
+
     boost::system::error_code ec;
-    (*ctx)->set_options(lua_tointeger(L, 2), ec);
+    (*ctx)->set_options(flags, ec);
     if (ec) {
         push(L, ec);
         return lua_error(L);
@@ -1620,49 +1702,7 @@ void init_tls(lua_State* L)
 {
     lua_pushlightuserdata(L, &tls_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/3);
-
-        lua_pushliteral(L, "context_flag");
-        {
-            lua_createtable(L, /*narr=*/0, /*nrec=*/9);
-
-            lua_pushliteral(L, "default_workarounds");
-            lua_pushinteger(L, asio::ssl::context_base::default_workarounds);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_compression");
-            lua_pushinteger(L, asio::ssl::context_base::no_compression);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_sslv2");
-            lua_pushinteger(L, asio::ssl::context_base::no_sslv2);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_sslv3");
-            lua_pushinteger(L, asio::ssl::context_base::no_sslv3);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_tlsv1");
-            lua_pushinteger(L, asio::ssl::context_base::no_tlsv1);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_tlsv1_1");
-            lua_pushinteger(L, asio::ssl::context_base::no_tlsv1_1);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_tlsv1_2");
-            lua_pushinteger(L, asio::ssl::context_base::no_tlsv1_2);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "no_tlsv1_3");
-            lua_pushinteger(L, asio::ssl::context_base::no_tlsv1_3);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "single_dh_use");
-            lua_pushinteger(L, asio::ssl::context_base::single_dh_use);
-            lua_rawset(L, -3);
-        }
-        lua_rawset(L, -3);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
         lua_pushliteral(L, "context");
         {
