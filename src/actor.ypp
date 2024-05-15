@@ -376,7 +376,9 @@ static int chan_send(lua_State* L)
         return lua_error(L);
     }
 
-    auto& vm_ctx = get_vm_context(L);
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+
     auto handle = static_cast<actor_address*>(lua_touserdata(L, 1));
     if (!handle || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -388,10 +390,13 @@ static int chan_send(lua_State* L)
         return lua_error(L);
     }
 
-    EMILUA_CHECK_SUSPEND_ALLOWED(vm_ctx, L);
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
 
     auto dest_vm_ctx = handle->dest.lock();
-    if (!dest_vm_ctx) {
+    if (
+        !dest_vm_ctx ||
+        !dest_vm_ctx->inbox.open.load(std::memory_order::relaxed)
+    ) {
         push(L, errc::channel_closed);
         return lua_error(L);
     }
@@ -445,7 +450,7 @@ static int chan_send(lua_State* L)
         std::uintptr_t ptr;
     };
 
-    inbox_t::sender_state sender{vm_ctx};
+    inbox_t::sender_state sender;
 
     switch (lua_type(L, 2)) {
     case LUA_TNIL:
@@ -606,7 +611,7 @@ static int chan_send(lua_State* L)
                     }
                     rawgetp(L, LUA_REGISTRYINDEX, &inbox_mt_key);
                     if (lua_rawequal(L, -1, -3)) {
-                        cur_value->emplace<actor_address>(vm_ctx);
+                        cur_value->emplace<actor_address>(*vm_ctx);
                         lua_pop(L, 4);
                         break;
                     }
@@ -746,7 +751,7 @@ static int chan_send(lua_State* L)
         }
         rawgetp(L, LUA_REGISTRYINDEX, &inbox_mt_key);
         if (lua_rawequal(L, -1, -2)) {
-            sender.msg.emplace<actor_address>(vm_ctx);
+            sender.msg.emplace<actor_address>(*vm_ctx);
             break;
         }
 #if BOOST_OS_UNIX
@@ -775,66 +780,29 @@ static int chan_send(lua_State* L)
         return lua_error(L);
     }
 
-    lua_pushvalue(L, 1);
-    lua_pushlightuserdata(L, vm_ctx.current_fiber());
+    auto interrupted = std::make_shared<bool>(false);
+
+    lua_pushlightuserdata(L, interrupted.get());
     lua_pushcclosure(
         L,
         [](lua_State* L) -> int {
-            auto& vm_ctx = get_vm_context(L);
-            auto handle = static_cast<const actor_address*>(
+            auto interrupted = static_cast<bool*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            auto current_fiber = static_cast<lua_State*>(
-                lua_touserdata(L, lua_upvalueindex(2)));
-
-            auto dest_vm_ctx = handle->dest.lock();
-            if (!dest_vm_ctx)
-                return 0;
-
-            inbox_t::sender_state sender{vm_ctx, current_fiber};
-            dest_vm_ctx->strand().post(
-                [vm_ctx=dest_vm_ctx, sender=std::move(sender)]() {
-                    // We rely on FIFO order here. If it were allowed for the
-                    // interrupter to arrive before the `sender` delivery, this
-                    // algorithm would fail by assuming the task already
-                    // finished and there is nothing to interrupt.
-                    auto it = std::find(
-                        vm_ctx->inbox.incoming.begin(),
-                        vm_ctx->inbox.incoming.end(),
-                        sender);
-                    if (it == vm_ctx->inbox.incoming.end())
-                        return;
-                    vm_ctx->inbox.incoming.erase(it);
-
-                    sender.vm_ctx->strand().post(
-                        [vm_ctx=sender.vm_ctx, fiber=sender.fiber]() {
-                            vm_ctx->fiber_resume(
-                                fiber,
-                                hana::make_set(
-                                    hana::make_pair(
-                                        vm_context::options::arguments,
-                                        hana::make_tuple(errc::interrupted))));
-                        },
-                        std::allocator<void>{}
-                    );
-                },
-                std::allocator<void>{}
-            );
+            *interrupted = true;
             return 0;
         },
-        2
+        1
     );
-    set_interrupter(L, vm_ctx);
+    set_interrupter(L, *vm_ctx);
 
-    sender.wake_on_destruct = true;
     dest_vm_ctx->strand().post(
         [vm_ctx=dest_vm_ctx, sender=std::move(sender)]() mutable {
             auto recv_fiber = vm_ctx->inbox.recv_fiber;
-            if (!vm_ctx->inbox.open)
+            if (!vm_ctx->inbox.open.load(std::memory_order::relaxed))
                 return;
 
             if (!recv_fiber) {
                 vm_ctx->inbox.incoming.emplace_back(std::move(sender));
-                vm_ctx->inbox.incoming.back().wake_on_destruct = false;
                 return;
             }
 
@@ -851,22 +819,26 @@ static int chan_send(lua_State* L)
                     hana::make_pair(
                         vm_context::options::arguments,
                         hana::make_tuple(std::nullopt, deserializer))));
-
-            sender.wake_on_destruct = false;
-            sender.vm_ctx->strand().post(
-                [vm_ctx=sender.vm_ctx, fiber=sender.fiber]() {
-                    auto opt_args = vm_context::options::arguments;
-                    vm_ctx->fiber_resume(
-                        fiber,
-                        hana::make_set(
-                            hana::make_pair(
-                                opt_args, hana::make_tuple(std::nullopt))));
-                },
-                std::allocator<void>{}
-            );
         },
         std::allocator<void>{}
     );
+
+    vm_ctx->strand().defer([vm_ctx,current_fiber,interrupted]() {
+        auto opt_args = vm_context::options::arguments;
+        if (*interrupted) {
+            vm_ctx->fiber_resume(
+                current_fiber,
+                hana::make_set(
+                    hana::make_pair(
+                        opt_args, hana::make_tuple(errc::interrupted))));
+            return;
+        }
+        vm_ctx->fiber_resume(
+            current_fiber,
+            hana::make_set(
+                hana::make_pair(
+                    opt_args, hana::make_tuple(std::nullopt))));
+    }, std::allocator<void>{});
 
     return lua_yield(L, 0);
 }
@@ -905,7 +877,7 @@ static int chan_receive(lua_State* L)
 
     EMILUA_CHECK_SUSPEND_ALLOWED(vm_ctx, L);
 
-    if (!vm_ctx.inbox.open) {
+    if (!vm_ctx.inbox.open.load(std::memory_order::relaxed)) {
         push(L, errc::channel_closed);
         return lua_error(L);
     }
@@ -920,15 +892,6 @@ static int chan_receive(lua_State* L)
 
         auto sender = std::move(vm_ctx.inbox.incoming.front());
         vm_ctx.inbox.incoming.pop_front();
-
-        if (sender.vm_ctx) {
-            sender.vm_ctx->strand().post(
-                [vm_ctx=sender.vm_ctx, fiber=sender.fiber]() {
-                    vm_ctx->fiber_resume(fiber);
-                },
-                std::allocator<void>{}
-            );
-        }
 
         lua_pushlightuserdata(L, &sender.msg);
         lua_pushcclosure(L, deserializer_closure, 1);
@@ -996,7 +959,7 @@ static int inbox_close(lua_State* L)
         return lua_error(L);
     }
 
-    if (!vm_ctx.inbox.open)
+    if (!vm_ctx.inbox.open.load(std::memory_order::relaxed))
         return 0;
 
     if (vm_ctx.inbox.recv_fiber != nullptr) {
@@ -1015,10 +978,7 @@ static int inbox_close(lua_State* L)
         }, std::allocator<void>{});
     }
 
-    vm_ctx.inbox.open = false;
-    for (auto& m: vm_ctx.inbox.incoming) {
-        m.wake_on_destruct = true;
-    }
+    vm_ctx.inbox.open.store(false, std::memory_order::relaxed);
     vm_ctx.inbox.incoming.clear();
     return 0;
 }
@@ -1026,7 +986,7 @@ static int inbox_close(lua_State* L)
 static int inbox_gc(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
-    if (!vm_ctx.inbox.open)
+    if (!vm_ctx.inbox.open.load(std::memory_order::relaxed))
         return 0;
 
     // This is only needed if the VM crashes (i.e. nobody woke `recv_fiber` up),
@@ -1037,10 +997,7 @@ static int inbox_gc(lua_State* L)
     vm_ctx.inbox.work_guard.reset();
     // }}}
 
-    vm_ctx.inbox.open = false;
-    for (auto& m: vm_ctx.inbox.incoming) {
-        m.wake_on_destruct = true;
-    }
+    vm_ctx.inbox.open.store(false, std::memory_order::relaxed);
     vm_ctx.inbox.incoming.clear();
     return 0;
 }

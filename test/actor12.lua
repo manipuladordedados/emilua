@@ -2,6 +2,7 @@ local sleep = require('time').sleep
 
 if _CONTEXT == 'main' then
     local ch = spawn_vm('.')
+    sleep(0.1)
     local f = spawn(function()
         ch:send('foobar')
     end)
@@ -14,6 +15,6 @@ else assert(_CONTEXT == 'worker')
     require('inbox')
     spawn(function()
         collectgarbage('collect')
-        sleep(0.2)
+        sleep(0.3)
     end):detach()
 end

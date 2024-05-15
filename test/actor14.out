@@ -1,9 +1,3 @@
 A
 true
 B
-Fiber 0x1 panicked: 'Channel closed'
-stack traceback:
-	[string "?"]: in function 'send'
-	input.lua:7: in function <input.lua:6>
-	[C]: in function ''
-	[string "?"]: in function <[string "?"]:0>

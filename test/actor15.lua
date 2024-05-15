@@ -5,7 +5,6 @@ if _CONTEXT == 'main' then
     local f = spawn(function()
         ch:send('foobar')
     end)
-    sleep(0.1)
     f:interrupt()
     f:join()
     print('A')

@@ -3,4 +3,5 @@ if _CONTEXT ~= 'main' then
 end
 
 local ch = spawn_vm('.')
+this_fiber.yield();this_fiber.yield();this_fiber.yield();
 ch:send('foobar')

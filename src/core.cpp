@@ -306,12 +306,8 @@ void vm_context::close()
     valid_ = false;
     L_ = nullptr;
     inbox.recv_fiber = nullptr;
-    inbox.open = false;
+    inbox.open.store(false, std::memory_order::relaxed);
     inbox.work_guard.reset();
-
-    for (auto& m: inbox.incoming) {
-        m.wake_on_destruct = true;
-    }
     inbox.incoming.clear();
 
     pending_operations.clear_and_dispose([](pending_operation* op) {
@@ -374,10 +370,7 @@ void vm_context::fiber_epilogue(int resume_result)
                 lua_rawset(current_fiber_, LUA_REGISTRYINDEX);
 
                 if (!inbox.imported) {
-                    inbox.open = false;
-                    for (auto& m: inbox.incoming) {
-                        m.wake_on_destruct = true;
-                    }
+                    inbox.open.store(false, std::memory_order::relaxed);
                     inbox.incoming.clear();
                 }
             }

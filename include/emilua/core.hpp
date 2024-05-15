@@ -513,35 +513,20 @@ struct inbox_t
 
     struct sender_state
     {
-        sender_state(vm_context& vm_ctx);
-        sender_state(vm_context& vm_ctx, lua_State* fiber);
-        sender_state(std::nullopt_t);
-        sender_state(sender_state&& o);
+        sender_state() : msg{std::in_place_type<bool>, false} {}
 
-        ~sender_state();
-
-        sender_state& operator=(sender_state&& o);
+        sender_state(sender_state&& o) = default;
+        sender_state& operator=(sender_state&& o) = default;
 
         sender_state(const sender_state&) = delete;
         sender_state& operator=(const sender_state&) = delete;
 
-        // check whether is same sender
-        bool operator==(const sender_state& o)
-        {
-            // `msg` is ignored
-            return vm_ctx == o.vm_ctx && fiber == o.fiber;
-        }
-
-        std::shared_ptr<vm_context> vm_ctx;
-        asio::executor_work_guard<asio::io_context::executor_type> work_guard;
-        lua_State* fiber;
         value_type msg;
-        bool wake_on_destruct = false;
     };
 
     lua_State* recv_fiber = nullptr;
     std::deque<sender_state> incoming;
-    bool open = true;
+    std::atomic_bool open = true;
     bool imported = false;
     std::atomic_size_t nsenders = 0;
     std::shared_ptr<vm_context> work_guard;
@@ -1174,85 +1159,6 @@ inline actor_address::~actor_address()
             hana::make_set(
                 hana::make_pair(opt_args, hana::make_tuple(errc::no_senders))));
     }, std::allocator<void>{});
-}
-
-inline inbox_t::sender_state::sender_state(vm_context& vm_ctx)
-    : vm_ctx(vm_ctx.shared_from_this())
-    , work_guard(vm_ctx.work_guard())
-    , fiber(vm_ctx.current_fiber())
-    , msg{std::in_place_type<bool>, false}
-{}
-
-inline inbox_t::sender_state::sender_state(vm_context& vm_ctx, lua_State* fiber)
-    : vm_ctx(vm_ctx.shared_from_this())
-    , work_guard(vm_ctx.work_guard())
-    , fiber(fiber)
-    , msg{std::in_place_type<bool>, false}
-{}
-
-inline inbox_t::sender_state::sender_state(std::nullopt_t)
-    : work_guard{[]() {
-        asio::io_context ioctx;
-        asio::executor_work_guard<asio::io_context::executor_type> work_guard{
-            ioctx.get_executor()};
-        work_guard.reset();
-        return work_guard;
-    }()}
-    , fiber{nullptr}
-    , msg{std::in_place_type<bool>, false}
-    , wake_on_destruct{false}
-{}
-
-inline inbox_t::sender_state::sender_state(sender_state&& o)
-    : vm_ctx(std::move(o.vm_ctx))
-    , work_guard(std::move(o.work_guard))
-    , fiber(o.fiber)
-    , msg(std::move(o.msg))
-    , wake_on_destruct(o.wake_on_destruct)
-{
-    o.wake_on_destruct = false;
-}
-
-inline inbox_t::sender_state::~sender_state()
-{
-    if (!wake_on_destruct)
-        return;
-
-    vm_ctx->strand().post([vm_ctx=vm_ctx, fiber=fiber]() {
-        auto opt_args = vm_context::options::arguments;
-        vm_ctx->fiber_resume(
-            fiber,
-            hana::make_set(
-                hana::make_pair(
-                    opt_args, hana::make_tuple(errc::channel_closed))));
-    }, std::allocator<void>{});
-}
-
-inline
-inbox_t::sender_state&
-inbox_t::sender_state::operator=(inbox_t::sender_state&& o)
-{
-    if (wake_on_destruct) {
-        vm_ctx->strand().post([vm_ctx=vm_ctx, fiber=fiber]() {
-            auto opt_args = vm_context::options::arguments;
-            vm_ctx->fiber_resume(
-                fiber,
-                hana::make_set(
-                    hana::make_pair(
-                        opt_args, hana::make_tuple(errc::channel_closed))));
-        }, std::allocator<void>{});
-    }
-
-    vm_ctx = std::move(o.vm_ctx);
-    work_guard.~executor_work_guard();
-    new (&work_guard) asio::executor_work_guard<
-        asio::io_context::executor_type>{std::move(o.work_guard)};
-    fiber = o.fiber;
-    msg = std::move(o.msg);
-    wake_on_destruct = o.wake_on_destruct;
-
-    o.wake_on_destruct = false;
-    return *this;
 }
 
 } // namespace emilua

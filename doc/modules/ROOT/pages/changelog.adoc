@@ -25,6 +25,21 @@
 ** `ip.message_flag`.
 ** `tls.context_flag`.
 ** `unix.message_flag`.
+* Actor messaging is now more asynchronous than before. Emilua intentionally
+  used lots of synchronization points internally for actor messaging as it'd be
+  easier to remove synchronization than to add (if the chosen semantics proved
+  to be wrong later). Fast-forward to the present and it's clear now that the
+  excessive synchronization is not really useful. The excessive synchronization
+  was not getting in the way for anything, but it wasn't needed either. The new
+  semantics (`channel.send` is fully asynchronous to the target actor) are
+  lighter to implement as well so it might benefit some
+  workloads. `channel.send` still retains some of the previous properties such
+  as most of the error-checking (e.g. detecting channel-closed for many
+  scenarios), post semantics in ASIO-lingo (fiber goes to the end of the
+  execution queue so other fibers have a chance to run), and
+  interruptibility. We could go further and just don't reschedule the fiber nor
+  check for interruptions at all, but I feel more comfortable doing small
+  gradual changes to see how the changes play out.
 
 [id=0.7]
 == 0.7 - 2024-04-17

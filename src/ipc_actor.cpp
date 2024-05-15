@@ -448,7 +448,7 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
 
     if (!recv_fiber) {
         auto& queue = vm_ctx->inbox.incoming;
-        queue.emplace_back(std::nullopt);
+        queue.emplace_back();
 
         if (
             message.members[0].as_int ==
