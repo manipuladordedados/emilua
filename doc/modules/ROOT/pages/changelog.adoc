@@ -12,6 +12,10 @@
 
 === Changed
 
+* The code is now dual-licensed MIT and BSL-1.0. User picks either of these
+  options. The motivation is to make it easier to contribute code back to
+  LuaJIT's community. Previously it was only easy to contribute code back to the
+  Boost's community.
 * Split module `unix` into submodules.
 ** `unix.datagram_socket` -> `unix.datagram.socket`.
 ** `unix.stream_socket` -> `unix.stream.socket`.

@@ -40,9 +40,12 @@ Features:
 
 == LICENSE
 
-* C/{cpp} source code under Boost Software License.
-* Lua code (including snippets scattered through the documentation) distributed
-  in this repo is released as public domain.
+* C/{cpp} source code dual-licensed under Boost Software License and MIT. This
+  model of license (user picks one from the offered options) makes it easier
+  to contribute code back to both communities Emilua depends on (Boost and
+  LuaJIT).
+* Lua code (including snippets scattered throughout the documentation)
+  distributed in this repo is released as public domain.
 * The file `src/emilua_gperf.awk` is released as public domain.
 * Documentation (except for the source code samples contained within) is
   licensed under the Creative Commons Attribution 4.0 International License.
