@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, 2023 Vinícius dos Santos Oliveira
+// Copyright (c) 2020, 2021, 2023, 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 #include <optional>
@@ -24,6 +24,14 @@
 #include <cereal/archives/binary.hpp>
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
+
+extern "C" {
+
+std::optional<std::string_view>
+BOOST_SYMBOL_IMPORT
+emilua_get_builtin_module(const std::filesystem::path&);
+
+} // extern "C"
 
 namespace emilua {
 
@@ -1752,7 +1760,16 @@ static int spawn_vm(lua_State* L)
 
             module_path = module_path.parent_path();
         }
-        try {
+        if (emilua_get_builtin_module(
+            module_path / (std::string{module} + ".lua")
+        )) {
+            module_path /= std::string{module} + ".lua";
+        } else if (emilua_get_builtin_module(
+            module_path / module / "init.lua"
+        )) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
             std::shared_lock modules_cache_registry_rlock{
                 vm_ctx.appctx.modules_cache_registry_mtx};
 
@@ -1805,7 +1822,16 @@ static int spawn_vm(lua_State* L)
     end_parse_slash:
 
         module_path = import_root;
-        try {
+        if (emilua_get_builtin_module(
+            module_path / (std::string{module} + ".lua")
+        )) {
+            module_path /= std::string{module} + ".lua";
+        } else if (emilua_get_builtin_module(
+            module_path / module / "init.lua"
+        )) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
             std::shared_lock modules_cache_registry_rlock{
                 vm_ctx.appctx.modules_cache_registry_mtx};
 

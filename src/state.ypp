@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, 2022, 2023 Vinícius dos Santos Oliveira
+// Copyright (c) 2020-2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
@@ -69,6 +69,24 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file.hpp>
 #endif // EMILUA_CONFIG_ENABLE_FILE_IO
 EMILUA_GPERF_DECLS_END(includes)
+
+extern "C" {
+
+std::optional<std::string_view>
+BOOST_SYMBOL_IMPORT
+emilua_get_builtin_module(const std::filesystem::path&);
+
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+BOOST_SYMBOL_IMPORT
+emilua_get_builtin_rdf_ec(const std::filesystem::path&);
+
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+std::optional<std::reference_wrapper<emilua::plugin>>
+BOOST_SYMBOL_IMPORT
+emilua_get_builtin_native_module(std::string_view);
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+
+} // extern "C"
 
 namespace emilua {
 
@@ -222,7 +240,7 @@ static int lua_format(lua_State* L)
 //
 // * std::ios_base::failure
 // * std::exception
-static std::string& load_module_source(
+static std::string_view load_module_source(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     app_context& appctx, const fs::path& module_path)
 {
@@ -442,7 +460,7 @@ static rdf_error_category& load_rdf_error_category(
 // * std::filesystem::filesystem_error
 // * std::system_error
 // * std::exception
-static boost::shared_ptr<plugin> load_native_module(
+static plugin& load_native_module(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     emilua::app_context& appctx, const fs::path& pluginsdir,
     std::string_view module_id)
@@ -452,7 +470,7 @@ static boost::shared_ptr<plugin> load_native_module(
     auto& cache_registry = appctx.native_modules_cache_registry;
     auto it = cache_registry.find(std::string{module_id});
     if (it != cache_registry.end())
-        return it->second;
+        return *it->second;
 
     bool already_loading = !appctx.visited_native_modules.emplace(module_id)
         .second;
@@ -481,7 +499,7 @@ static boost::shared_ptr<plugin> load_native_module(
         std::piecewise_construct, std::forward_as_tuple(module_id),
         std::forward_as_tuple(native_module));
     native_module->init_appctx(modules_cache_registry_wlock, appctx);
-    return native_module;
+    return *native_module;
 }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
@@ -508,7 +526,7 @@ static int start_module_fiber(
     std::shared_ptr<vm_context> vm_ctx,
     ContextType lua_context,
     const fs::path module_path,
-    const std::string& module_source,
+    std::string_view module_source,
     bool module_is_leaf,
     const fs::path import_root,
 #if __has_include(<experimental/memory>)
@@ -701,10 +719,38 @@ static int on_external_package(
         bool module_is_leaf;
         rdf_error_category* error_category_module = nullptr;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-        boost::shared_ptr<plugin> native_module;
+        plugin* native_module;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
         try {
-            if (
+            if (emilua_get_builtin_module(
+                p / (std::string{module_id} + ".lua")
+            )) {
+                module_path = p / (std::string{module_id} + ".lua");
+                module_is_leaf = true;
+            } else if (emilua_get_builtin_module(
+                p / module_id / "init.lua"
+            )) {
+                module_path = p / module_id / "init.lua";
+                module_is_leaf = false;
+            } else if (
+                auto m = emilua_get_builtin_rdf_ec(
+                    p / (std::string{module_id} + ".ttl")
+                ) ; m
+            ) {
+                error_category_module = &m->get();
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+            } else if (
+                auto m = emilua_get_builtin_native_module(module_id) ; m
+            ) {
+                native_module = &m->get();
+            } else if (
+                auto it = vm_ctx->appctx.native_modules_cache_registry.find(
+                    std::string{module_id}) ;
+                it != vm_ctx->appctx.native_modules_cache_registry.end()
+            ) {
+                native_module = it->second.get();
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+            } else if (
                 auto it = vm_ctx->appctx.modules_cache_registry.find(
                     fs::absolute(p / (std::string{module_id} + ".lua"))
                 ) ; it != vm_ctx->appctx.modules_cache_registry.end()
@@ -731,7 +777,7 @@ static int on_external_package(
                 module_path = fs::absolute(std::move(module_path));
                 module_is_leaf = true;
             } else if (
-                module_path = p / module_id / "init.lua" ;
+                module_path = p / module_id / "init.lua";
                 fs::exists(module_path)
             ) {
                 module_path = fs::absolute(std::move(module_path));
@@ -752,21 +798,14 @@ static int on_external_package(
                 );
             } else {
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-                auto& cache_registry =
-                    vm_ctx->appctx.native_modules_cache_registry;
-                auto it = cache_registry.find(std::string{module_id});
-                if (it == cache_registry.end()) {
-                    modules_cache_registry_rlock.unlock();
-                    BOOST_SCOPE_EXIT_ALL(&) {
-                        modules_cache_registry_rlock.lock();
-                    };
-                    std::unique_lock wlock{
-                        vm_ctx->appctx.modules_cache_registry_mtx};
-                    native_module = load_native_module(
-                        wlock, vm_ctx->appctx, p, module_id);
-                } else {
-                    native_module = it->second;
-                }
+                modules_cache_registry_rlock.unlock();
+                BOOST_SCOPE_EXIT_ALL(&) {
+                    modules_cache_registry_rlock.lock();
+                };
+                std::unique_lock wlock{
+                    vm_ctx->appctx.modules_cache_registry_mtx};
+                native_module = &load_native_module(
+                    wlock, vm_ctx->appctx, p, module_id);
 #else // EMILUA_CONFIG_ENABLE_PLUGINS
                 throw std::system_error{errc::module_not_found};
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -835,9 +874,10 @@ static int on_external_package(
             return lua_error(L);
         }
 
-        std::optional<std::reference_wrapper<std::string>>
-            module_source;
-        try {
+        std::string_view module_source;
+        if (auto m = emilua_get_builtin_module(module_path) ; m) {
+            module_source = *m;
+        } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
             if (it == vm_ctx->appctx.modules_cache_registry.end()) {
                 modules_cache_registry_rlock.unlock();
@@ -858,11 +898,10 @@ static int on_external_package(
             lua_pushstring(L, e.what());
             return lua_error(L);
         }
-        assert(module_source);
         return start_module_fiber(
             L, vm_ctx, lua_context,
             module_path,
-            module_source->get(),
+            module_source,
             module_is_leaf,
             /*import_root=*/p,
 #if __has_include(<experimental/memory>)
@@ -995,7 +1034,18 @@ static int require(lua_State* L)
 
         bool module_is_leaf;
         try {
-            if (vm_ctx->appctx.modules_cache_registry.contains(
+            if (emilua_get_builtin_module(
+                module_path / (std::string{module_id} + ".lua")
+            )) {
+                module_path /= std::string{module_id} + ".lua";
+                module_is_leaf = true;
+            } else if (emilua_get_builtin_module(
+                module_path / module_id / "init.lua"
+            )) {
+                module_path /= module_id;
+                module_path /= "init.lua";
+                module_is_leaf = false;
+            } else if (vm_ctx->appctx.modules_cache_registry.contains(
                 module_path / (std::string{module_id} + ".lua")
             )) {
                 module_path /= std::string{module_id} + ".lua";
@@ -1040,8 +1090,10 @@ static int require(lua_State* L)
             return lua_error(L);
         }
 
-        std::optional<std::reference_wrapper<std::string>> module_source;
-        try {
+        std::string_view module_source;
+        if (auto m = emilua_get_builtin_module(module_path) ; m) {
+            module_source = *m;
+        } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
             if (it == vm_ctx->appctx.modules_cache_registry.end()) {
                 modules_cache_registry_rlock.unlock();
@@ -1062,11 +1114,10 @@ static int require(lua_State* L)
             lua_pushstring(L, e.what());
             return lua_error(L);
         }
-        assert(module_source);
         return start_module_fiber(
             L, vm_ctx, lua_context,
             module_path,
-            module_source->get(),
+            module_source,
             module_is_leaf,
             import_root,
             nullptr);
@@ -1105,7 +1156,35 @@ static int require(lua_State* L)
 
         bool module_is_leaf;
         try {
-            if (vm_ctx->appctx.modules_cache_registry.contains(
+            if (emilua_get_builtin_module(
+                module_path / (std::string{module_id} + ".lua")
+            )) {
+                module_path /= std::string{module_id} + ".lua";
+                module_is_leaf = true;
+            } else if (emilua_get_builtin_module(
+                module_path / module_id / "init.lua"
+            )) {
+                module_path /= module_id;
+                module_path /= "init.lua";
+                module_is_leaf = false;
+            } else if (
+                auto m = emilua_get_builtin_rdf_ec(
+                    module_path / (std::string{module_id} + ".ttl")
+                ) ; m
+            ) {
+                const auto& error_category_module = m->get();
+
+                lua_pushboolean(L, 1);
+
+                *static_cast<const rdf_error_category**>(
+                    lua_newuserdata(L, sizeof(void*))) =
+                    &error_category_module;
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &detail::rdf_error_category_module_mt_key);
+                setmetatable(L, -2);
+
+                return 2;
+            } else if (vm_ctx->appctx.modules_cache_registry.contains(
                 module_path / (std::string{module_id} + ".lua")
             )) {
                 module_path /= std::string{module_id} + ".lua";
@@ -1195,8 +1274,10 @@ static int require(lua_State* L)
             lua_pop(L, 2);
         }
 
-        std::optional<std::reference_wrapper<std::string>> module_source;
-        try {
+        std::string_view module_source;
+        if (auto m = emilua_get_builtin_module(module_path) ; m) {
+            module_source = *m;
+        } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
             if (it == vm_ctx->appctx.modules_cache_registry.end()) {
                 modules_cache_registry_rlock.unlock();
@@ -1217,11 +1298,10 @@ static int require(lua_State* L)
             lua_pushstring(L, e.what());
             return lua_error(L);
         }
-        assert(module_source);
         return start_module_fiber(
             L, vm_ctx, lua_context,
             module_path,
-            module_source->get(),
+            module_source,
             module_is_leaf,
             import_root,
             nullptr
@@ -1993,7 +2073,9 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
 
     std::string_view module_source;
 
-    {
+    if (auto m = emilua_get_builtin_module(entry_point) ; m) {
+        module_source = *m;
+    } else {
         std::shared_lock rlock{state->appctx.modules_cache_registry_mtx};
         auto it = state->appctx.modules_cache_registry.find(entry_point);
         if (it == state->appctx.modules_cache_registry.end()) {

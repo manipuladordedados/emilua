@@ -9,6 +9,7 @@
 === Added
 
 * Add functions `dial()` and `listen()` from the likes of Golang.
+* New way of embedding builtin modules to a custom binary/launcher.
 
 === Changed
 

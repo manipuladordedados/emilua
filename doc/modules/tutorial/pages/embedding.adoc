@@ -52,10 +52,24 @@ This type stores process-wide info that is shared among all Lua VMs
 (e.g. process arguments, environment, module paths, module caches, default
 logger, which VM is the master VM, ...).
 
-If you want to embed the Lua programs in your binary as well you should
+If you want to embed the Lua programs in your binary as well you can
 pre-populate the module cache here with the contents of all Lua files you intend
 to ship in the binary. `modules_cache_registry` is the member you're looking
-for. Do this before you start the first Lua VM.
+for. Do this before you start the first Lua VM. However there's a better way
+(see next section).
+
+== Builtin modules
+
+Just use linker args to override some or all of the following 3 functions:
+
+* `emilua_get_builtin_module`
+* `emilua_get_builtin_rdf_ec`
+* `emilua_get_builtin_native_module`
+
+Using this method instead of pre-filling the module cache allows actors spawned
+in subprocesses to import these modules as well. This method may also lead to
+better start-up times and a smaller memory footprint (you could even use gperf
+to have the best module search performance).
 
 == Master VM
 

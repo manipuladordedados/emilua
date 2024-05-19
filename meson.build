@@ -788,6 +788,23 @@ if get_option('enable_tests')
         }
     endif
 
+    if host_machine.system() != 'windows'
+        test(
+            'builtin_modules1', executable(
+                'builtin_modules1',
+                'test/builtin_modules1.cpp',
+                dependencies : libemilua_dep,
+                include_directories : include_directories(incdir),
+                implicit_include_directories : false,
+                link_args : [
+                    '-Wl,--defsym,emilua_get_builtin_module=' +
+                        '__wrap_emilua_get_builtin_module'
+                ],
+            ),
+            suite : 'builtin_modules',
+        )
+    endif
+
     if host_machine.system() != 'windows' and get_option('enable_plugins')
         ipc_actor_badinjector = shared_module(
             'ipc_actor_badinjector',

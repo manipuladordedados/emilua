@@ -17,6 +17,35 @@
 #include <emilua/fiber.hpp>
 #include <emilua/actor.hpp>
 
+extern "C" {
+
+std::optional<std::string_view>
+BOOST_SYMBOL_EXPORT
+emilua_get_builtin_module(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+BOOST_SYMBOL_EXPORT
+emilua_get_builtin_rdf_ec(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+// TODO: We should modularize build such that it becomes possible to enable
+// emilua_builtin_native_module_getter() w/o enabling plugins.
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+std::optional<std::reference_wrapper<emilua::plugin>>
+BOOST_SYMBOL_EXPORT
+emilua_get_builtin_native_module(std::string_view)
+{
+    return std::nullopt;
+}
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+
+} // extern "C"
+
 namespace emilua {
 
 bool stdout_has_color;
