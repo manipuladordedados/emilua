@@ -25,13 +25,17 @@
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
+#if !BOOST_OS_WINDOWS
 extern "C" {
+#endif // !BOOST_OS_WINDOWS
 
 std::optional<std::string_view>
 BOOST_SYMBOL_IMPORT
 emilua_get_builtin_module(const std::filesystem::path&);
 
+#if !BOOST_OS_WINDOWS
 } // extern "C"
+#endif // !BOOST_OS_WINDOWS
 
 namespace emilua {
 

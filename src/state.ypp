@@ -70,7 +70,9 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // EMILUA_CONFIG_ENABLE_FILE_IO
 EMILUA_GPERF_DECLS_END(includes)
 
+#if !BOOST_OS_WINDOWS
 extern "C" {
+#endif // !BOOST_OS_WINDOWS
 
 std::optional<std::string_view>
 BOOST_SYMBOL_IMPORT
@@ -86,7 +88,9 @@ BOOST_SYMBOL_IMPORT
 emilua_get_builtin_native_module(std::string_view);
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
+#if !BOOST_OS_WINDOWS
 } // extern "C"
+#endif // !BOOST_OS_WINDOWS
 
 namespace emilua {
 

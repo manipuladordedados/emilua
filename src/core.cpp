@@ -17,7 +17,9 @@
 #include <emilua/fiber.hpp>
 #include <emilua/actor.hpp>
 
+#if !BOOST_OS_WINDOWS
 extern "C" {
+#endif // !BOOST_OS_WINDOWS
 
 std::optional<std::string_view>
 BOOST_SYMBOL_EXPORT
@@ -44,7 +46,9 @@ emilua_get_builtin_native_module(std::string_view)
 }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
+#if !BOOST_OS_WINDOWS
 } // extern "C"
+#endif // !BOOST_OS_WINDOWS
 
 namespace emilua {
 
