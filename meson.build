@@ -813,6 +813,7 @@ if get_option('enable_tests')
                 thread_dep,
                 boost,
                 luajit,
+                fmt,
             ],
             include_directories : include_directories(incdir),
             implicit_include_directories : false,
