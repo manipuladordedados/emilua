@@ -51,6 +51,14 @@ Features:
   licensed under the Creative Commons Attribution 4.0 International License.
 * Submodules and dependencies have their own licensing terms.
 
+Emilua provides libraries with the interpreter which are themselves
+interpreted. This approach is not uncommon. For instance, Perl comes with many
+Perl modules, and a Java implementation comes with many Java classes. These
+libraries and the programs that call them are always dynamically linked
+together. It's for this reason that Lua source code bundled with Emilua is
+released as public domain. Bundled public domain libraries that the interpreter
+loads will impose no additional restriction on your Lua program.
+
 == Documentation
 
 You can browse the documentation online at <https://docs.emilua.org/>.
