@@ -1,3 +1,4 @@
+[id=_tutorial_alternatives]
 = Alternative projects
 
 :_:
