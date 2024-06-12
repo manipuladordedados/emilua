@@ -1,3 +1,4 @@
+[id=_tutorial_embedding]
 = C++ embedder API
 
 :_:

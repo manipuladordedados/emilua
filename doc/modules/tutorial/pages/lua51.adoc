@@ -1,3 +1,4 @@
+[id=_tutorial_lua51]
 = Lua 5.1
 
 ifeval::["{doctype}" == "manpage"]
