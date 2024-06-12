@@ -164,7 +164,7 @@ if get_option('enable_manpages')
     subdir('doc')
 endif
 
-if get_option('disable_color')
+if get_option('disable_color') or host_machine.system() == 'windows'
     curses = dependency('', required : false)
 else
     curses = dependency('curses', required : true)
