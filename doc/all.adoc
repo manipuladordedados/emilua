@@ -1,4 +1,4 @@
-= Emilua 0.4 reference documentation
+= Emilua 0.7 reference documentation
 :copyright: Creative Commons Attribution 4.0 International License
 :source: https://www.emilua.org/
 
