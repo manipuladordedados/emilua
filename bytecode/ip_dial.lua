@@ -11,8 +11,6 @@ return function(ep)
             return sock
         end
         last_error = e
-
-        ::continue::
     end
     if last_error == nil then
         last_error = e_not_found
