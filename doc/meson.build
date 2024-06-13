@@ -1,5 +1,3 @@
-fs = import('fs')
-
 asciidoctor_diagram_args = []
 
 if run_command(

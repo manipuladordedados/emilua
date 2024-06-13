@@ -6,6 +6,8 @@ project(
     version : '0.8.2',
 )
 
+fs = import('fs')
+
 # https://github.com/mesonbuild/meson/issues/2320
 subdir('include/emilua')
 
