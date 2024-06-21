@@ -26,6 +26,10 @@
 #include <boost/context/fixedsize_stack.hpp>
 #endif // BOOST_OS_LINUX
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/version.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+
 #if EMILUA_CONFIG_ENABLE_COLOR
 #include <cstdlib>
 #include <cstdio>
@@ -382,7 +386,13 @@ opt_long:
                 std::endl << LUAJIT_VERSION << std::endl <<
                 "Boost " << (BOOST_VERSION / 100000) << '.' <<
                 (BOOST_VERSION / 100 % 1000) << '.' << (BOOST_VERSION % 100) <<
-                std::endl;
+                std::endl <<
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+                "ASIO " << (ASIO_VERSION / 100000) << '.' <<
+                (ASIO_VERSION / 100 % 1000) << '.' << (ASIO_VERSION % 100) <<
+                std::endl <<
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+                std::flush;
         } catch (const std::ios_base::failure&) {}
         return 0;
     }
