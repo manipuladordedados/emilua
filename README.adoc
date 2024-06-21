@@ -101,6 +101,24 @@ enable_file_io=true`.
 
 It's encouraged that you build luajit with `-DLUAJIT_ENABLE_LUA52COMPAT`.
 
+=== Standalone ASIO
+
+There are two approaches to use standalone ASIO (after tuning the right variable
+in meson-configure). The first one is to use unmodified ASIO:
+
+[source]
+----
+$ meson wrap install asio
+----
+
+The second approach is to use a fork instead. The fork will need `meson.build`
+on the root directory:
+
+[source]
+----
+$ git clone https://gitlab.com/emilua/asio.git subprojects/asio
+----
+
 == Tests
 
 [source]

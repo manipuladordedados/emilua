@@ -44,7 +44,7 @@ libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
 
 if get_option('use_standalone_asio')
-    asio = dependency('asio')
+    asio = dependency('asio', fallback : ['asio', 'asio_dep'])
 else
     asio = dependency('', required : false)
 endif
