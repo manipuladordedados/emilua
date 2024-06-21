@@ -6,13 +6,18 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/async_base.hpp>
 
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/asio/windows/object_handle.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/windows/object_handle.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/windows/object_handle.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -88,7 +93,7 @@ static int subprocess_wait(lua_State* L)
     p->process.async_wait(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,p](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,p](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -98,7 +103,7 @@ static int subprocess_wait(lua_State* L)
                 GetExitCodeProcess(p->process.native_handle(), &status);
                 p->status = status;
 
-                boost::system::error_code ignored_ec;
+                asio_error_code ignored_ec;
                 p->process.close(ignored_ec);
 
                 auto opt_args = vm_context::options::arguments;
@@ -840,7 +845,7 @@ int system_spawn(lua_State* L)
         if (!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) {
             DWORD last_error = GetLastError();
             if (last_error != ERROR_INSUFFICIENT_BUFFER) {
-                boost::system::error_code ec(
+                asio_error_code ec(
                     last_error, asio::error::get_system_category());
                 push(L, static_cast<std::error_code>(ec));
                 return lua_error(L);
@@ -858,8 +863,7 @@ int system_spawn(lua_State* L)
             startup_info.lpAttributeList, 1, 0, &size
         )) {
             DWORD last_error = GetLastError();
-            boost::system::error_code ec(
-                last_error, asio::error::get_system_category());
+            asio_error_code ec(last_error, asio::error::get_system_category());
             push(L, static_cast<std::error_code>(ec));
             return lua_error(L);
         }
@@ -875,8 +879,7 @@ int system_spawn(lua_State* L)
         NULL, NULL
     )) {
         DWORD last_error = GetLastError();
-        boost::system::error_code ec(
-            last_error, asio::error::get_system_category());
+        asio_error_code ec(last_error, asio::error::get_system_category());
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
     }
@@ -899,8 +902,7 @@ int system_spawn(lua_State* L)
         &pi);
     if (!ok) {
         DWORD last_error = GetLastError();
-        boost::system::error_code ec(
-            last_error, asio::error::get_system_category());
+        asio_error_code ec(last_error, asio::error::get_system_category());
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
     }

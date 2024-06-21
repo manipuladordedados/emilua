@@ -3,11 +3,15 @@
 
 #pragma once
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/ssl/context.hpp>
+#include <asio/ssl/stream.hpp>
+#include <asio/ip/tcp.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/ip/tcp.hpp>
-
-#include <boost/beast/websocket/teardown.hpp>
-#include <boost/beast/ssl/ssl_stream.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #include <emilua/core.hpp>
 
@@ -19,13 +23,13 @@ extern char tls_socket_mt_key;
 
 class TlsSocket
     : private std::shared_ptr<asio::ssl::context>
-    , public boost::beast::ssl_stream<asio::ip::tcp::socket>
+    , public asio::ssl::stream<asio::ip::tcp::socket>
 {
 public:
     TlsSocket(asio::ip::tcp::socket& socket,
               std::shared_ptr<asio::ssl::context> tls_context)
         : std::shared_ptr<asio::ssl::context>{std::move(tls_context)}
-        , boost::beast::ssl_stream<asio::ip::tcp::socket>{
+        , asio::ssl::stream<asio::ip::tcp::socket>{
             std::move(socket),
             *static_cast<std::shared_ptr<asio::ssl::context>&>(*this)}
     {}
@@ -37,17 +41,6 @@ public:
         return *this;
     }
 };
-
-template<class TeardownHandler>
-inline void async_teardown(boost::beast::role_type role, TlsSocket& stream,
-                           TeardownHandler&& handler)
-{
-    using boost::beast::websocket::async_teardown;
-    async_teardown(
-        role,
-        static_cast<boost::beast::ssl_stream<asio::ip::tcp::socket>&>(stream),
-        std::forward<TeardownHandler>(handler));
-}
 
 void init_tls(lua_State* L);
 

@@ -3,13 +3,7 @@
 
 #pragma once
 
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/io_context_strand.hpp>
-#include <boost/asio/bind_executor.hpp>
 #include <boost/core/ignore_unused.hpp>
-#include <boost/asio/io_context.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/predef/os/windows.h>
 #include <boost/predef/os/linux.h>
@@ -62,6 +56,22 @@ extern "C" {
 #endif // BOOST_OS_UNIX
 
 #include <emilua/config.h>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/bind_cancellation_slot.hpp>
+#include <asio/cancellation_signal.hpp>
+#include <asio/executor_work_guard.hpp>
+#include <asio/io_context_strand.hpp>
+#include <asio/bind_executor.hpp>
+#include <asio/io_context.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/bind_cancellation_slot.hpp>
+#include <boost/asio/cancellation_signal.hpp>
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/io_context_strand.hpp>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/io_context.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
 #include <boost/shared_ptr.hpp>
@@ -122,9 +132,20 @@ auto make_optional(const T* p)
 
 using namespace std::literals::string_view_literals;
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
-namespace asio = boost::asio;
 namespace hana = boost::hana;
 namespace nowide = boost::nowide;
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = ::asio;
+
+using asio_error_code = std::error_code;
+using asio_system_error = std::system_error;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = boost::asio;
+
+using asio_error_code = boost::system::error_code;
+using asio_system_error = boost::system::system_error;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 extern bool stdout_has_color;
 extern char raw_unpack_key;
@@ -1007,7 +1028,7 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
         bool ok = true;
         hana::find_if(options, is_arguments) | [&](auto&& x) {
             auto push2 = hana::overload(
-                [&](const boost::system::error_code& ec) {
+                [&](const asio_error_code& ec) {
                     std::error_code std_ec = ec;
                     if (has_auto_detect_interrupt) {
                         // `auto_detect_interrupt` means the user has set an

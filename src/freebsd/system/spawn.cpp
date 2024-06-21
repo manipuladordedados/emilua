@@ -16,7 +16,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/posix/stream_descriptor.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/posix/stream_descriptor.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -100,7 +104,7 @@ struct procdesc_service : public pending_operation
 
     void on_wait(
         std::shared_ptr<vm_context>& vm_ctx,
-        const boost::system::error_code&
+        const asio_error_code&
     ) {
         if (!vm_ctx->valid())
             return;
@@ -131,7 +135,7 @@ struct procdesc_service : public pending_operation
                 asio::posix::descriptor_base::wait_read,
                 asio::bind_executor(
                     vm_ctx->strand_using_defer(),
-                    [vm_ctx,this](const boost::system::error_code& ec) mutable {
+                    [vm_ctx,this](const asio_error_code& ec) mutable {
                         on_wait(vm_ctx, ec);
                     }));
         } else {
@@ -186,7 +190,7 @@ static int subprocess_wait(lua_State* L)
         }
 
         service = new procdesc_service{vm_ctx->strand().context()};
-        boost::system::error_code ec;
+        asio_error_code ec;
         service->kq.assign(kq, ec);
         if (ec) {
             close(kq);
@@ -211,7 +215,7 @@ static int subprocess_wait(lua_State* L)
             asio::posix::descriptor_base::wait_read,
             asio::bind_executor(
                 vm_ctx->strand_using_defer(),
-                [vm_ctx,service](const boost::system::error_code& ec) mutable {
+                [vm_ctx,service](const asio_error_code& ec) mutable {
                     service->on_wait(vm_ctx, ec);
                 }));
     }

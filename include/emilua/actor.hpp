@@ -11,7 +11,11 @@
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
-#include <boost/asio/local/seq_packet_protocol.hpp>
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <asio/local/seq_packet_protocol.hpp>
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <boost/asio/local/seq_packet_protocol.hpp>
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_BSD_FREE
@@ -71,7 +75,7 @@ struct ipc_actor_inbox_op
     {}
 
     void do_wait();
-    void on_wait(const boost::system::error_code& ec);
+    void on_wait(const asio_error_code& ec);
 
 private:
     strand_type executor;
@@ -86,7 +90,7 @@ struct ipc_actor_inbox_service : public pending_operation
         , sock{ioctx}
     {
         asio::local::seq_packet_protocol protocol;
-        boost::system::error_code ignored_ec;
+        asio_error_code ignored_ec;
         sock.assign(protocol, inboxfd, ignored_ec);
         assert(!ignored_ec);
     }

@@ -3,9 +3,15 @@
 
 #pragma once
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/local/datagram_protocol.hpp>
+#include <asio/local/stream_protocol.hpp>
+#include <asio/local/seq_packet_protocol.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/local/datagram_protocol.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
 #include <boost/asio/local/seq_packet_protocol.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #include <emilua/socket_base.hpp>
 

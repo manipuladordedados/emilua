@@ -2,15 +2,22 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-#include <boost/asio/readable_pipe.hpp>
-#include <boost/asio/writable_pipe.hpp>
-#include <boost/asio/connect_pipe.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/byte_span.hpp>
 #include <emilua/pipe.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/readable_pipe.hpp>
+#include <asio/writable_pipe.hpp>
+#include <asio/connect_pipe.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/readable_pipe.hpp>
+#include <boost/asio/writable_pipe.hpp>
+#include <boost/asio/connect_pipe.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -40,7 +47,7 @@ static int readable_pipe_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -62,7 +69,7 @@ static int readable_pipe_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -103,7 +110,7 @@ static int readable_pipe_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -128,7 +135,7 @@ static int readable_pipe_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file_descriptor_handle rawfd = pipe->release(ec);
 #if BOOST_OS_WINDOWS
     SetHandleInformation(rawfd, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
@@ -197,7 +204,7 @@ static int readable_pipe_read_some(lua_State* L)
         [](lua_State* L) -> int {
             auto pipe = static_cast<asio::readable_pipe*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             pipe->cancel(ignored_ec);
             return 0;
         },
@@ -209,8 +216,7 @@ static int readable_pipe_read_some(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 auto opt_args = vm_context::options::arguments;
@@ -322,7 +328,7 @@ static int readable_pipe_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -344,7 +350,7 @@ static int writable_pipe_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -366,7 +372,7 @@ static int writable_pipe_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -407,7 +413,7 @@ static int writable_pipe_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -432,7 +438,7 @@ static int writable_pipe_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file_descriptor_handle rawfd = pipe->release(ec);
 #if BOOST_OS_WINDOWS
     SetHandleInformation(rawfd, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
@@ -501,7 +507,7 @@ static int writable_pipe_write_some(lua_State* L)
         [](lua_State* L) -> int {
             auto pipe = static_cast<asio::writable_pipe*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             pipe->cancel(ignored_ec);
             return 0;
         },
@@ -513,8 +519,7 @@ static int writable_pipe_write_some(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 auto opt_args = vm_context::options::arguments;
@@ -626,7 +631,7 @@ static int writable_pipe_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     pipe->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -651,7 +656,7 @@ static int pair(lua_State* L)
     setmetatable(L, -2);
     new (write_end) asio::writable_pipe{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     asio::connect_pipe(*read_end, *write_end, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));

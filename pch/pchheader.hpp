@@ -30,7 +30,6 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/config.hpp>
-#include <boost/asio.hpp>
 #include <boost/hana.hpp>
 
 #include <boost/beast/core/stream_traits.hpp>

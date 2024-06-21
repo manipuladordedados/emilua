@@ -43,13 +43,31 @@ cereal = dependency('cereal')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
 
+if get_option('use_standalone_asio')
+    asio = dependency('asio')
+else
+    asio = dependency('', required : false)
+endif
+
 add_project_arguments(
     '-DBOOST_DLL_USE_STD_FS',
-    '-DBOOST_ASIO_DISABLE_CO_AWAIT',
-    '-DBOOST_ASIO_DISABLE_STD_COROUTINE',
     '-DBOOST_BEAST_USE_STD_STRING_VIEW',
     language : 'cpp',
 )
+
+if get_option('use_standalone_asio')
+    add_project_arguments(
+        '-DASIO_DISABLE_CO_AWAIT',
+        '-DASIO_DISABLE_STD_COROUTINE',
+        language : 'cpp',
+    )
+else
+    add_project_arguments(
+        '-DBOOST_ASIO_DISABLE_CO_AWAIT',
+        '-DBOOST_ASIO_DISABLE_STD_COROUTINE',
+        language : 'cpp',
+    )
+endif
 
 if meson.get_compiler('cpp').get_id() == 'msvc'
     if host_machine.cpu_family() != 'x86_64'
@@ -65,14 +83,25 @@ if meson.get_compiler('cpp').get_id() == 'msvc'
 endif
 
 if get_option('thread_support_level') == 0
-    add_project_arguments('-DBOOST_ASIO_DISABLE_THREADS', language : 'cpp')
     add_project_arguments('-DBOOST_SYSTEM_DISABLE_THREADS', language : 'cpp')
+
+    if get_option('use_standalone_asio')
+        add_project_arguments('-DASIO_DISABLE_THREADS', language : 'cpp')
+    else
+        add_project_arguments('-DBOOST_ASIO_DISABLE_THREADS', language : 'cpp')
+    endif
 endif
 
 if get_option('enable_io_uring')
     liburing = dependency('liburing', version : '>=2.0')
-    add_project_arguments('-DBOOST_ASIO_HAS_IO_URING', language : 'cpp')
-    add_project_arguments('-DBOOST_ASIO_DISABLE_EPOLL', language : 'cpp')
+
+    if get_option('use_standalone_asio')
+        add_project_arguments('-DASIO_HAS_IO_URING', language : 'cpp')
+        add_project_arguments('-DASIO_DISABLE_EPOLL', language : 'cpp')
+    else
+        add_project_arguments('-DBOOST_ASIO_HAS_IO_URING', language : 'cpp')
+        add_project_arguments('-DBOOST_ASIO_DISABLE_EPOLL', language : 'cpp')
+    endif
 else
     liburing = dependency('', required : false)
 endif
@@ -89,7 +118,12 @@ endif
 
 if get_option('use_wolfssl')
     ssl = dependency('wolfssl')
-    add_project_arguments('-DBOOST_ASIO_USE_WOLFSSL', language : 'cpp')
+
+    if get_option('use_standalone_asio')
+        add_project_arguments('-DASIO_USE_WOLFSSL', language : 'cpp')
+    else
+        add_project_arguments('-DBOOST_ASIO_USE_WOLFSSL', language : 'cpp')
+    endif
 else
     ssl = dependency('openssl', version : '>=1.1.1')
 endif
@@ -316,6 +350,7 @@ libemilua = library(
     dependencies : [
         thread_dep,
         boost,
+        asio,
         luajit,
         fmt,
         serd,
@@ -338,6 +373,7 @@ libemilua_dep = declare_dependency(
     dependencies : [
         thread_dep,
         boost,
+        asio,
         luajit,
         fmt,
         ssl,
@@ -385,19 +421,35 @@ pc_base_variables = [
 pc_extra_cflags = []
 
 if get_option('thread_support_level') == 0
-    pc_extra_cflags += '-DBOOST_ASIO_DISABLE_THREADS'
     pc_extra_cflags += '-DBOOST_SYSTEM_DISABLE_THREADS'
+
+    if get_option('use_standalone_asio')
+        pc_extra_cflags += '-DASIO_DISABLE_THREADS'
+    else
+        pc_extra_cflags += '-DBOOST_ASIO_DISABLE_THREADS'
+    endif
 endif
 
 if get_option('enable_io_uring')
-    pc_extra_cflags += [
-        '-DBOOST_ASIO_HAS_IO_URING',
-        '-DBOOST_ASIO_DISABLE_EPOLL',
-    ]
+    if get_option('use_standalone_asio')
+        pc_extra_cflags += [
+            '-DASIO_HAS_IO_URING',
+            '-DASIO_DISABLE_EPOLL',
+        ]
+    else
+        pc_extra_cflags += [
+            '-DBOOST_ASIO_HAS_IO_URING',
+            '-DBOOST_ASIO_DISABLE_EPOLL',
+        ]
+    endif
 endif
 
 if get_option('use_wolfssl')
-    pc_extra_cflags += '-DBOOST_ASIO_USE_WOLFSSL'
+    if get_option('use_standalone_asio')
+        pc_extra_cflags += '-DASIO_USE_WOLFSSL'
+    else
+        pc_extra_cflags += '-DBOOST_ASIO_USE_WOLFSSL'
+    endif
 endif
 
 import('pkgconfig').generate(
@@ -433,6 +485,7 @@ if get_option('enable_tests')
         'tool/normalize_path.cpp',
         dependencies : [
             boost,
+            asio,
             luajit,
         ],
         implicit_include_directories : false,
@@ -814,6 +867,7 @@ if get_option('enable_tests')
             dependencies : [
                 thread_dep,
                 boost,
+                asio,
                 luajit,
                 fmt,
             ],

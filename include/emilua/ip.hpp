@@ -3,8 +3,13 @@
 
 #pragma once
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/ip/tcp.hpp>
+#include <asio/ip/udp.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #include <emilua/socket_base.hpp>
 

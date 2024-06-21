@@ -83,14 +83,14 @@ struct ipc_actor_send_op
             asio::socket_base::wait_write,
             asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
                 vm_ctx->strand_using_defer(),
-                [self=shared_from_this()](const boost::system::error_code& ec) {
+                [self=shared_from_this()](const asio_error_code& ec) {
                     self->on_wait(ec);
                 }
             ))
         );
     }
 
-    void on_wait(const boost::system::error_code& ec)
+    void on_wait(const asio_error_code& ec)
     {
         using descriptors_size_type = decltype(descriptors_size);
         if (!vm_ctx->valid()) {
@@ -276,7 +276,7 @@ static int deserializer_closure(lua_State* L)
         new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
         asio::local::seq_packet_protocol protocol;
-        boost::system::error_code ignored_ec;
+        asio_error_code ignored_ec;
         ch->dest.assign(protocol, a.inbox->value, ignored_ec);
         assert(!ignored_ec);
         a.inbox->value = -1;
@@ -1070,7 +1070,11 @@ static int spawn_vm(lua_State* L)
     bool inherit_ctx = true;
     bool new_master = false;
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
     int concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
     int concurrency_hint = 1;
 #endif
@@ -1698,7 +1702,7 @@ static int spawn_vm(lua_State* L)
         new (ch) ipc_actor_address{vm_ctx.strand().context()};
 
         asio::local::seq_packet_protocol protocol;
-        boost::system::error_code ignored_ec;
+        asio_error_code ignored_ec;
         ch->dest.assign(protocol, channel[1], ignored_ec);
         assert(!ignored_ec);
         channel[1] = -1;
@@ -2480,7 +2484,7 @@ static int ipc_actor_chan_close(lua_State* L)
 
     channel->reaper = nullptr;
 
-    boost::system::error_code ignored_ec;
+    asio_error_code ignored_ec;
     channel->dest.close(ignored_ec);
     assert(!ignored_ec);
 
@@ -2574,7 +2578,7 @@ static int ipc_actor_chan_kill(lua_State* L)
     delete channel->reaper;
     channel->reaper = nullptr;
 
-    boost::system::error_code ignored_ec;
+    asio_error_code ignored_ec;
     channel->dest.close(ignored_ec);
     assert(!ignored_ec);
 

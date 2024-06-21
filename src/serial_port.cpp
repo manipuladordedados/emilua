@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-#include <boost/asio/serial_port.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/serial_port.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/byte_span.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/serial_port.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/serial_port.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -47,12 +52,12 @@ static int serial_port_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->assign(fd, ec);
     assert(!ec); boost::ignore_unused(ec);
     return 0;
 #else
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->open(static_cast<std::string>(tostringview(L, 2)), ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -75,7 +80,7 @@ static int serial_port_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -97,7 +102,7 @@ static int serial_port_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -139,7 +144,7 @@ static int serial_port_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -177,7 +182,7 @@ static int serial_port_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ignored_ec;
+    asio_error_code ignored_ec;
     port->close(ignored_ec);
 
     auto fdhandle = static_cast<file_descriptor_handle*>(
@@ -281,7 +286,7 @@ static int serial_port_send_break(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->send_break(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -328,8 +333,7 @@ static int serial_port_read_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 auto opt_args = vm_context::options::arguments;
@@ -384,8 +388,7 @@ static int serial_port_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 auto opt_args = vm_context::options::arguments;
@@ -428,7 +431,7 @@ static int serial_port_mt_newindex(lua_State* L)
             [](lua_State* L, asio::serial_port* port) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::serial_port_base::baud_rate o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -443,7 +446,7 @@ static int serial_port_mt_newindex(lua_State* L)
                 case LUA_TNIL: {
                     asio::serial_port_base::flow_control o{
                         asio::serial_port_base::flow_control::none};
-                    boost::system::error_code ec;
+                    asio_error_code ec;
                     port->set_option(o, ec);
                     if (ec) {
                         push(L, static_cast<std::error_code>(ec));
@@ -474,7 +477,7 @@ static int serial_port_mt_newindex(lua_State* L)
                     return lua_error(L);
                 }
 
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->set_option(asio::serial_port_base::flow_control{*o}, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -489,7 +492,7 @@ static int serial_port_mt_newindex(lua_State* L)
                 case LUA_TNIL: {
                     asio::serial_port_base::parity o{
                         asio::serial_port_base::parity::none};
-                    boost::system::error_code ec;
+                    asio_error_code ec;
                     port->set_option(o, ec);
                     if (ec) {
                         push(L, static_cast<std::error_code>(ec));
@@ -518,7 +521,7 @@ static int serial_port_mt_newindex(lua_State* L)
                     return lua_error(L);
                 }
 
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->set_option(asio::serial_port_base::parity{*o}, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -548,7 +551,7 @@ static int serial_port_mt_newindex(lua_State* L)
                     return lua_error(L);
                 }
 
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->set_option(asio::serial_port_base::stop_bits{*o}, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -561,7 +564,7 @@ static int serial_port_mt_newindex(lua_State* L)
             [](lua_State* L, asio::serial_port* port) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::serial_port_base::character_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -674,7 +677,7 @@ static int serial_port_mt_index(lua_State* L)
                 auto port = static_cast<asio::serial_port*>(
                     lua_touserdata(L, 1));
                 asio::serial_port_base::baud_rate o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -689,7 +692,7 @@ static int serial_port_mt_index(lua_State* L)
                 auto port = static_cast<asio::serial_port*>(
                     lua_touserdata(L, 1));
                 asio::serial_port_base::flow_control o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -713,7 +716,7 @@ static int serial_port_mt_index(lua_State* L)
                 auto port = static_cast<asio::serial_port*>(
                     lua_touserdata(L, 1));
                 asio::serial_port_base::parity o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -737,7 +740,7 @@ static int serial_port_mt_index(lua_State* L)
                 auto port = static_cast<asio::serial_port*>(
                     lua_touserdata(L, 1));
                 asio::serial_port_base::stop_bits o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -761,7 +764,7 @@ static int serial_port_mt_index(lua_State* L)
                 auto port = static_cast<asio::serial_port*>(
                     lua_touserdata(L, 1));
                 asio::serial_port_base::character_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 port->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -815,7 +818,7 @@ static int serial_port_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     port->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -868,7 +871,7 @@ static int serial_ptypair(lua_State* L)
     setmetatable(L, -2);
     new (master) asio::serial_port{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     master->assign(masterfd, ec);
     assert(!ec); boost::ignore_unused(ec);
     masterfd = -1;

@@ -10,7 +10,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <cstdlib>
 
 #include <boost/preprocessor/control/iif.hpp>
-#include <boost/asio/signal_set.hpp>
 #include <boost/vmd/is_number.hpp>
 #include <boost/predef/os/macos.h>
 #include <boost/scope_exit.hpp>
@@ -18,6 +17,12 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <emilua/file_descriptor.hpp>
 #include <emilua/actor.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/signal_set.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/signal_set.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if BOOST_OS_WINDOWS
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
@@ -28,7 +33,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #  include <deque>
 # endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
 #else // BOOST_OS_WINDOWS
-# include <boost/asio/posix/stream_descriptor.hpp>
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <asio/posix/stream_descriptor.hpp>
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <boost/asio/posix/stream_descriptor.hpp>
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_UNIX
@@ -162,10 +171,10 @@ inline stdin_service::stdin_service(vm_context& vm_ctx)
             DWORD numberOfBytesRead;
             BOOL ok = ReadFile(hStdin, fiber.buffer.get(), fiber.buffer_size,
                                &numberOfBytesRead, /*lpOverlapped=*/NULL);
-            boost::system::error_code ec;
+            asio_error_code ec;
             if (!ok) {
                 DWORD last_error = GetLastError();
-                ec = boost::system::error_code(
+                ec = asio_error_code(
                     last_error, asio::error::get_system_category());
             }
 
@@ -214,7 +223,7 @@ static int system_out_write_some(lua_State* L)
     BOOL ok = WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), bs->data.get(),
                         bs->size, &numberOfBytesWritten, /*lpOverlapped=*/NULL);
     if (!ok) {
-        boost::system::error_code ec(
+        asio_error_code ec(
             GetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
@@ -248,7 +257,7 @@ static int system_err_write_some(lua_State* L)
     BOOL ok = WriteFile(GetStdHandle(STD_ERROR_HANDLE), bs->data.get(),
                         bs->size, &numberOfBytesWritten, /*lpOverlapped=*/NULL);
     if (!ok) {
-        boost::system::error_code ec(
+        asio_error_code ec(
             GetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
@@ -323,7 +332,7 @@ static int system_signal_set_new(lua_State* L)
         asio::signal_set_base::flags_t flags =
             asio::signal_set_base::flags::restart;
 #endif // BOOST_OS_WINDOWS
-        boost::system::error_code ec;
+        asio_error_code ec;
         set->add(signo, flags, ec);
         if (ec) {
             push(L, ec, "arg", i);
@@ -356,7 +365,7 @@ static int system_signal_set_wait(lua_State* L)
     set->async_wait(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec,
+            [vm_ctx,current_fiber](const asio_error_code& ec,
                                    int signal_number) {
                 auto opt_args = vm_context::options::arguments;
                 vm_ctx->fiber_resume(
@@ -415,7 +424,7 @@ static int system_signal_set_add(lua_State* L)
     asio::signal_set_base::flags_t flags =
         asio::signal_set_base::flags::restart;
 #endif // BOOST_OS_WINDOWS
-    boost::system::error_code ec;
+    asio_error_code ec;
     set->add(signo, flags, ec);
     if (ec) {
         push(L, ec);
@@ -443,7 +452,7 @@ static int system_signal_set_remove(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     set->remove(lua_tointeger(L, 2), ec);
     if (ec) {
         push(L, ec);
@@ -465,7 +474,7 @@ static int system_signal_set_clear(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     set->clear(ec);
     if (ec) {
         push(L, ec);
@@ -487,7 +496,7 @@ static int system_signal_set_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     set->cancel(ec);
     if (ec) {
         push(L, ec);
@@ -824,7 +833,7 @@ static int system_in_read_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 std::error_code ec2 = ec;
@@ -883,7 +892,7 @@ static int system_out_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 std::error_code ec2 = ec;
@@ -942,7 +951,7 @@ static int system_err_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 std::error_code ec2 = ec;

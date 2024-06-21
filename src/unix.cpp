@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-#include <boost/asio/local/connect_pair.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/scope_exit.hpp>
 
@@ -11,6 +10,12 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
 #include <emilua/unix.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/local/connect_pair.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/local/connect_pair.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if BOOST_OS_BSD_FREE
 #include <sys/ucred.h>
@@ -173,16 +178,14 @@ struct receive_with_fds_op
             asio::socket_base::wait_read,
             asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
                 vm_ctx->strand_using_defer(),
-                [self=this->shared_from_this()](
-                    const boost::system::error_code& ec
-                ) {
+                [self=this->shared_from_this()](const asio_error_code& ec) {
                     self->on_wait(ec);
                 }
             ))
         );
     }
 
-    void on_wait(const boost::system::error_code& ec)
+    void on_wait(const asio_error_code& ec)
     {
         if (!vm_ctx->valid())
             return;
@@ -401,16 +404,14 @@ struct send_with_fds_op
             asio::socket_base::wait_write,
             asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
                 vm_ctx->strand_using_defer(),
-                [self=this->shared_from_this()](
-                    const boost::system::error_code& ec
-                ) {
+                [self=this->shared_from_this()](const asio_error_code& ec) {
                     self->on_wait(ec);
                 }
             ))
         );
     }
 
-    void on_wait(const boost::system::error_code& ec)
+    void on_wait(const asio_error_code& ec)
     {
         if (!vm_ctx->valid()) {
             for (auto& fdlock: fds) {
@@ -557,7 +558,7 @@ static int unix_datagram_socket_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.open(asio::local::datagram_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -603,7 +604,7 @@ static int unix_datagram_socket_bind(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.bind(path, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -660,7 +661,7 @@ static int unix_datagram_socket_connect(lua_State* L)
     s->socket.async_connect(path, asio::bind_cancellation_slot(cancel_slot,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -694,7 +695,7 @@ static int unix_datagram_socket_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -731,7 +732,7 @@ static int unix_datagram_socket_shutdown(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.shutdown(*what, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -780,7 +781,7 @@ static int unix_datagram_socket_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -821,7 +822,7 @@ static int unix_datagram_socket_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::datagram_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -846,7 +847,7 @@ static int unix_datagram_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -900,7 +901,7 @@ static int unix_datagram_socket_set_option(lua_State* L)
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -913,7 +914,7 @@ static int unix_datagram_socket_set_option(lua_State* L)
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -926,7 +927,7 @@ static int unix_datagram_socket_set_option(lua_State* L)
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -964,7 +965,7 @@ static int unix_datagram_socket_get_option(lua_State* L)
             "debug",
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -977,7 +978,7 @@ static int unix_datagram_socket_get_option(lua_State* L)
             "send_buffer_size",
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 asio::socket_base::send_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -990,7 +991,7 @@ static int unix_datagram_socket_get_option(lua_State* L)
             "receive_buffer_size",
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 asio::socket_base::receive_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1079,7 +1080,7 @@ static int unix_datagram_socket_receive(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
@@ -1183,7 +1184,7 @@ static int unix_datagram_socket_receive_from(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,remote_sender,buf=bs->data,sock](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
@@ -1296,7 +1297,7 @@ static int unix_datagram_socket_send(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
@@ -1418,7 +1419,7 @@ static int unix_datagram_socket_send_to(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
@@ -1773,7 +1774,7 @@ static int unix_datagram_socket_io_control(lua_State* L)
             "bytes_readable",
             [](lua_State* L, unix_datagram_socket* socket) -> int {
                 asio::socket_base::bytes_readable command;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.io_control(command, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1795,7 +1796,7 @@ inline int unix_datagram_socket_is_open(lua_State* L)
 inline int unix_datagram_socket_local_path(lua_State* L)
 {
     auto sock = static_cast<unix_datagram_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1825,7 +1826,7 @@ inline int unix_datagram_socket_local_path(lua_State* L)
 inline int unix_datagram_socket_remote_path(lua_State* L)
 {
     auto sock = static_cast<unix_datagram_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2037,7 +2038,7 @@ static int unix_datagram_socket_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::datagram_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -2062,7 +2063,7 @@ static int unix_datagram_socket_pair(lua_State* L)
     setmetatable(L, -2);
     new (sock2) unix_datagram_socket{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     asio::local::connect_pair(sock1->socket, sock2->socket, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2086,7 +2087,7 @@ static int unix_stream_socket_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.open(asio::local::stream_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2132,7 +2133,7 @@ static int unix_stream_socket_bind(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.bind(path, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2154,7 +2155,7 @@ static int unix_stream_socket_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2176,7 +2177,7 @@ static int unix_stream_socket_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2217,7 +2218,7 @@ static int unix_stream_socket_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::stream_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -2242,7 +2243,7 @@ static int unix_stream_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -2294,7 +2295,7 @@ static int unix_stream_socket_io_control(lua_State* L)
             "bytes_readable",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::bytes_readable command;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.io_control(command, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2336,7 +2337,7 @@ static int unix_stream_socket_shutdown(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
-    boost::system::error_code ec;
+    asio_error_code ec;
     socket->socket.shutdown(*what, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2421,7 +2422,7 @@ static int unix_stream_socket_connect(lua_State* L)
         path,
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -2478,8 +2479,7 @@ static int unix_stream_socket_read_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -2540,8 +2540,7 @@ static int unix_stream_socket_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -2735,7 +2734,7 @@ static int unix_stream_socket_set_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_low_watermark o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2748,7 +2747,7 @@ static int unix_stream_socket_set_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2761,7 +2760,7 @@ static int unix_stream_socket_set_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_low_watermark o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2774,7 +2773,7 @@ static int unix_stream_socket_set_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2787,7 +2786,7 @@ static int unix_stream_socket_set_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2826,7 +2825,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             "send_low_watermark",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::send_low_watermark o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2839,7 +2838,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             "send_buffer_size",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::send_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2852,7 +2851,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             "receive_low_watermark",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::receive_low_watermark o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2865,7 +2864,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             "receive_buffer_size",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::receive_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2878,7 +2877,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             "debug",
             [](lua_State* L, unix_stream_socket* socket) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2892,7 +2891,7 @@ static int unix_stream_socket_get_option(lua_State* L)
             [](lua_State* L, unix_stream_socket* socket) -> int {
 #if BOOST_OS_BSD_FREE
                 freebsd_remote_credentials o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2925,7 +2924,7 @@ static int unix_stream_socket_get_option(lua_State* L)
                 return 1;
 #elif BOOST_OS_LINUX
                 linux_remote_credentials o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -3128,7 +3127,7 @@ inline int unix_stream_socket_is_open(lua_State* L)
 inline int unix_stream_socket_local_path(lua_State* L)
 {
     auto sock = static_cast<unix_stream_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3158,7 +3157,7 @@ inline int unix_stream_socket_local_path(lua_State* L)
 inline int unix_stream_socket_remote_path(lua_State* L)
 {
     auto sock = static_cast<unix_stream_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3342,7 +3341,7 @@ static int unix_stream_socket_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::stream_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -3367,7 +3366,7 @@ static int unix_stream_socket_pair(lua_State* L)
     setmetatable(L, -2);
     new (sock2) unix_stream_socket{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     asio::local::connect_pair(sock1->socket, sock2->socket, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3392,7 +3391,7 @@ static int unix_stream_acceptor_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->open(asio::local::stream_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3439,7 +3438,7 @@ static int unix_stream_acceptor_bind(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->bind(path, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3468,7 +3467,7 @@ static int unix_stream_acceptor_listen(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     case LUA_TNIL: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(asio::socket_base::max_listen_connections, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -3477,7 +3476,7 @@ static int unix_stream_acceptor_listen(lua_State* L)
         return 0;
     }
     case LUA_TNUMBER: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(lua_tointeger(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -3512,7 +3511,7 @@ static int unix_stream_acceptor_accept(lua_State* L)
     acceptor->async_accept(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec,
+            [vm_ctx,current_fiber](const asio_error_code& ec,
                                    asio::local::stream_protocol::socket peer) {
                 auto peer_pusher = [&ec,&peer](lua_State* fiber) {
                     if (ec) {
@@ -3557,7 +3556,7 @@ static int unix_stream_acceptor_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3580,7 +3579,7 @@ static int unix_stream_acceptor_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3622,7 +3621,7 @@ static int unix_stream_acceptor_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->assign(asio::local::stream_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -3648,7 +3647,7 @@ static int unix_stream_acceptor_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = acceptor->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -3703,7 +3702,7 @@ static int unix_stream_acceptor_set_option(lua_State* L)
             ) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -3719,7 +3718,7 @@ static int unix_stream_acceptor_set_option(lua_State* L)
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::enable_connection_aborted o(
                     lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -3759,7 +3758,7 @@ static int unix_stream_acceptor_get_option(lua_State* L)
                 lua_State* L, asio::local::stream_protocol::acceptor* acceptor
             ) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -3774,7 +3773,7 @@ static int unix_stream_acceptor_get_option(lua_State* L)
                 lua_State* L, asio::local::stream_protocol::acceptor* acceptor
             ) -> int {
                 asio::socket_base::enable_connection_aborted o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -3798,7 +3797,7 @@ inline int unix_stream_acceptor_local_path(lua_State* L)
 {
     auto acceptor = static_cast<asio::local::stream_protocol::acceptor*>(
         lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = acceptor->local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3942,7 +3941,7 @@ static int unix_stream_acceptor_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     a->assign(asio::local::stream_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -3984,7 +3983,7 @@ static int unix_stream_listen(lua_State* L)
     setmetatable(L, -2);
     new (a) asio::local::stream_protocol::acceptor{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     a->open(asio::local::stream_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4036,7 +4035,7 @@ static int unix_seqpacket_socket_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.open(asio::local::seq_packet_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4082,7 +4081,7 @@ static int unix_seqpacket_socket_bind(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.bind(path, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4104,7 +4103,7 @@ static int unix_seqpacket_socket_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4126,7 +4125,7 @@ static int unix_seqpacket_socket_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4167,7 +4166,7 @@ static int unix_seqpacket_socket_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -4192,7 +4191,7 @@ static int unix_seqpacket_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -4248,7 +4247,7 @@ static int unix_seqpacket_socket_shutdown(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
-    boost::system::error_code ec;
+    asio_error_code ec;
     socket->socket.shutdown(*what, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4333,7 +4332,7 @@ static int unix_seqpacket_socket_connect(lua_State* L)
         path,
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -4428,8 +4427,7 @@ static int unix_seqpacket_socket_receive(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                boost::system::error_code ec,
-                std::size_t bytes_transferred
+                asio_error_code ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -4531,8 +4529,7 @@ static int unix_seqpacket_socket_send(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -4725,7 +4722,7 @@ static int unix_seqpacket_socket_set_option(lua_State* L)
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4738,7 +4735,7 @@ static int unix_seqpacket_socket_set_option(lua_State* L)
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4751,7 +4748,7 @@ static int unix_seqpacket_socket_set_option(lua_State* L)
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4790,7 +4787,7 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
             "send_buffer_size",
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 asio::socket_base::send_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4803,7 +4800,7 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
             "receive_buffer_size",
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 asio::socket_base::receive_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4816,7 +4813,7 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
             "debug",
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4830,7 +4827,7 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
 #if BOOST_OS_BSD_FREE
                 freebsd_remote_credentials o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4863,7 +4860,7 @@ static int unix_seqpacket_socket_get_option(lua_State* L)
                 return 1;
 #elif BOOST_OS_LINUX
                 linux_remote_credentials o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5083,7 +5080,7 @@ static int unix_seqpacket_socket_io_control(lua_State* L)
             "bytes_readable",
             [](lua_State* L, unix_seqpacket_socket* socket) -> int {
                 asio::socket_base::bytes_readable command;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.io_control(command, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5105,7 +5102,7 @@ inline int unix_seqpacket_socket_is_open(lua_State* L)
 inline int unix_seqpacket_socket_local_path(lua_State* L)
 {
     auto sock = static_cast<unix_seqpacket_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5135,7 +5132,7 @@ inline int unix_seqpacket_socket_local_path(lua_State* L)
 inline int unix_seqpacket_socket_remote_path(lua_State* L)
 {
     auto sock = static_cast<unix_seqpacket_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5319,7 +5316,7 @@ static int unix_seqpacket_socket_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -5344,7 +5341,7 @@ static int unix_seqpacket_socket_pair(lua_State* L)
     setmetatable(L, -2);
     new (sock2) unix_seqpacket_socket{vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     asio::local::connect_pair(sock1->socket, sock2->socket, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5369,7 +5366,7 @@ static int unix_seqpacket_acceptor_open(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->open(asio::local::seq_packet_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5416,7 +5413,7 @@ static int unix_seqpacket_acceptor_bind(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->bind(path, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5445,7 +5442,7 @@ static int unix_seqpacket_acceptor_listen(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     case LUA_TNIL: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(asio::socket_base::max_listen_connections, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -5454,7 +5451,7 @@ static int unix_seqpacket_acceptor_listen(lua_State* L)
         return 0;
     }
     case LUA_TNUMBER: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(lua_tointeger(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -5490,7 +5487,7 @@ static int unix_seqpacket_acceptor_accept(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::local::seq_packet_protocol::socket peer
             ) {
                 auto peer_pusher = [&ec,&peer](lua_State* fiber) {
@@ -5537,7 +5534,7 @@ static int unix_seqpacket_acceptor_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5560,7 +5557,7 @@ static int unix_seqpacket_acceptor_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5602,7 +5599,7 @@ static int unix_seqpacket_acceptor_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -5628,7 +5625,7 @@ static int unix_seqpacket_acceptor_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = acceptor->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -5688,7 +5685,7 @@ static int unix_seqpacket_acceptor_set_option(lua_State* L)
             ) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5705,7 +5702,7 @@ static int unix_seqpacket_acceptor_set_option(lua_State* L)
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::enable_connection_aborted o(
                     lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5749,7 +5746,7 @@ static int unix_seqpacket_acceptor_get_option(lua_State* L)
                 asio::local::seq_packet_protocol::acceptor* acceptor
             ) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5765,7 +5762,7 @@ static int unix_seqpacket_acceptor_get_option(lua_State* L)
                 asio::local::seq_packet_protocol::acceptor* acceptor
             ) -> int {
                 asio::socket_base::enable_connection_aborted o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5789,7 +5786,7 @@ inline int unix_seqpacket_acceptor_local_path(lua_State* L)
 {
     auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
         lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = acceptor->local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5936,7 +5933,7 @@ static int unix_seqpacket_acceptor_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     a->assign(asio::local::seq_packet_protocol{}, *handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -5979,7 +5976,7 @@ static int unix_seqpacket_listen(lua_State* L)
     new (a) asio::local::seq_packet_protocol::acceptor{
         vm_ctx.strand().context()};
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     a->open(asio::local::seq_packet_protocol{}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));

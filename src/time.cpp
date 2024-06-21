@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-// workaround for Boost.Asio bug
-#if defined(BOOST_ASIO_HAS_IO_URING) && defined(BOOST_ASIO_DISABLE_EPOLL)
-#include <boost/asio/detail/scheduler.hpp>
-#endif // defined(BOOST_ASIO_HAS_IO_URING) && defined(BOOST_ASIO_DISABLE_EPOLL)
-
-#include <boost/asio/steady_timer.hpp>
-
 #include <emilua/async_base.hpp>
 #include <emilua/time.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/steady_timer.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/steady_timer.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -41,7 +40,7 @@ struct sleep_for_operation: public pending_operation
     {
         try {
             timer.cancel();
-        } catch (const boost::system::system_error&) {}
+        } catch (const asio_system_error&) {}
     }
 
     asio::steady_timer timer;
@@ -92,7 +91,7 @@ static int sleep_for(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 handle->timer.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -102,7 +101,7 @@ static int sleep_for(lua_State* L)
 
     handle->timer.async_wait(asio::bind_executor(
         vm_ctx->strand_using_defer(),
-        [vm_ctx,current_fiber,handle](const boost::system::error_code &ec) {
+        [vm_ctx,current_fiber,handle](const asio_error_code &ec) {
             if (vm_ctx->valid()) {
                 vm_ctx->pending_operations.erase(
                     vm_ctx->pending_operations.iterator_to(*handle));
@@ -648,7 +647,7 @@ static int steady_timer_wait(lua_State* L)
     handle->timer.async_wait(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
                 auto opt_args = vm_context::options::arguments;
                 vm_ctx->fiber_resume(
                     current_fiber,
@@ -694,7 +693,7 @@ static int steady_timer_expires_at(lua_State* L)
         auto n = handle->timer.expires_at(*tp);
         lua_pushinteger(L, n);
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }
@@ -732,7 +731,7 @@ static int steady_timer_expires_after(lua_State* L)
         auto n = handle->timer.expires_after(dur2);
         lua_pushinteger(L, n);
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }
@@ -756,7 +755,7 @@ static int steady_timer_cancel(lua_State* L)
         auto n = handle->timer.cancel();
         lua_pushinteger(L, n);
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }
@@ -1195,7 +1194,7 @@ static int system_timer_wait(lua_State* L)
     handle->timer.async_wait(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
                 auto opt_args = vm_context::options::arguments;
                 vm_ctx->fiber_resume(
                     current_fiber,
@@ -1241,7 +1240,7 @@ static int system_timer_expires_at(lua_State* L)
         auto n = handle->timer.expires_at(*tp);
         lua_pushinteger(L, n);
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }
@@ -1265,7 +1264,7 @@ static int system_timer_cancel(lua_State* L)
         auto n = handle->timer.cancel();
         lua_pushinteger(L, n);
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }

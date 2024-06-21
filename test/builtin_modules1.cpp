@@ -18,9 +18,14 @@
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
-namespace asio = boost::asio;
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = ::asio;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = boost::asio;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 extern char** environ;
 

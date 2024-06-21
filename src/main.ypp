@@ -9,13 +9,18 @@
 #include <fmt/format.h>
 
 #include <boost/preprocessor/stringize.hpp>
-#include <boost/asio/io_context.hpp>
 #include <boost/nowide/iostream.hpp>
 #include <boost/nowide/args.hpp>
 #include <boost/version.hpp>
 
 #include <emilua/windows.hpp>
 #include <emilua/state.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/io_context.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/io_context.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if BOOST_OS_LINUX
 #include <boost/context/fixedsize_stack.hpp>
@@ -36,9 +41,14 @@ extern "C" {
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
-namespace asio = boost::asio;
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = ::asio;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = boost::asio;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 extern char** environ;
 
@@ -244,7 +254,11 @@ int main(int argc, char *argv[], char *envp[])
     }
 
     std::string_view filename;
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int main_ctx_concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
     int main_ctx_concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
     emilua::ContextType main_context_type = emilua::ContextType::main;
     emilua::app_context appctx;
     appctx.app_env = std::move(tmp_env);
@@ -394,7 +408,11 @@ opt_main_context_concurrency_hint:
         goto opt;
     }
     "safe" {end} {
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+        main_ctx_concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
         main_ctx_concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
         goto opt;
     }
     %}
@@ -460,7 +478,11 @@ end:
         asio::io_context ioctx{1};
         asio::make_service<emilua::properties_service>(ioctx, 1);
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+        asio::io_context ioctx{ASIO_CONCURRENCY_HINT_UNSAFE};
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
         asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
         asio::make_service<emilua::properties_service>(ioctx, 1);
 #else
 # error Invalid thread support level

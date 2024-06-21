@@ -21,7 +21,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/posix/stream_descriptor.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/posix/stream_descriptor.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -109,7 +113,7 @@ struct subprocess
         }
         reaper->waiter->async_wait(
             asio::posix::descriptor_base::wait_read,
-            [waiter=reaper->waiter](const boost::system::error_code& /*ec*/) {
+            [waiter=reaper->waiter](const asio_error_code& /*ec*/) {
                 siginfo_t i;
                 int res = waitid(P_PIDFD, waiter->native_handle(), &i, WEXITED);
                 boost::ignore_unused(res);
@@ -157,7 +161,7 @@ static int subprocess_wait(lua_State* L)
         [](lua_State* L) -> int {
             auto p = static_cast<subprocess*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             p->reaper->waiter->cancel(ignored_ec);
             return 0;
         },
@@ -169,7 +173,7 @@ static int subprocess_wait(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [waiter=p->reaper->waiter,vm_ctx,current_fiber,p](
-                const boost::system::error_code& ec
+                const asio_error_code& ec
             ) {
                 if (vm_ctx->valid())
                     p->wait_in_progress = false;

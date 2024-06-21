@@ -297,14 +297,14 @@ void ipc_actor_inbox_op::do_wait()
         asio::socket_base::wait_read,
         asio::bind_executor(
             remap_post_to_defer<strand_type>{executor},
-            [self=shared_from_this()](const boost::system::error_code& ec) {
+            [self=shared_from_this()](const asio_error_code& ec) {
                 self->on_wait(ec);
             }
         )
     );
 }
 
-void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
+void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
 {
     auto vm_ctx = this->vm_ctx.lock();
     if (!vm_ctx || !vm_ctx->valid())
@@ -667,7 +667,7 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
                 new (ch) ipc_actor_address{executor.context()};
                 {
                     asio::local::seq_packet_protocol protocol;
-                    boost::system::error_code ignored_ec;
+                    asio_error_code ignored_ec;
                     ch->dest.assign(protocol, fds[0], ignored_ec);
                     assert(!ignored_ec);
                     fds[0] = -1;
@@ -752,7 +752,7 @@ void ipc_actor_inbox_op::on_wait(const boost::system::error_code& ec)
                 new (ch) ipc_actor_address{executor.context()};
                 {
                     asio::local::seq_packet_protocol protocol;
-                    boost::system::error_code ignored_ec;
+                    asio_error_code ignored_ec;
                     ch->dest.assign(protocol, fds[fdsidx], ignored_ec);
                     assert(!ignored_ec);
                     fds[fdsidx++] = -1;

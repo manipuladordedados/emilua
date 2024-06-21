@@ -42,6 +42,10 @@ option(
     'use_wolfssl', type : 'boolean', value : false,
     description : 'Use wolfSSL as the openssl provider'
 )
+option(
+    'use_standalone_asio', type : 'boolean', value : false,
+    description : 'Use standalone ASIO rather than Boost.Asio'
+)
 
 # Do mind that smaller limits may apply. For instance SCM_MAX_FD (usually 253)
 # will limit you from sending more than SCM_MAX_FD file descriptors per message.

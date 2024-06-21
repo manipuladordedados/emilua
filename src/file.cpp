@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-#include <boost/asio/random_access_file.hpp>
-#include <boost/asio/stream_file.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <emilua/file_descriptor.hpp>
@@ -11,6 +9,14 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
 #include <emilua/unix.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/random_access_file.hpp>
+#include <asio/stream_file.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/random_access_file.hpp>
+#include <boost/asio/stream_file.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if BOOST_OS_UNIX
 #include <sys/file.h>
@@ -190,7 +196,7 @@ static int stream_open(lua_State* L)
     }
  end_for:
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->open(path, flags, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -212,7 +218,7 @@ static int stream_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -234,7 +240,7 @@ static int stream_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -275,7 +281,7 @@ static int stream_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -300,7 +306,7 @@ static int stream_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file_descriptor_handle rawfd = file->release(ec);
 #if BOOST_OS_WINDOWS
     SetHandleInformation(rawfd, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
@@ -347,7 +353,7 @@ static int stream_resize(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->resize(lua_tointeger(L, 2), ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -385,7 +391,7 @@ static int stream_seek(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ret = file->seek(lua_tointeger(L, 2), whence, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -528,7 +534,7 @@ static int stream_basic_lock(lua_State* L, int operation)
         1);
     set_interrupter(L, *vm_ctx);
 
-    boost::system::error_code ignored_ec;
+    asio_error_code ignored_ec;
     auto fdbox = std::make_shared<file_descriptor_box>(
         file->release(ignored_ec));
     assert(!ignored_ec);
@@ -628,7 +634,7 @@ static int stream_basic_lock(lua_State* L, int operation)
                     if (file->native_handle() != INVALID_FILE_DESCRIPTOR) {
                         ec = make_error_code(std::errc::bad_file_descriptor);
                     } else {
-                        boost::system::error_code ignored_ec;
+                        asio_error_code ignored_ec;
                         file->assign(fdbox->value, ignored_ec);
                         assert(!ignored_ec);
                         fdbox->value = -1;
@@ -702,8 +708,7 @@ static int stream_read_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -756,8 +761,7 @@ static int stream_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -787,7 +791,7 @@ inline int stream_is_open(lua_State* L)
 inline int stream_size(lua_State* L)
 {
     auto file = static_cast<asio::stream_file*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ret = file->size(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -957,7 +961,7 @@ static int stream_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -1039,7 +1043,7 @@ static int random_access_open(lua_State* L)
     }
  end_for:
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->open(path, flags, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1061,7 +1065,7 @@ static int random_access_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1083,7 +1087,7 @@ static int random_access_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1125,7 +1129,7 @@ static int random_access_assign(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 
@@ -1150,7 +1154,7 @@ static int random_access_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = file->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -1191,7 +1195,7 @@ static int random_access_resize(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->resize(lua_tointeger(L, 2), ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1333,7 +1337,7 @@ static int random_access_basic_lock(lua_State* L, int operation)
         1);
     set_interrupter(L, *vm_ctx);
 
-    boost::system::error_code ignored_ec;
+    asio_error_code ignored_ec;
     auto fdbox = std::make_shared<file_descriptor_box>(
         file->release(ignored_ec));
     assert(!ignored_ec);
@@ -1433,7 +1437,7 @@ static int random_access_basic_lock(lua_State* L, int operation)
                     if (file->native_handle() != INVALID_FILE_DESCRIPTOR) {
                         ec = make_error_code(std::errc::bad_file_descriptor);
                     } else {
-                        boost::system::error_code ignored_ec;
+                        asio_error_code ignored_ec;
                         file->assign(fdbox->value, ignored_ec);
                         assert(!ignored_ec);
                         fdbox->value = -1;
@@ -1510,8 +1514,7 @@ static int random_access_read_some_at(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -1567,8 +1570,7 @@ static int random_access_write_some_at(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -1598,7 +1600,7 @@ inline int random_access_is_open(lua_State* L)
 inline int random_access_size(lua_State* L)
 {
     auto file = static_cast<asio::random_access_file*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ret = file->size(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1771,7 +1773,7 @@ static int random_access_new(lua_State* L)
     lua_pushnil(L);
     setmetatable(L, 1);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     file->assign(*handle, ec);
     assert(!ec); boost::ignore_unused(ec);
 

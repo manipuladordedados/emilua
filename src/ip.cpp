@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
-#include <boost/asio/ip/host_name.hpp>
-#include <boost/asio/ip/multicast.hpp>
-#include <boost/asio/ip/address.hpp>
-#include <boost/asio/ip/unicast.hpp>
-#include <boost/asio/ip/v6_only.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/scope_exit.hpp>
 
 #include <charconv>
@@ -17,16 +11,43 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/byte_span.hpp>
 #include <emilua/ip.hpp>
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/ip/host_name.hpp>
+#include <asio/ip/multicast.hpp>
+#include <asio/ip/address.hpp>
+#include <asio/ip/unicast.hpp>
+#include <asio/ip/v6_only.hpp>
+#include <asio/ip/tcp.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/ip/host_name.hpp>
+#include <boost/asio/ip/multicast.hpp>
+#include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/unicast.hpp>
+#include <boost/asio/ip/v6_only.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
-#include <boost/asio/windows/object_handle.hpp>
-#include <boost/nowide/convert.hpp>
-#include <boost/scope_exit.hpp>
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <asio/windows/object_handle.hpp>
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <boost/asio/windows/object_handle.hpp>
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+
+# include <boost/nowide/convert.hpp>
+# include <boost/scope_exit.hpp>
 #endif // defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0602)
 
 #if BOOST_OS_WINDOWS && EMILUA_CONFIG_ENABLE_FILE_IO
-#include <boost/asio/windows/overlapped_ptr.hpp>
-#include <boost/asio/random_access_file.hpp>
-#include <emilua/file.hpp>
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <asio/windows/overlapped_ptr.hpp>
+#  include <asio/random_access_file.hpp>
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#  include <boost/asio/windows/overlapped_ptr.hpp>
+#  include <boost/asio/random_access_file.hpp>
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+
+# include <emilua/file.hpp>
 #endif // BOOST_OS_WINDOWS && EMILUA_CONFIG_ENABLE_FILE_IO
 EMILUA_GPERF_DECLS_END(includes)
 
@@ -133,7 +154,7 @@ struct resolver_service: public pending_operation
 
 static int ip_host_name(lua_State* L)
 {
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto val = asio::ip::host_name(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -239,7 +260,7 @@ static int ip_toendpoint(lua_State* L)
     rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
     setmetatable(L, -2);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     new (addr) asio::ip::address{asio::ip::make_address(host, ec)};
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -290,7 +311,7 @@ static int ip_toendpoint2(lua_State* L)
         is_ipv6 = true;
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     asio::ip::address addr{asio::ip::make_address(host, ec)};
     if (!ec) {
         if ((is_ipv6 && addr.is_v4()) || (!is_ipv6 && addr.is_v6())) {
@@ -317,7 +338,7 @@ static int address_new(lua_State* L)
         new (a) asio::ip::address{};
         break;
     case LUA_TSTRING: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         new (a) asio::ip::address{
             asio::ip::make_address(lua_tostring(L, 1), ec)
         };
@@ -782,7 +803,7 @@ static int tcp_socket_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.open(asio::ip::tcp::endpoint{*addr, 0}.protocol(), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -803,7 +824,7 @@ static int tcp_socket_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.open(*protocol, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -845,7 +866,7 @@ static int tcp_socket_bind(lua_State* L)
         }
 
         asio::ip::tcp::endpoint ep(*addr, lua_tointeger(L, 3));
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.bind(ep, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -854,7 +875,7 @@ static int tcp_socket_bind(lua_State* L)
         return 0;
     }
     case LUA_TSTRING: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         auto addr = asio::ip::make_address(lua_tostring(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -884,7 +905,7 @@ static int tcp_socket_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -906,7 +927,7 @@ static int tcp_socket_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -964,7 +985,7 @@ static int tcp_socket_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.assign(
             asio::ip::tcp::endpoint{*addr, 0}.protocol(), *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
@@ -987,7 +1008,7 @@ static int tcp_socket_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.assign(*protocol, *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
 
@@ -1009,7 +1030,7 @@ static int tcp_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -1061,7 +1082,7 @@ static int tcp_socket_io_control(lua_State* L)
             "bytes_readable",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::bytes_readable command;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.io_control(command, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1099,7 +1120,7 @@ static int tcp_socket_shutdown(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
-    boost::system::error_code ec;
+    asio_error_code ec;
     socket->socket.shutdown(*what, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -1179,7 +1200,7 @@ static int tcp_socket_connect(lua_State* L)
     s->socket.async_connect(ep, asio::bind_cancellation_slot(cancel_slot,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -1236,8 +1257,7 @@ static int tcp_socket_read_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -1298,8 +1318,7 @@ static int tcp_socket_write_some(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -1396,8 +1415,7 @@ static int tcp_socket_receive(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -1494,8 +1512,7 @@ static int tcp_socket_send(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,s](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 if (!vm_ctx->valid())
                     return;
@@ -1609,8 +1626,7 @@ static int tcp_socket_send_file(lua_State* L)
     asio::windows::overlapped_ptr overlapped{
         vm_ctx->strand_using_defer(),
         [vm_ctx,current_fiber,buf1,buf2,sock](
-            const boost::system::error_code& ec,
-            std::size_t bytes_transferred
+            const asio_error_code& ec, std::size_t bytes_transferred
         ) {
             if (!vm_ctx->valid())
                 return;
@@ -1661,8 +1677,7 @@ static int tcp_socket_send_file(lua_State* L)
         // The operation completed immediately, so a completion notification
         // needs to be posted. When complete() is called, ownership of the
         // OVERLAPPED-derived object passes to the io_context.
-        boost::system::error_code ec(last_error,
-                                     asio::error::get_system_category());
+        asio_error_code ec(last_error, asio::error::get_system_category());
         overlapped.complete(ec, 0);
     } else {
         // The operation was successfully initiated, so ownership of the
@@ -1712,7 +1727,7 @@ static int tcp_socket_wait(lua_State* L)
         *wait_type,
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -1762,7 +1777,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::ip::tcp::no_delay o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1775,7 +1790,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_low_watermark o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1788,7 +1803,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1801,7 +1816,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_low_watermark o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1814,7 +1829,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1827,7 +1842,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::out_of_band_inline o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1842,7 +1857,7 @@ static int tcp_socket_set_option(lua_State* L)
                 luaL_checktype(L, 4, LUA_TNUMBER);
                 asio::socket_base::linger o(
                     lua_toboolean(L, 3), lua_tointeger(L, 4));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1855,7 +1870,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::keep_alive o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1868,7 +1883,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::do_not_route o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1881,7 +1896,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1894,7 +1909,7 @@ static int tcp_socket_set_option(lua_State* L)
             [](lua_State* L, tcp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::ip::v6_only o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1931,7 +1946,7 @@ static int tcp_socket_get_option(lua_State* L)
             "tcp_no_delay",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::ip::tcp::no_delay o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1944,7 +1959,7 @@ static int tcp_socket_get_option(lua_State* L)
             "send_low_watermark",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::send_low_watermark o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1957,7 +1972,7 @@ static int tcp_socket_get_option(lua_State* L)
             "send_buffer_size",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::send_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1970,7 +1985,7 @@ static int tcp_socket_get_option(lua_State* L)
             "receive_low_watermark",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::receive_low_watermark o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1983,7 +1998,7 @@ static int tcp_socket_get_option(lua_State* L)
             "receive_buffer_size",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::receive_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1996,7 +2011,7 @@ static int tcp_socket_get_option(lua_State* L)
             "out_of_band_inline",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::out_of_band_inline o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2009,7 +2024,7 @@ static int tcp_socket_get_option(lua_State* L)
             "linger",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::linger o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2023,7 +2038,7 @@ static int tcp_socket_get_option(lua_State* L)
             "keep_alive",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::keep_alive o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2036,7 +2051,7 @@ static int tcp_socket_get_option(lua_State* L)
             "do_not_route",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::do_not_route o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2049,7 +2064,7 @@ static int tcp_socket_get_option(lua_State* L)
             "debug",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2062,7 +2077,7 @@ static int tcp_socket_get_option(lua_State* L)
             "v6_only",
             [](lua_State* L, tcp_socket* socket) -> int {
                 asio::ip::v6_only o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2084,7 +2099,7 @@ inline int tcp_socket_is_open(lua_State* L)
 inline int tcp_socket_local_address(lua_State* L)
 {
     auto sock = static_cast<tcp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2102,7 +2117,7 @@ inline int tcp_socket_local_address(lua_State* L)
 inline int tcp_socket_local_port(lua_State* L)
 {
     auto sock = static_cast<tcp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2115,7 +2130,7 @@ inline int tcp_socket_local_port(lua_State* L)
 inline int tcp_socket_remote_address(lua_State* L)
 {
     auto sock = static_cast<tcp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2133,7 +2148,7 @@ inline int tcp_socket_remote_address(lua_State* L)
 inline int tcp_socket_remote_port(lua_State* L)
 {
     auto sock = static_cast<tcp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2146,7 +2161,7 @@ inline int tcp_socket_remote_port(lua_State* L)
 inline int tcp_socket_at_mark(lua_State* L)
 {
     auto socket = static_cast<tcp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     bool ret = socket->socket.at_mark(ec);
     if (ec) {
         push(L, ec);
@@ -2329,7 +2344,7 @@ static int tcp_acceptor_accept(lua_State* L)
     acceptor->async_accept(
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const boost::system::error_code& ec,
+            [vm_ctx,current_fiber](const asio_error_code& ec,
                                    asio::ip::tcp::socket peer) {
                 vm_ctx->fiber_resume(
                     current_fiber,
@@ -2381,7 +2396,7 @@ static int tcp_acceptor_listen(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     case LUA_TNIL: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(asio::socket_base::max_listen_connections, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2390,7 +2405,7 @@ static int tcp_acceptor_listen(lua_State* L)
         return 0;
     }
     case LUA_TNUMBER: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->listen(lua_tointeger(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2431,7 +2446,7 @@ static int tcp_acceptor_bind(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->bind(asio::ip::tcp::endpoint(*addr, lua_tointeger(L, 3)), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2440,7 +2455,7 @@ static int tcp_acceptor_bind(lua_State* L)
         return 0;
     }
     case LUA_TSTRING: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         auto addr = asio::ip::make_address(lua_tostring(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2486,7 +2501,7 @@ static int tcp_acceptor_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->open(asio::ip::tcp::endpoint{*addr, 0}.protocol(), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2507,7 +2522,7 @@ static int tcp_acceptor_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->open(*protocol, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -2531,7 +2546,7 @@ static int tcp_acceptor_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2569,7 +2584,7 @@ static int tcp_acceptor_set_option(lua_State* L)
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2582,7 +2597,7 @@ static int tcp_acceptor_set_option(lua_State* L)
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::reuse_address o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2596,7 +2611,7 @@ static int tcp_acceptor_set_option(lua_State* L)
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::enable_connection_aborted o(
                     lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2609,7 +2624,7 @@ static int tcp_acceptor_set_option(lua_State* L)
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::ip::v6_only o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2647,7 +2662,7 @@ static int tcp_acceptor_get_option(lua_State* L)
             "debug",
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2660,7 +2675,7 @@ static int tcp_acceptor_get_option(lua_State* L)
             "reuse_address",
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 asio::socket_base::reuse_address o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2673,7 +2688,7 @@ static int tcp_acceptor_get_option(lua_State* L)
             "enable_connection_aborted",
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 asio::socket_base::enable_connection_aborted o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2686,7 +2701,7 @@ static int tcp_acceptor_get_option(lua_State* L)
             "v6_only",
             [](lua_State* L, asio::ip::tcp::acceptor* acceptor) -> int {
                 asio::ip::v6_only o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 acceptor->get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -2711,7 +2726,7 @@ static int tcp_acceptor_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     acceptor->cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2769,7 +2784,7 @@ static int tcp_acceptor_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->assign(
             asio::ip::tcp::endpoint{*addr, 0}.protocol(), *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
@@ -2792,7 +2807,7 @@ static int tcp_acceptor_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         acceptor->assign(*protocol, *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
 
@@ -2819,7 +2834,7 @@ static int tcp_acceptor_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = acceptor->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -2855,7 +2870,7 @@ inline int tcp_acceptor_is_open(lua_State* L)
 inline int tcp_acceptor_local_address(lua_State* L)
 {
     auto acceptor = static_cast<asio::ip::tcp::acceptor*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = acceptor->local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -2873,7 +2888,7 @@ inline int tcp_acceptor_local_address(lua_State* L)
 inline int tcp_acceptor_local_port(lua_State* L)
 {
     auto a = static_cast<asio::ip::tcp::acceptor*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = a->local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -3080,13 +3095,13 @@ static int tcp_get_address_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -3105,8 +3120,8 @@ static int tcp_get_address_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -3127,9 +3142,7 @@ static int tcp_get_address_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -3150,7 +3163,7 @@ static int tcp_get_address_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -3237,7 +3250,7 @@ static int tcp_get_address_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->tcp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -3251,7 +3264,7 @@ static int tcp_get_address_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::tcp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -3420,13 +3433,13 @@ static int tcp_get_address_v4_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -3445,8 +3458,8 @@ static int tcp_get_address_v4_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -3467,9 +3480,7 @@ static int tcp_get_address_v4_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -3490,7 +3501,7 @@ static int tcp_get_address_v4_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -3577,7 +3588,7 @@ static int tcp_get_address_v4_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->tcp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -3591,7 +3602,7 @@ static int tcp_get_address_v4_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::tcp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -3762,13 +3773,13 @@ static int tcp_get_address_v6_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -3787,8 +3798,8 @@ static int tcp_get_address_v6_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -3809,9 +3820,7 @@ static int tcp_get_address_v6_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -3832,7 +3841,7 @@ static int tcp_get_address_v6_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -3919,7 +3928,7 @@ static int tcp_get_address_v6_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->tcp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -3933,7 +3942,7 @@ static int tcp_get_address_v6_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::tcp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -4031,7 +4040,7 @@ static int tcp_get_name_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->tcp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -4042,7 +4051,7 @@ static int tcp_get_name_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::tcp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results](lua_State* fib) {
@@ -4096,7 +4105,7 @@ static int tcp_listen(lua_State* L)
     std::string_view host = tostringview(L, 1);
     std::uint16_t port;
 
-    boost::system::error_code ec;
+    asio_error_code ec;
 
     {
         auto idx = host.rfind(':');
@@ -4251,7 +4260,7 @@ static int udp_socket_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.open(asio::ip::udp::endpoint{*addr, 0}.protocol(), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -4272,7 +4281,7 @@ static int udp_socket_open(lua_State* L)
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.open(*protocol, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -4314,7 +4323,7 @@ static int udp_socket_bind(lua_State* L)
         }
 
         asio::ip::udp::endpoint ep(*addr, lua_tointeger(L, 3));
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.bind(ep, ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -4323,7 +4332,7 @@ static int udp_socket_bind(lua_State* L)
         return 0;
     }
     case LUA_TSTRING: {
-        boost::system::error_code ec;
+        asio_error_code ec;
         auto addr = asio::ip::make_address(lua_tostring(L, 2), ec);
         if (ec) {
             push(L, static_cast<std::error_code>(ec));
@@ -4366,7 +4375,7 @@ static int udp_socket_shutdown(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.shutdown(*what, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4445,7 +4454,7 @@ static int udp_socket_connect(lua_State* L)
     s->socket.async_connect(ep, asio::bind_cancellation_slot(cancel_slot,
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,s](const boost::system::error_code& ec) {
+            [vm_ctx,current_fiber,s](const asio_error_code& ec) {
                 if (!vm_ctx->valid())
                     return;
 
@@ -4479,7 +4488,7 @@ static int udp_socket_close(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.close(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4501,7 +4510,7 @@ static int udp_socket_cancel(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     sock->socket.cancel(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -4559,7 +4568,7 @@ static int udp_socket_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.assign(
             asio::ip::udp::endpoint{*addr, 0}.protocol(), *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
@@ -4582,7 +4591,7 @@ static int udp_socket_assign(lua_State* L)
         lua_pushnil(L);
         setmetatable(L, 3);
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         sock->socket.assign(*protocol, *handle, ec);
         assert(!ec); boost::ignore_unused(ec);
 
@@ -4604,7 +4613,7 @@ static int udp_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
         if (rawfd != INVALID_FILE_DESCRIPTOR) {
@@ -4658,7 +4667,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::debug o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4671,7 +4680,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::broadcast o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4684,7 +4693,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::do_not_route o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4697,7 +4706,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::send_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4710,7 +4719,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::socket_base::receive_buffer_size o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4723,7 +4732,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::socket_base::reuse_address o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4736,7 +4745,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::ip::multicast::enable_loopback o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4749,7 +4758,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::ip::multicast::hops o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4772,7 +4781,7 @@ static int udp_socket_set_option(lua_State* L)
                     return lua_error(L);
                 }
                 asio::ip::multicast::join_group o(*addr);
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4795,7 +4804,7 @@ static int udp_socket_set_option(lua_State* L)
                     return lua_error(L);
                 }
                 asio::ip::multicast::leave_group o(*addr);
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4822,7 +4831,7 @@ static int udp_socket_set_option(lua_State* L)
                     return lua_error(L);
                 }
                 asio::ip::multicast::outbound_interface o(addr->to_v4());
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4835,7 +4844,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TNUMBER);
                 asio::ip::unicast::hops o(lua_tointeger(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4848,7 +4857,7 @@ static int udp_socket_set_option(lua_State* L)
             [](lua_State* L, udp_socket* socket) -> int {
                 luaL_checktype(L, 3, LUA_TBOOLEAN);
                 asio::ip::v6_only o(lua_toboolean(L, 3));
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.set_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4885,7 +4894,7 @@ static int udp_socket_get_option(lua_State* L)
             "debug",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::debug o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4898,7 +4907,7 @@ static int udp_socket_get_option(lua_State* L)
             "broadcast",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::broadcast o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4911,7 +4920,7 @@ static int udp_socket_get_option(lua_State* L)
             "do_not_route",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::do_not_route o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4924,7 +4933,7 @@ static int udp_socket_get_option(lua_State* L)
             "send_buffer_size",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::send_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4937,7 +4946,7 @@ static int udp_socket_get_option(lua_State* L)
             "receive_buffer_size",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::receive_buffer_size o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4950,7 +4959,7 @@ static int udp_socket_get_option(lua_State* L)
             "reuse_address",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::reuse_address o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4963,7 +4972,7 @@ static int udp_socket_get_option(lua_State* L)
             "multicast_loop",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::ip::multicast::enable_loopback o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4976,7 +4985,7 @@ static int udp_socket_get_option(lua_State* L)
             "multicast_hops",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::ip::multicast::hops o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -4989,7 +4998,7 @@ static int udp_socket_get_option(lua_State* L)
             "unicast_hops",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::ip::unicast::hops o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5002,7 +5011,7 @@ static int udp_socket_get_option(lua_State* L)
             "v6_only",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::ip::v6_only o;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.get_option(o, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5097,8 +5106,7 @@ static int udp_socket_receive(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -5205,8 +5213,7 @@ static int udp_socket_receive_from(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,remote_sender,buf=bs->data,sock](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -5322,8 +5329,7 @@ static int udp_socket_send(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -5446,8 +5452,7 @@ static int udp_socket_send_to(lua_State* L)
         asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data,sock](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 if (!vm_ctx->valid())
@@ -5497,7 +5502,7 @@ static int udp_socket_io_control(lua_State* L)
             "bytes_readable",
             [](lua_State* L, udp_socket* socket) -> int {
                 asio::socket_base::bytes_readable command;
-                boost::system::error_code ec;
+                asio_error_code ec;
                 socket->socket.io_control(command, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -5519,7 +5524,7 @@ inline int udp_socket_is_open(lua_State* L)
 inline int udp_socket_local_address(lua_State* L)
 {
     auto sock = static_cast<udp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5537,7 +5542,7 @@ inline int udp_socket_local_address(lua_State* L)
 inline int udp_socket_local_port(lua_State* L)
 {
     auto sock = static_cast<udp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.local_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5550,7 +5555,7 @@ inline int udp_socket_local_port(lua_State* L)
 inline int udp_socket_remote_address(lua_State* L)
 {
     auto sock = static_cast<udp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5568,7 +5573,7 @@ inline int udp_socket_remote_address(lua_State* L)
 inline int udp_socket_remote_port(lua_State* L)
 {
     auto sock = static_cast<udp_socket*>(lua_touserdata(L, 1));
-    boost::system::error_code ec;
+    asio_error_code ec;
     auto ep = sock->socket.remote_endpoint(ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -5813,13 +5818,13 @@ static int udp_get_address_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -5838,8 +5843,8 @@ static int udp_get_address_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -5860,9 +5865,7 @@ static int udp_get_address_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -5883,7 +5886,7 @@ static int udp_get_address_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -5970,7 +5973,7 @@ static int udp_get_address_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->udp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -5984,7 +5987,7 @@ static int udp_get_address_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::udp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -6153,13 +6156,13 @@ static int udp_get_address_v4_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -6178,8 +6181,8 @@ static int udp_get_address_v4_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -6200,9 +6203,7 @@ static int udp_get_address_v4_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -6223,7 +6224,7 @@ static int udp_get_address_v4_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -6310,7 +6311,7 @@ static int udp_get_address_v4_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->udp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -6324,7 +6325,7 @@ static int udp_get_address_v4_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::udp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -6494,13 +6495,13 @@ static int udp_get_address_v6_info(lua_State* L)
                                           /*bInitialState=*/FALSE,
                                           /*lpName=*/NULL);
         if (hCompletion == NULL) {
-            boost::system::error_code ec(GetLastError(),
-                                         asio::error::get_system_category());
+            asio_error_code ec(
+                GetLastError(), asio::error::get_system_category());
             push(L, ec);
             return lua_error(L);
         }
 
-        boost::system::error_code ec;
+        asio_error_code ec;
         query_ctx->hCompletion.assign(hCompletion, ec);
         if (ec) {
             push(L, ec);
@@ -6519,8 +6520,8 @@ static int udp_get_address_v6_info(lua_State* L)
                                &query_ctx->hCancel);
     if (error != WSA_IO_PENDING) {
         // the operation completed immediately
-        boost::system::error_code ec(WSAGetLastError(),
-                                     asio::error::get_system_category());
+        asio_error_code ec(
+            WSAGetLastError(), asio::error::get_system_category());
         push(L, ec);
         return lua_error(L);
     }
@@ -6541,9 +6542,7 @@ static int udp_get_address_v6_info(lua_State* L)
     query_ctx->hCompletion.async_wait(
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber,query_ctx](
-                boost::system::error_code ec
-            ) {
+            [vm_ctx,current_fiber,query_ctx](asio_error_code ec) {
                 BOOST_SCOPE_EXIT_ALL(&) {
                     if (query_ctx->results) {
                         FreeAddrInfoExW(query_ctx->results);
@@ -6564,7 +6563,7 @@ static int udp_get_address_v6_info(lua_State* L)
                     if (error == WSA_E_CANCELLED) {
                         ec = asio::error::operation_aborted;
                     } else {
-                        ec = boost::system::error_code(
+                        ec = asio_error_code(
                             error, asio::error::get_system_category());
                     }
                 }
@@ -6651,7 +6650,7 @@ static int udp_get_address_v6_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->udp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -6665,7 +6664,7 @@ static int udp_get_address_v6_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,has_cname](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::udp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results,has_cname](lua_State* fib) {
@@ -6763,7 +6762,7 @@ static int udp_get_name_info(lua_State* L)
                 lua_touserdata(L, lua_upvalueindex(1)));
             try {
                 service->udp_resolver.cancel();
-            } catch (const boost::system::system_error&) {}
+            } catch (const asio_system_error&) {}
             return 0;
         },
         1);
@@ -6774,7 +6773,7 @@ static int udp_get_name_info(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber](
-                const boost::system::error_code& ec,
+                const asio_error_code& ec,
                 asio::ip::udp::resolver::results_type results
             ) {
                 auto push_results = [&ec,&results](lua_State* fib) {

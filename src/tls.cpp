@@ -4,13 +4,18 @@
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/smart_ptr/local_shared_ptr.hpp>
 #include <boost/scope_exit.hpp>
-#include <boost/asio/ssl.hpp>
 
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
 #include <emilua/tls.hpp>
 #include <emilua/ip.hpp>
+
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/ssl.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <boost/asio/ssl.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -156,7 +161,7 @@ static int tls_context_new(lua_State* L)
         setmetatable(L, -2);
         new (c) std::shared_ptr<asio::ssl::context>{std::move(ctx)};
         return 1;
-    } catch (const boost::system::system_error& e) {
+    } catch (const asio_system_error& e) {
         push(L, static_cast<std::error_code>(e.code()));
         return lua_error(L);
     }
@@ -190,7 +195,7 @@ static int context_add_certificate_authority(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->add_certificate_authority(
         asio::buffer(bs->data.get(), bs->size), ec);
     if (ec) {
@@ -239,7 +244,7 @@ static int context_add_verify_path(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->add_verify_path(path, ec);
     if (ec) {
         push(L, ec);
@@ -306,7 +311,7 @@ static int context_clear_options(lua_State* L)
     }
  end_for:
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->clear_options(flags, ec);
     if (ec) {
         push(L, ec);
@@ -354,7 +359,7 @@ static int context_load_verify_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->load_verify_file(path, ec);
     if (ec) {
         push(L, ec);
@@ -378,7 +383,7 @@ static int context_set_default_verify_paths(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->set_default_verify_paths(ec);
     if (ec) {
         push(L, ec);
@@ -445,7 +450,7 @@ static int context_set_options(lua_State* L)
     }
  end_for:
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->set_options(flags, ec);
     if (ec) {
         push(L, ec);
@@ -476,7 +481,7 @@ static int context_set_password_callback(lua_State* L)
     lua_pushvalue(L, 2);
     int ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->set_password_callback(context_password_callback{vm_ctx, ref}, ec);
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -518,7 +523,7 @@ static int context_set_verify_callback(lua_State* L)
                 luaL_checktype(L, 3, LUA_TSTRING);
                 asio::ssl::host_name_verification o{
                     static_cast<std::string>(tostringview(L, 3))};
-                boost::system::error_code ec;
+                asio_error_code ec;
                 (*ctx)->set_verify_callback(std::move(o), ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -546,7 +551,7 @@ static int context_set_verify_depth(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->set_verify_depth(lua_tointeger(L, 2), ec);
     if (ec) {
         push(L, ec);
@@ -584,7 +589,7 @@ static int context_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "none",
             [](lua_State* L, std::shared_ptr<asio::ssl::context>* ctx) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 (*ctx)->set_verify_mode(asio::ssl::verify_none, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -595,7 +600,7 @@ static int context_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "peer",
             [](lua_State* L, std::shared_ptr<asio::ssl::context>* ctx) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 (*ctx)->set_verify_mode(asio::ssl::verify_peer, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -606,7 +611,7 @@ static int context_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "fail_if_no_peer_cert",
             [](lua_State* L, std::shared_ptr<asio::ssl::context>* ctx) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 (*ctx)->set_verify_mode(
                     asio::ssl::verify_fail_if_no_peer_cert, ec);
                 if (ec) {
@@ -618,7 +623,7 @@ static int context_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "client_once",
             [](lua_State* L, std::shared_ptr<asio::ssl::context>* ctx) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 (*ctx)->set_verify_mode(asio::ssl::verify_client_once, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -668,7 +673,7 @@ static int context_use_certificate(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_certificate(asio::buffer(bs->data.get(), bs->size), fmt, ec);
     if (ec) {
         push(L, ec);
@@ -703,7 +708,7 @@ static int context_use_certificate_chain(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_certificate_chain(asio::buffer(bs->data.get(), bs->size), ec);
     if (ec) {
         push(L, ec);
@@ -751,7 +756,7 @@ static int context_use_certificate_chain_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_certificate_chain_file(path, ec);
     if (ec) {
         push(L, ec);
@@ -810,7 +815,7 @@ static int context_use_certificate_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_certificate_file(path, fmt, ec);
     if (ec) {
         push(L, ec);
@@ -858,7 +863,7 @@ static int context_use_private_key(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_private_key(asio::buffer(bs->data.get(), bs->size), fmt, ec);
     if (ec) {
         push(L, ec);
@@ -917,7 +922,7 @@ static int context_use_private_key_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_private_key_file(path, fmt, ec);
     if (ec) {
         push(L, ec);
@@ -965,7 +970,7 @@ static int context_use_rsa_private_key(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_rsa_private_key(
         asio::buffer(bs->data.get(), bs->size), fmt, ec);
     if (ec) {
@@ -1025,7 +1030,7 @@ static int context_use_rsa_private_key_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_rsa_private_key_file(path, fmt, ec);
     if (ec) {
         push(L, ec);
@@ -1060,7 +1065,7 @@ static int context_use_tmp_dh(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_tmp_dh(asio::buffer(bs->data.get(), bs->size), ec);
     if (ec) {
         push(L, ec);
@@ -1108,7 +1113,7 @@ static int context_use_tmp_dh_file(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     (*ctx)->use_tmp_dh_file(path, ec);
     if (ec) {
         push(L, ec);
@@ -1314,7 +1319,7 @@ static int socket_handshake(lua_State* L)
         [](lua_State* L) -> int {
             auto s = static_cast<TlsSocket*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             s->next_layer().cancel(ignored_ec);
             return 0;
         },
@@ -1323,7 +1328,7 @@ static int socket_handshake(lua_State* L)
 
     s->async_handshake(HANDSHAKE, asio::bind_executor(
         vm_ctx->strand_using_defer(),
-        [vm_ctx,current_fiber](const boost::system::error_code& ec) {
+        [vm_ctx,current_fiber](const asio_error_code& ec) {
             auto opt_args = vm_context::options::arguments;
             vm_ctx->fiber_resume(
                 current_fiber,
@@ -1372,7 +1377,7 @@ static int tls_socket_read_some(lua_State* L)
         [](lua_State* L) -> int {
             auto s = static_cast<TlsSocket*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             s->next_layer().cancel(ignored_ec);
             return 0;
         },
@@ -1384,8 +1389,7 @@ static int tls_socket_read_some(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -1438,7 +1442,7 @@ static int tls_socket_write_some(lua_State* L)
         [](lua_State* L) -> int {
             auto s = static_cast<TlsSocket*>(
                 lua_touserdata(L, lua_upvalueindex(1)));
-            boost::system::error_code ignored_ec;
+            asio_error_code ignored_ec;
             s->next_layer().cancel(ignored_ec);
             return 0;
         },
@@ -1450,8 +1454,7 @@ static int tls_socket_write_some(lua_State* L)
         asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred
+                const asio_error_code& ec, std::size_t bytes_transferred
             ) {
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
@@ -1470,7 +1473,7 @@ static int tls_socket_write_some(lua_State* L)
 
 EMILUA_GPERF_DECLS_BEGIN(socket)
 EMILUA_GPERF_NAMESPACE(emilua)
-#ifndef BOOST_ASIO_USE_WOLFSSL
+#if (EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(ASIO_USE_WOLFSSL)) || (!EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(BOOST_ASIO_USE_WOLFSSL))
 static int tls_socket_set_server_name(lua_State* L)
 {
     luaL_checktype(L, 2, LUA_TSTRING);
@@ -1487,7 +1490,7 @@ static int tls_socket_set_server_name(lua_State* L)
     }
 
     if(!SSL_set_tlsext_host_name(s->native_handle(), lua_tostring(L, 2))) {
-        boost::system::error_code ec{
+        asio_error_code ec{
             static_cast<int>(ERR_get_error()), asio::error::get_ssl_category()
         };
         push(L, ec);
@@ -1496,7 +1499,7 @@ static int tls_socket_set_server_name(lua_State* L)
 
     return 0;
 }
-#endif // !defined(BOOST_ASIO_USE_WOLFSSL)
+#endif // (EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(ASIO_USE_WOLFSSL)) || (!EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(BOOST_ASIO_USE_WOLFSSL))
 
 static int tls_socket_set_verify_callback(lua_State* L)
 {
@@ -1527,7 +1530,7 @@ static int tls_socket_set_verify_callback(lua_State* L)
                 luaL_checktype(L, 3, LUA_TSTRING);
                 asio::ssl::host_name_verification o{
                     static_cast<std::string>(tostringview(L, 3))};
-                boost::system::error_code ec;
+                asio_error_code ec;
                 s->set_verify_callback(std::move(o), ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1553,7 +1556,7 @@ static int tls_socket_set_verify_depth(lua_State* L)
         return lua_error(L);
     }
 
-    boost::system::error_code ec;
+    asio_error_code ec;
     s->set_verify_depth(lua_tointeger(L, 2), ec);
     if (ec) {
         push(L, ec);
@@ -1587,7 +1590,7 @@ static int tls_socket_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "none",
             [](lua_State* L, TlsSocket* s) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 s->set_verify_mode(asio::ssl::verify_none, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1598,7 +1601,7 @@ static int tls_socket_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "peer",
             [](lua_State* L, TlsSocket* s) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 s->set_verify_mode(asio::ssl::verify_peer, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1609,7 +1612,7 @@ static int tls_socket_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "fail_if_no_peer_cert",
             [](lua_State* L, TlsSocket* s) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 s->set_verify_mode(asio::ssl::verify_fail_if_no_peer_cert, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1620,7 +1623,7 @@ static int tls_socket_set_verify_mode(lua_State* L)
         EMILUA_GPERF_PAIR(
             "client_once",
             [](lua_State* L, TlsSocket* s) -> int {
-                boost::system::error_code ec;
+                asio_error_code ec;
                 s->set_verify_mode(asio::ssl::verify_client_once, ec);
                 if (ec) {
                     push(L, static_cast<std::error_code>(ec));
@@ -1668,11 +1671,11 @@ static int tls_socket_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "set_server_name",
             [](lua_State* L) -> int {
-#ifndef BOOST_ASIO_USE_WOLFSSL
+#if (EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(ASIO_USE_WOLFSSL)) || (!EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(BOOST_ASIO_USE_WOLFSSL))
                 lua_pushcfunction(L, tls_socket_set_server_name);
-#else // !defined(BOOST_ASIO_USE_WOLFSSL)
+#else // (EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(ASIO_USE_WOLFSSL)) || (!EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(BOOST_ASIO_USE_WOLFSSL))
                 lua_pushcfunction(L, throw_enosys);
-#endif // !defined(BOOST_ASIO_USE_WOLFSSL)
+#endif // (EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(ASIO_USE_WOLFSSL)) || (!EMILUA_CONFIG_USE_STANDALONE_ASIO && !defined(BOOST_ASIO_USE_WOLFSSL))
                 return 1;
             })
         EMILUA_GPERF_PAIR(
