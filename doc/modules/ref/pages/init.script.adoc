@@ -195,18 +195,15 @@ These constants live inside the global table `C`.
 * `ECHILD`.
 * `ENOLINK`.
 * `ENOLCK`.
-* `ENODATA`.
 * `ENOMSG`.
 * `ENOPROTOOPT`.
 * `ENOSPC`.
-* `ENOSR`.
 * `ENXIO`.
 * `ENODEV`.
 * `ENOENT`.
 * `ESRCH`.
 * `ENOTDIR`.
 * `ENOTSOCK`.
-* `ENOSTR`.
 * `ENOTCONN`.
 * `ENOMEM`.
 * `ENOTSUP`.
@@ -224,7 +221,6 @@ These constants live inside the global table `C`.
 * `EAGAIN`.
 * `ERANGE`.
 * `ENOTRECOVERABLE`.
-* `ETIME`.
 * `ETXTBSY`.
 * `ETIMEDOUT`.
 * `ENFILE`.
