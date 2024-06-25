@@ -275,6 +275,12 @@ Mode bits for access permission:
 * `S_ISGID`.
 * `S_ISVTX`.
 
+`openat()` flags:
+
+* `AT_FDCWD`.
+* `AT_EMPTY_PATH`.
+* `AT_SYMLINK_NOFOLLOW`.
+
 `mknod()` flags:
 
 * `S_IFCHR`.
@@ -324,6 +330,22 @@ Mode bits for access permission:
 * `MNT_BYFSID`.
 * `UMOUNT_NOFOLLOW`.
 
+`mount_setattr()` flags:
+
+* `AT_RECURSIVE`.
+* `AT_NO_AUTOMOUNT`.
+* `MOUNT_ATTR_RDONLY`.
+* `MOUNT_ATTR_NOSUID`.
+* `MOUNT_ATTR_NODEV`.
+* `MOUNT_ATTR_NOEXEC`.
+* `MOUNT_ATTR_NOSYMFOLLOW`.
+* `MOUNT_ATTR_NODIRATIME`.
+* `MOUNT_ATTR__ATIME`.
+* `MOUNT_ATTR_RELATIME`.
+* `MOUNT_ATTR_NOATIME`.
+* `MOUNT_ATTR_STRICTATIME`.
+* `MOUNT_ATTR_IDMAP`.
+
 `unshare()` flags:
 
 * `CLONE_NEWCGROUP`.
@@ -345,6 +367,13 @@ Mode bits for access permission:
 * `SECBIT_KEEP_CAPS_LOCKED`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE`.
 * `SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED`.
+
+== `C.mount_setattr(dirfd: integer, pathname: string|nil, flags: integer, attr: { attr_set: integer, attr_clr: integer, propagation: integer, userns_fd: integer })`
+
+Returns two values:
+
+1. `mount_setattr()` return.
+2. The errno value (or `0` on success).
 
 == `C.seccomp_set_mode_filter(bpf_fprogram: string) -> integer, integer`
 

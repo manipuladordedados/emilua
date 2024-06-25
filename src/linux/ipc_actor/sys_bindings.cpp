@@ -185,6 +185,13 @@ int posix_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR("S_ISUID", EMILUA_DETAIL_INT_CONSTANT(S_ISUID))
         EMILUA_GPERF_PAIR("S_ISGID", EMILUA_DETAIL_INT_CONSTANT(S_ISGID))
         EMILUA_GPERF_PAIR("S_ISVTX", EMILUA_DETAIL_INT_CONSTANT(S_ISVTX))
+        // openat() flags
+        EMILUA_GPERF_PAIR("AT_FDCWD", EMILUA_DETAIL_INT_CONSTANT(AT_FDCWD))
+        EMILUA_GPERF_PAIR(
+            "AT_EMPTY_PATH", EMILUA_DETAIL_INT_CONSTANT(AT_EMPTY_PATH))
+        EMILUA_GPERF_PAIR(
+            "AT_SYMLINK_NOFOLLOW",
+            EMILUA_DETAIL_INT_CONSTANT(AT_SYMLINK_NOFOLLOW))
         // mknod() constants
         EMILUA_GPERF_PAIR("S_IFCHR", EMILUA_DETAIL_INT_CONSTANT(S_IFCHR))
         EMILUA_GPERF_PAIR("S_IFBLK", EMILUA_DETAIL_INT_CONSTANT(S_IFBLK))
@@ -225,6 +232,38 @@ int posix_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR("MNT_EXPIRE", EMILUA_DETAIL_INT_CONSTANT(MNT_EXPIRE))
         EMILUA_GPERF_PAIR(
             "UMOUNT_NOFOLLOW", EMILUA_DETAIL_INT_CONSTANT(UMOUNT_NOFOLLOW))
+        // mount_setattr() flags
+        EMILUA_GPERF_PAIR(
+            "AT_RECURSIVE", EMILUA_DETAIL_INT_CONSTANT(AT_RECURSIVE))
+        EMILUA_GPERF_PAIR(
+            "AT_NO_AUTOMOUNT", EMILUA_DETAIL_INT_CONSTANT(AT_NO_AUTOMOUNT))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_RDONLY", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_RDONLY))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NOSUID", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NOSUID))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NODEV", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NODEV))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NOEXEC", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NOEXEC))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NOSYMFOLLOW",
+            EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NOSYMFOLLOW))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NODIRATIME",
+            EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NODIRATIME))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR__ATIME", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR__ATIME))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_RELATIME",
+            EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_RELATIME))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_NOATIME",
+            EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_NOATIME))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_STRICTATIME",
+            EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_STRICTATIME))
+        EMILUA_GPERF_PAIR(
+            "MOUNT_ATTR_IDMAP", EMILUA_DETAIL_INT_CONSTANT(MOUNT_ATTR_IDMAP))
         // setns() flags
         EMILUA_GPERF_PAIR(
             "CLONE_NEWCGROUP", EMILUA_DETAIL_INT_CONSTANT(CLONE_NEWCGROUP))
@@ -954,6 +993,102 @@ int posix_mt_index(lua_State* L)
                     int res = fexecve(fd, argv.data(), envp.data());
                     int last_error = errno;
                     CHECK_LAST_ERROR(L, last_error, "fexecve");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "mount_setattr",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int dirfd = luaL_checkinteger(L, 1);
+                    const char* pathname;
+                    unsigned int flags = luaL_checkinteger(L, 3);
+                    luaL_checktype(L, 4, LUA_TTABLE);
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TSTRING:
+                        pathname = lua_tostring(L, 2);
+                        break;
+                    case LUA_TNIL:
+                        pathname = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/mount_setattr");
+                        std::exit(1);
+                    }
+
+                    struct mount_attr attr;
+                    std::memset(&attr, 0, sizeof(attr));
+
+                    lua_pushliteral(L, "attr_set");
+                    lua_rawget(L, 4);
+                    switch (lua_type(L, -1)) {
+                    case LUA_TNUMBER:
+                        attr.attr_set = lua_tointeger(L, -1);
+                        break;
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/mount_setattr/attr_set");
+                        std::exit(1);
+                    }
+                    lua_pop(L, 1);
+
+                    lua_pushliteral(L, "attr_clr");
+                    lua_rawget(L, 4);
+                    switch (lua_type(L, -1)) {
+                    case LUA_TNUMBER:
+                        attr.attr_clr = lua_tointeger(L, -1);
+                        break;
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/mount_setattr/attr_clr");
+                        std::exit(1);
+                    }
+                    lua_pop(L, 1);
+
+                    lua_pushliteral(L, "propagation");
+                    lua_rawget(L, 4);
+                    switch (lua_type(L, -1)) {
+                    case LUA_TNUMBER:
+                        attr.propagation = lua_tointeger(L, -1);
+                        break;
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/mount_setattr/propagation");
+                        std::exit(1);
+                    }
+                    lua_pop(L, 1);
+
+                    lua_pushliteral(L, "userns_fd");
+                    lua_rawget(L, 4);
+                    switch (lua_type(L, -1)) {
+                    case LUA_TNUMBER:
+                        attr.userns_fd = lua_tointeger(L, -1);
+                        break;
+                    case LUA_TNIL:
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/mount_setattr/userns_fd");
+                        std::exit(1);
+                    }
+                    lua_pop(L, 1);
+
+                    int res = syscall(
+                        SYS_mount_setattr, dirfd, pathname, flags,
+                        &attr, sizeof(attr));
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "mount_setattr");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;

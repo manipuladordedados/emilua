@@ -9,6 +9,7 @@
 === Added
 
 * `filesystem.clock.time_point.seconds_since_unix_epoch`.
+* New bindings in `init.script` related to `mount_setattr()` (Linux).
 
 === Changed
 
