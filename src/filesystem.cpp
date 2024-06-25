@@ -1412,6 +1412,22 @@ inline int file_clock_time_point_seconds_since_epoch(lua_State* L)
     lua_pushnumber(L, lua_Seconds{tp->time_since_epoch()}.count());
     return 1;
 }
+
+inline int file_clock_time_point_seconds_since_unix_epoch(lua_State* L)
+{
+    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+        lua_touserdata(L, 1));
+#if BOOST_LIB_STD_GNU || BOOST_LIB_STD_CXX
+    // current libstdc++ hasn't got clock_cast yet
+    std::chrono::system_clock::time_point tp2 =
+        std::chrono::file_clock::to_sys(*tp);
+#else
+    std::chrono::system_clock::time_point tp2 =
+        std::chrono::clock_cast<std::chrono::system_clock>(*tp);
+#endif
+    lua_pushnumber(L, lua_Seconds{tp2.time_since_epoch()}.count());
+    return 1;
+}
 EMILUA_GPERF_DECLS_END(clock)
 
 static int file_clock_time_point_mt_index(lua_State* L)
@@ -1443,6 +1459,9 @@ static int file_clock_time_point_mt_index(lua_State* L)
             })
         EMILUA_GPERF_PAIR(
             "seconds_since_epoch", file_clock_time_point_seconds_since_epoch)
+        EMILUA_GPERF_PAIR(
+            "seconds_since_unix_epoch",
+            file_clock_time_point_seconds_since_unix_epoch)
     EMILUA_GPERF_END(key)(L);
 }
 

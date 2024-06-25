@@ -6,6 +6,10 @@
 [id=0.9]
 == 0.9 - unreleased
 
+=== Added
+
+* `filesystem.clock.time_point.seconds_since_unix_epoch`.
+
 === Changed
 
 * `is_block_file()` renamed to `is_block_device()`.

@@ -65,6 +65,11 @@ time.
 
 The number of elapsed seconds since the clock's epoch.
 
+=== `seconds_since_unix_epoch: number`
+
+The number of elapsed seconds since 00:00:00 Coordinated Universal Time (UTC),
+Thursday, 1 January 1970.
+
 == `time_point` metamethods
 
 * `__add()`
