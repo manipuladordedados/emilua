@@ -1,6 +1,6 @@
 name: api
 title: Emilua API
-version: '0.8'
+version: '0.9'
 asciidoc:
   attributes:
     table-caption: false
