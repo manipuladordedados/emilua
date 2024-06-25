@@ -3967,7 +3967,7 @@ static int exists(lua_State* L)
     return 1;
 }
 
-static int is_block_file(lua_State* L)
+static int is_block_device(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
     if (!path || !lua_getmetatable(L, 1)) {
@@ -3994,7 +3994,7 @@ static int is_block_file(lua_State* L)
     return 1;
 }
 
-static int is_character_file(lua_State* L)
+static int is_character_device(lua_State* L)
 {
     auto path = static_cast<fs::path*>(lua_touserdata(L, 1));
     if (!path || !lua_getmetatable(L, 1)) {
@@ -4753,15 +4753,15 @@ static int filesystem_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "is_block_file",
+            "is_block_device",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, is_block_file);
+                lua_pushcfunction(L, is_block_device);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "is_character_file",
+            "is_character_device",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, is_character_file);
+                lua_pushcfunction(L, is_character_device);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

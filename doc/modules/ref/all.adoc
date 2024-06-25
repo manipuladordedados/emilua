@@ -82,9 +82,9 @@ include::pages/filesystem.is_empty.adoc[]
 
 include::pages/filesystem.exists.adoc[]
 
-include::pages/filesystem.is_block_file.adoc[]
+include::pages/filesystem.is_block_device.adoc[]
 
-include::pages/filesystem.is_character_file.adoc[]
+include::pages/filesystem.is_character_device.adoc[]
 
 include::pages/filesystem.is_directory.adoc[]
 

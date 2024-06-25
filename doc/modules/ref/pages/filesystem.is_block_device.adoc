@@ -1,4 +1,4 @@
-= filesystem.is_block_file
+= filesystem.is_block_device
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -13,7 +13,7 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.is_block_file(p: fs.path) -> boolean
+fs.is_block_device(p: fs.path) -> boolean
 ----
 
 == Description

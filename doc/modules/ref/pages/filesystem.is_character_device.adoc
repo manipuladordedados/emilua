@@ -1,4 +1,4 @@
-= filesystem.is_character_file
+= filesystem.is_character_device
 
 ifeval::["{doctype}" == "manpage"]
 
@@ -13,7 +13,7 @@ endif::[]
 [source,lua]
 ----
 local fs = require "filesystem"
-fs.is_character_file(p: fs.path) -> boolean
+fs.is_character_device(p: fs.path) -> boolean
 ----
 
 == Description
