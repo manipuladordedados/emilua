@@ -953,8 +953,14 @@ static int child_main(void*)
             lua_setfield(L, LUA_GLOBALSINDEX, "arg");
         }
 
-        if (luaL_loadbuffer(L, allocator.buffer, nread, NULL) != 0)
+        if (luaL_loadbuffer(L, allocator.buffer, nread, NULL) != 0) {
+            const char* errstr = "unknown error";
+            if (lua_isstring(L, -1)) {
+                errstr = lua_tostring(L, -1);
+            }
+            fprintf(stderr, "Failed to load Lua chunk: %s\n", errstr);
             return 1;
+        }
         if (lua_pcall(L, /*nargs=*/0, /*nresults=*/0, /*errfunc=*/0) != 0) {
             if (lua_type(L, -1) == LUA_TSTRING) {
                 auto prefix = "<3>ipc_actor/init/script: "sv;
