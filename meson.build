@@ -417,6 +417,7 @@ install_subdir(
 pc_base_variables = [
     'thread_support_level=' + get_option('thread_support_level').to_string(),
     'file_io_enabled=' + get_option('enable_file_io').to_string(),
+    'use_standalone_asio=' + get_option('use_standalone_asio').to_string(),
 ]
 pc_extra_cflags = []
 
