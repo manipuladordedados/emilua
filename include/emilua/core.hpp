@@ -332,6 +332,13 @@ public:
 class BOOST_SYMBOL_VISIBLE plugin;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
+#if BOOST_OS_UNIX
+void set_non_blocking(int fd);
+#else // BOOST_OS_UNIX
+inline void set_non_blocking(const auto& x)
+{}
+#endif // BOOST_OS_UNIX
+
 class vm_context;
 
 struct rdf_error_category : public std::error_category

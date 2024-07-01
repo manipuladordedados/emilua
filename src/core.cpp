@@ -85,6 +85,18 @@ char error_category_mt_key;
 char rdf_error_category_module_mt_key;
 } // namespace detail
 
+#if BOOST_OS_UNIX
+void set_non_blocking(int fd)
+{
+    int f = fcntl(fd, F_GETFL, 0);
+    if (f == -1)
+        return;
+
+    if ((f & O_NONBLOCK) != O_NONBLOCK)
+        fcntl(fd, F_SETFL, f | O_NONBLOCK);
+}
+#endif // BOOST_OS_UNIX
+
 const char* rdf_error_category::name() const noexcept
 {
     return name_.c_str();
