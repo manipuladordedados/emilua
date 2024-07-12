@@ -33,6 +33,16 @@ static void check_last_error(lua_State* L, int last_error,
         if (lua_toboolean(L, -1)) {
             errno = last_error;
             perror(perror_string);
+
+            // new state which is not memory-limited (LUA_HOOK_BUFFER_SIZE) just
+            // to allocate the stacktrace string (we exit the process w/o
+            // returning thread's control to the user program so it's fine to
+            // skip explicit_bzero())
+            lua_State* L2 = luaL_newstate();
+
+            luaL_traceback(L2, L, nullptr, 1);
+            fprintf(stderr, "%s\n", lua_tostring(L2, -1));
+
             std::exit(1);
         }
     }
