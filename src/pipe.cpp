@@ -156,6 +156,12 @@ static int readable_pipe_release(lua_State* L)
         return lua_error(L);
     }
 
+#if BOOST_OS_UNIX
+    // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the user
+    // try to use this handle in Capsicum-backed environments.
+    set_non_blocking(rawfd);
+#endif // BOOST_OS_UNIX
+
     auto fdhandle = static_cast<file_descriptor_handle*>(
         lua_newuserdata(L, sizeof(file_descriptor_handle))
     );
@@ -458,6 +464,12 @@ static int writable_pipe_release(lua_State* L)
         push(L, ec);
         return lua_error(L);
     }
+
+#if BOOST_OS_UNIX
+    // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the user
+    // try to use this handle in Capsicum-backed environments.
+    set_non_blocking(rawfd);
+#endif // BOOST_OS_UNIX
 
     auto fdhandle = static_cast<file_descriptor_handle*>(
         lua_newuserdata(L, sizeof(file_descriptor_handle))
