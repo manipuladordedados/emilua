@@ -185,12 +185,6 @@ static int serial_port_release(lua_State* L)
     asio_error_code ignored_ec;
     port->close(ignored_ec);
 
-#if BOOST_OS_UNIX
-    // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the user
-    // try to use this handle in Capsicum-backed environments.
-    set_non_blocking(newfd);
-#endif // BOOST_OS_UNIX
-
     auto fdhandle = static_cast<file_descriptor_handle*>(
         lua_newuserdata(L, sizeof(file_descriptor_handle))
     );

@@ -1030,13 +1030,6 @@ static int tcp_socket_release(lua_State* L)
         return lua_error(L);
     }
 
-    {
-        asio_error_code ignored_ec;
-        // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the
-        // user try to use this handle in Capsicum-backed environments.
-        sock->socket.native_non_blocking(true, ignored_ec);
-    }
-
     asio_error_code ec;
     int rawfd = sock->socket.release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
@@ -2841,13 +2834,6 @@ static int tcp_acceptor_release(lua_State* L)
         return lua_error(L);
     }
 
-    {
-        asio_error_code ignored_ec;
-        // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the
-        // user try to use this handle in Capsicum-backed environments.
-        acceptor->native_non_blocking(true, ignored_ec);
-    }
-
     asio_error_code ec;
     int rawfd = acceptor->release(ec);
     BOOST_SCOPE_EXIT_ALL(&) {
@@ -4625,13 +4611,6 @@ static int udp_socket_release(lua_State* L)
     if (!lua_rawequal(L, -1, -2)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
-    }
-
-    {
-        asio_error_code ignored_ec;
-        // Boost.Asio doesn't set O_NONBLOCK on open, so we do it before the
-        // user try to use this handle in Capsicum-backed environments.
-        sock->socket.native_non_blocking(true, ignored_ec);
     }
 
     asio_error_code ec;
