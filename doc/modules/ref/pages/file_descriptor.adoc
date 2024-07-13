@@ -137,6 +137,12 @@ Parameters:
 ** `"getown"`
 ** `"setown"`
 
+== Properties
+
+=== `non_blocking: boolean`
+
+Query/set fcntl flag `O_NONBLOCK`.
+
 == Metamethods
 
 === `__tostring()`

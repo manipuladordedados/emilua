@@ -124,6 +124,30 @@ static int file_descriptor_dup(lua_State* L)
 #endif // BOOST_OS_WINDOWS
 }
 
+inline int file_descriptor_non_blocking_get(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
+    int f = fcntl(*handle, F_GETFL, 0);
+
+    // although not always documented, F_GETFL can fail
+    if (f == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, (f & O_NONBLOCK) == O_NONBLOCK);
+    return 1;
+#endif // BOOST_OS_WINDOWS
+}
+
 #if BOOST_OS_LINUX
 static int file_descriptor_cap_get(lua_State* L)
 {
@@ -551,7 +575,64 @@ static int file_descriptor_mt_index(lua_State* L)
 #endif // BOOST_OS_BSD_FREE
                 return 1;
             })
+        EMILUA_GPERF_PAIR("non_blocking", file_descriptor_non_blocking_get)
     EMILUA_GPERF_END(key)(L);
+}
+
+inline int file_descriptor_non_blocking_set(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+    if (!lua_isboolean(L, 3)) {
+        push(L, std::errc::invalid_argument, "arg", 3);
+        return lua_error(L);
+    }
+
+    bool value = lua_toboolean(L, 3);
+
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
+    int f = fcntl(*handle, F_GETFL, 0);
+
+    // although not always documented, F_GETFL can fail
+    if (f == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    if ((f & O_NONBLOCK) == O_NONBLOCK) {
+        if (!value) {
+            if (fcntl(*handle, F_SETFL, f & ~O_NONBLOCK) == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+        }
+    } else {
+        if (value) {
+            if (fcntl(*handle, F_SETFL, f | O_NONBLOCK) == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+        }
+    }
+
+    return 0;
+#endif // BOOST_OS_WINDOWS
+}
+
+static int file_descriptor_mt_newindex(lua_State* L)
+{
+    auto key = tostringview(L, 2);
+    if (key == "non_blocking") {
+        return file_descriptor_non_blocking_set(L);
+    } else {
+        push(L, errc::bad_index, "index", 2);
+        return lua_error(L);
+    }
 }
 
 static int closed_file_descriptor_mt_index(lua_State* L)
@@ -631,7 +712,7 @@ void init_file_descriptor(lua_State* L)
 {
     lua_pushlightuserdata(L, &file_descriptor_mt_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/4);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/5);
 
         lua_pushliteral(L, "__metatable");
         lua_pushliteral(L, "file_descriptor");
@@ -639,6 +720,10 @@ void init_file_descriptor(lua_State* L)
 
         lua_pushliteral(L, "__index");
         lua_pushcfunction(L, file_descriptor_mt_index);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "__newindex");
+        lua_pushcfunction(L, file_descriptor_mt_newindex);
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "__tostring");

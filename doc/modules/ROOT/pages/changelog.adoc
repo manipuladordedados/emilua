@@ -6,6 +6,11 @@
 [id=0.10]
 == 0.10 - unreleased
 
+=== Added
+
+* `file_descriptor`
+** Property `non_blocking`.
+
 [id=0.9]
 == 0.9 - 2024-06-26
 
