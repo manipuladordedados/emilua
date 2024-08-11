@@ -242,6 +242,78 @@ int posix_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR("MNT_EXPIRE", EMILUA_DETAIL_INT_CONSTANT(MNT_EXPIRE))
         EMILUA_GPERF_PAIR(
             "UMOUNT_NOFOLLOW", EMILUA_DETAIL_INT_CONSTANT(UMOUNT_NOFOLLOW))
+        // fsopen() flags
+        EMILUA_GPERF_PAIR(
+            "FSOPEN_CLOEXEC", EMILUA_DETAIL_INT_CONSTANT(FSOPEN_CLOEXEC))
+        // fsconfig() commands
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_FLAG", EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_FLAG))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_STRING",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_STRING))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_BINARY",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_BINARY))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_PATH", EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_PATH))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_PATH_EMPTY",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_PATH_EMPTY))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_SET_FD", EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_SET_FD))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_CMD_CREATE",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_CMD_CREATE))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_CMD_RECONFIGURE",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_CMD_RECONFIGURE))
+        EMILUA_GPERF_PAIR(
+            "FSCONFIG_CMD_CREATE_EXCL",
+            EMILUA_DETAIL_INT_CONSTANT(FSCONFIG_CMD_CREATE_EXCL))
+        // fsmount() flags
+        EMILUA_GPERF_PAIR(
+            "FSMOUNT_CLOEXEC", EMILUA_DETAIL_INT_CONSTANT(FSMOUNT_CLOEXEC))
+        // move_mount() flags
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_F_SYMLINKS",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_F_SYMLINKS))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_F_AUTOMOUNTS",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_F_AUTOMOUNTS))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_F_EMPTY_PATH",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_F_EMPTY_PATH))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_T_SYMLINKS",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_T_SYMLINKS))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_T_AUTOMOUNTS",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_T_AUTOMOUNTS))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_T_EMPTY_PATH",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_T_EMPTY_PATH))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_SET_GROUP",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_SET_GROUP))
+        EMILUA_GPERF_PAIR(
+            "MOVE_MOUNT_BENEATH",
+            EMILUA_DETAIL_INT_CONSTANT(MOVE_MOUNT_BENEATH))
+        // open_tree() flags
+        EMILUA_GPERF_PAIR(
+            "OPEN_TREE_CLONE", EMILUA_DETAIL_INT_CONSTANT(OPEN_TREE_CLONE))
+        EMILUA_GPERF_PAIR(
+            "OPEN_TREE_CLOEXEC", EMILUA_DETAIL_INT_CONSTANT(OPEN_TREE_CLOEXEC))
+        // fspick() flags
+        EMILUA_GPERF_PAIR(
+            "FSPICK_CLOEXEC", EMILUA_DETAIL_INT_CONSTANT(FSPICK_CLOEXEC))
+        EMILUA_GPERF_PAIR(
+            "FSPICK_SYMLINK_NOFOLLOW",
+            EMILUA_DETAIL_INT_CONSTANT(FSPICK_SYMLINK_NOFOLLOW))
+        EMILUA_GPERF_PAIR(
+            "FSPICK_NO_AUTOMOUNT",
+            EMILUA_DETAIL_INT_CONSTANT(FSPICK_NO_AUTOMOUNT))
+        EMILUA_GPERF_PAIR(
+            "FSPICK_EMPTY_PATH", EMILUA_DETAIL_INT_CONSTANT(FSPICK_EMPTY_PATH))
         // mount_setattr() flags
         EMILUA_GPERF_PAIR(
             "AT_RECURSIVE", EMILUA_DETAIL_INT_CONSTANT(AT_RECURSIVE))
@@ -1003,6 +1075,202 @@ int posix_mt_index(lua_State* L)
                     int res = fexecve(fd, argv.data(), envp.data());
                     int last_error = errno;
                     CHECK_LAST_ERROR(L, last_error, "fexecve");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "fsopen",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* pathname;
+                    unsigned int flags = luaL_checkinteger(L, 2);
+
+                    switch (lua_type(L, 1)) {
+                    case LUA_TSTRING:
+                        pathname = lua_tostring(L, 1);
+                        break;
+                    case LUA_TNIL:
+                        pathname = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/fsopen");
+                        std::exit(1);
+                    }
+
+                    int res = fsopen(pathname, flags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "fsopen");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "fsmount",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int fd = luaL_checkinteger(L, 1);
+                    unsigned int flags = luaL_checkinteger(L, 2);
+                    unsigned int msflags = luaL_checkinteger(L, 3);
+
+                    int res = fsmount(fd, flags, msflags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "fsmount");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "move_mount",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int fdirfd = luaL_checkinteger(L, 1);
+                    int tdirfd = luaL_checkinteger(L, 3);
+                    const char* fpath;
+                    const char* tpath;
+                    unsigned int flags = luaL_checkinteger(L, 5);
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TSTRING:
+                        fpath = lua_tostring(L, 2);
+                        break;
+                    case LUA_TNIL:
+                        fpath = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/move_mount");
+                        std::exit(1);
+                    }
+
+                    switch (lua_type(L, 4)) {
+                    case LUA_TSTRING:
+                        tpath = lua_tostring(L, 4);
+                        break;
+                    case LUA_TNIL:
+                        tpath = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/move_mount");
+                        std::exit(1);
+                    }
+
+                    int res = move_mount(fdirfd, fpath, tdirfd, tpath, flags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "move_mount");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "fsconfig",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int fd = luaL_checkinteger(L, 1);
+                    int cmd = luaL_checkinteger(L, 2);
+                    const char* key;
+                    const char* value;
+                    int aux = luaL_checkinteger(L, 5);
+
+                    switch (lua_type(L, 3)) {
+                    case LUA_TSTRING:
+                        key = lua_tostring(L, 3);
+                        break;
+                    case LUA_TNIL:
+                        key = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/fsconfig");
+                        std::exit(1);
+                    }
+
+                    switch (lua_type(L, 4)) {
+                    case LUA_TSTRING:
+                        value = lua_tostring(L, 4);
+                        break;
+                    case LUA_TNIL:
+                        value = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/fsconfig");
+                        std::exit(1);
+                    }
+
+                    int res = fsconfig(fd, cmd, key, value, aux);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "fsconfig");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "fspick",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int dirfd = luaL_checkinteger(L, 1);
+                    const char* pathname;
+                    unsigned int flags = luaL_checkinteger(L, 3);
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TSTRING:
+                        pathname = lua_tostring(L, 2);
+                        break;
+                    case LUA_TNIL:
+                        pathname = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/fspick");
+                        std::exit(1);
+                    }
+
+                    int res = fspick(dirfd, pathname, flags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "fspick");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "open_tree",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int dirfd = luaL_checkinteger(L, 1);
+                    const char* pathname;
+                    unsigned int flags = luaL_checkinteger(L, 3);
+
+                    switch (lua_type(L, 2)) {
+                    case LUA_TSTRING:
+                        pathname = lua_tostring(L, 2);
+                        break;
+                    case LUA_TNIL:
+                        pathname = NULL;
+                        break;
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/open_tree");
+                        std::exit(1);
+                    }
+
+                    int res = open_tree(dirfd, pathname, flags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "open_tree");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
