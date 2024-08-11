@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <boost/predef/library/std/cxx.h>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/predef/os/windows.h>
@@ -398,7 +399,14 @@ public:
     std::unordered_map<std::string_view, std::string_view> app_env;
     int exit_code = 0;
 
+#if BOOST_LIB_STD_CXX
+    std::weak_ptr<vm_context> master_vm;
+# if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+    std::mutex master_vm_mtx;
+# endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+#else // BOOST_LIB_STD_CXX
     std::atomic<std::weak_ptr<vm_context>> master_vm;
+#endif // BOOST_LIB_STD_CXX
 
     std::vector<std::filesystem::path> emilua_path;
 
@@ -706,7 +714,14 @@ public:
 
     bool is_master() const noexcept
     {
+#if BOOST_LIB_STD_CXX
+# if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+        std::unique_lock<std::mutex> lk{appctx.master_vm_mtx};
+# endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+        return this == appctx.master_vm.lock().get();
+#else // BOOST_LIB_STD_CXX
         return this == appctx.master_vm.load().lock().get();
+#endif // BOOST_LIB_STD_CXX
     }
 
     void async_event_thread(lua_State* new_async_event_thread)

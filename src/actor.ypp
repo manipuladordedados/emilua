@@ -1927,6 +1927,9 @@ static int spawn_vm(lua_State* L)
 #endif
 
         if (new_master) {
+#if BOOST_LIB_STD_CXX && EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+            std::unique_lock<std::mutex> lk{vm_ctx.appctx.master_vm_mtx};
+#endif // BOOST_LIB_STD_CXX && EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
             vm_ctx.appctx.master_vm = new_vm_ctx;
         }
 
