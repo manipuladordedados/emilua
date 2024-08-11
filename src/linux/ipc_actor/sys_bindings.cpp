@@ -1094,9 +1094,8 @@ int posix_mt_index(lua_State* L)
                     }
                     lua_pop(L, 1);
 
-                    int res = syscall(
-                        SYS_mount_setattr, dirfd, pathname, flags,
-                        &attr, sizeof(attr));
+                    int res = mount_setattr(
+                        dirfd, pathname, flags, &attr, sizeof(attr));
                     int last_error = (res == -1) ? errno : 0;
                     CHECK_LAST_ERROR(L, last_error, "mount_setattr");
                     lua_pushinteger(L, res);
