@@ -1398,7 +1398,12 @@ static int file_clock_time_point_to_system(lua_State* L)
     new (ret) std::chrono::system_clock::time_point{};
 #if BOOST_LIB_STD_GNU || BOOST_LIB_STD_CXX
     // current libstdc++ hasn't got clock_cast yet
-    *ret = std::chrono::file_clock::to_sys(*tp);
+    //
+    // libc++ (on FreeBSD) uses duration<__int128, ratio<1, 1000000000>> for
+    // to_sys()'s return value which can't be implicitly converted to
+    // duration<long long, std::ratio<1, 1000000>> so we need time_point_cast<>.
+    *ret = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+        std::chrono::file_clock::to_sys(*tp));
 #else
     *ret = std::chrono::clock_cast<std::chrono::system_clock>(*tp);
 #endif
@@ -1419,8 +1424,7 @@ inline int file_clock_time_point_seconds_since_unix_epoch(lua_State* L)
         lua_touserdata(L, 1));
 #if BOOST_LIB_STD_GNU || BOOST_LIB_STD_CXX
     // current libstdc++ hasn't got clock_cast yet
-    std::chrono::system_clock::time_point tp2 =
-        std::chrono::file_clock::to_sys(*tp);
+    auto tp2 = std::chrono::file_clock::to_sys(*tp);
 #else
     std::chrono::system_clock::time_point tp2 =
         std::chrono::clock_cast<std::chrono::system_clock>(*tp);
