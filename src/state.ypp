@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
+#include <boost/predef/library/std.h>
+
 #include <iostream>
 #include <new>
 
@@ -533,11 +535,11 @@ static int start_module_fiber(
     std::string_view module_source,
     bool module_is_leaf,
     const fs::path import_root,
-#if __has_include(<experimental/memory>)
+#if __has_include(<experimental/memory>) && !BOOST_LIB_STD_CXX
     std::experimental::observer_ptr<bool> commit_package_as_loaded
 #else
     bool* commit_package_as_loaded
-#endif // __has_include(<experimental/memory>)
+#endif // __has_include(<experimental/memory>) && !BOOST_LIB_STD_CXX
 ) {
     lua_State* module_fiber = lua_newthread(L);
 
@@ -908,11 +910,11 @@ static int on_external_package(
             module_source,
             module_is_leaf,
             /*import_root=*/p,
-#if __has_include(<experimental/memory>)
+#if __has_include(<experimental/memory>) && !BOOST_LIB_STD_CXX
             std::experimental::make_observer(&commit_package_as_loaded)
 #else
             &commit_package_as_loaded
-#endif // __has_include(<experimental/memory>)
+#endif // __has_include(<experimental/memory>) && !BOOST_LIB_STD_CXX
         );
     }
 
