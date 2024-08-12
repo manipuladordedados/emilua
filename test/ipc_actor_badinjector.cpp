@@ -117,7 +117,7 @@ private:
     static std::uniform_int_distribution<std::uint8_t> leaf_t_dist;
     static std::uniform_int_distribution<std::uint8_t> bool_dist;
     static std::uniform_int_distribution<std::uint64_t> double_dist;
-    static std::uniform_int_distribution<char> char_dist;
+    static std::uniform_int_distribution<short> char_dist;
     static std::uniform_int_distribution<std::uint8_t> str_size_dist;
     static std::uniform_int_distribution<std::uint8_t> dict_size_dist;
     static std::uniform_int_distribution<std::uint64_t>
@@ -137,7 +137,7 @@ ipc_actor_badinjector_plugin::bool_dist;
 std::uniform_int_distribution<std::uint64_t>
 ipc_actor_badinjector_plugin::double_dist;
 
-std::uniform_int_distribution<char>
+std::uniform_int_distribution<short>
 ipc_actor_badinjector_plugin::char_dist;
 
 std::uniform_int_distribution<std::uint8_t>
