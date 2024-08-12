@@ -5021,9 +5021,7 @@ void init_filesystem(lua_State* L)
 
     lua_pushlightuserdata(L, &file_status_mt_key);
     {
-        static_assert(std::is_trivially_destructible_v<fs::file_status>);
-
-        lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/4);
 
         lua_pushliteral(L, "__metatable");
         lua_pushliteral(L, "filesystem.file_status");
@@ -5035,6 +5033,10 @@ void init_filesystem(lua_State* L)
 
         lua_pushliteral(L, "__eq");
         lua_pushcfunction(L, file_status_mt_eq);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "__gc");
+        lua_pushcfunction(L, finalizer<fs::file_status>);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
