@@ -480,6 +480,10 @@ static plugin& load_native_module(
         .second;
     if (already_loading)
         throw std::system_error{errc::cyclic_import};
+    BOOST_SCOPE_EXIT_ALL(&) {
+        appctx.visited_native_modules.erase(
+            appctx.visited_native_modules.find(module_id));
+    };
 
     auto deps_path = pluginsdir / (std::string{module_id} + ".deps");
     if (fs::exists(deps_path)) {
