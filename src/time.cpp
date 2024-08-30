@@ -1546,8 +1546,7 @@ void init_time(lua_State* L)
 
         {
             lua_pushlightuserdata(L, &steady_timer_wait_key);
-            rawgetp(L, LUA_REGISTRYINDEX,
-                    &var_args__retval1_to_error__fwd_retval2__key);
+            rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
             lua_pushvalue(L, -1);
             lua_insert(L, -3);
             rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
