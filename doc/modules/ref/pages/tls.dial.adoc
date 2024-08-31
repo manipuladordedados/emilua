@@ -1,0 +1,29 @@
+= tls.dial
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local tls = require "tls"
+
+tls.dial(ep: string[, tls_ctx: tls.context]) -> socket
+----
+
+== Description
+
+1. Performs `ip.tcp.dial(ep)`.
+2. Set common options (e.g. no-delay).
+3. `tls.socket.new()`.
+4. Client handshake (e.g. verify-mode, SNI, hostname, ..., actual TLS
+   handshake).
+5. Returns the connected socket.
+
+Current fiber is suspended until operation finishes.

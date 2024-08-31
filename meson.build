@@ -309,6 +309,9 @@ bytecode_src = [
     'bytecode/ip_connect.lua',
     'bytecode/ip_dial.lua',
 
+    # tls
+    'bytecode/tls_dial.lua',
+
     # unix
     'bytecode/unix_dial.lua',
 

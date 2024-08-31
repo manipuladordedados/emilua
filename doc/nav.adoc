@@ -163,6 +163,7 @@
 **** xref:ref:system.jail_remove.adoc[jail_remove]
 **** xref:ref:system.jailparam_all.adoc[jailparam_all]
 ** tls
+*** xref:ref:tls.dial.adoc[dial]
 *** xref:ref:tls.context.adoc[context]
 *** xref:ref:tls.socket.adoc[socket]
 ** unix

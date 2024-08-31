@@ -20,6 +20,9 @@ EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
 
+extern unsigned char tls_dial_bytecode[];
+extern std::size_t tls_dial_bytecode_size;
+
 char tls_key;
 char tls_context_mt_key;
 char tls_socket_mt_key;
@@ -116,6 +119,27 @@ struct context_password_callback
     boost::local_shared_ptr<resource> shared_resource;
 };
 EMILUA_GPERF_DECLS_END(tls)
+
+static int extract_host(lua_State* L)
+{
+    luaL_checktype(L, 1, LUA_TSTRING);
+
+    std::string_view host = tostringview(L, 1);
+
+    {
+        auto idx = host.rfind(':');
+        if (idx == std::string_view::npos) {
+            push(L, std::errc::invalid_argument, "arg", 1);
+            return lua_error(L);
+        }
+
+        std::string_view port = host.substr(idx + 1);
+        host.remove_suffix(port.size() + 1);
+    }
+
+    push(L, host);
+    return 1;
+}
 
 static int tls_context_new(lua_State* L)
 {
@@ -1737,7 +1761,7 @@ void init_tls(lua_State* L)
 {
     lua_pushlightuserdata(L, &tls_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/3);
 
         lua_pushliteral(L, "context");
         {
@@ -1757,6 +1781,23 @@ void init_tls(lua_State* L)
             lua_pushcfunction(L, tls_socket_new);
             lua_rawset(L, -3);
         }
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "dial");
+        int res = luaL_loadbuffer(
+            L, reinterpret_cast<char*>(tls_dial_bytecode),
+            tls_dial_bytecode_size, nullptr);
+        assert(res == 0); boost::ignore_unused(res);
+        lua_pushcfunction(L, extract_host);
+        {
+            rawgetp(L, LUA_REGISTRYINDEX, &ip_key);
+            lua_getfield(L, -1, "tcp");
+            lua_getfield(L, -1, "dial");
+            lua_insert(L, -3);
+            lua_pop(L, 2);
+        }
+        lua_pushcfunction(L, tls_socket_new);
+        lua_call(L, 3, 1);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);

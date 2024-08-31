@@ -8,6 +8,7 @@
 
 === Added
 
+* Function `tls.dial()`.
 * `file_descriptor`
 ** Property `non_blocking`.
 * New bindings in `init.script`.
