@@ -30,6 +30,7 @@ static char socket_client_handshake_key;
 static char socket_server_handshake_key;
 static char tls_socket_read_some_key;
 static char tls_socket_write_some_key;
+static char default_tls_context_key;
 
 struct context_password_callback
 {
@@ -1270,17 +1271,50 @@ static int tls_socket_new(lua_State* L)
         return lua_error(L);
     }
 
-    auto c = static_cast<std::shared_ptr<asio::ssl::context>*>(
-        lua_touserdata(L, 2)
-    );
-    if (!c || !lua_getmetatable(L, 2)) {
+    std::shared_ptr<asio::ssl::context>* c = nullptr;
+
+    switch (lua_type(L, 2)) {
+    default:
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &tls_context_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
+    case LUA_TNIL:
+        rawgetp(L, LUA_REGISTRYINDEX, &default_tls_context_key);
+        c = static_cast<std::shared_ptr<asio::ssl::context>*>(
+            lua_touserdata(L, -1));
+        if (!c) {
+            auto ctx = std::make_shared<asio::ssl::context>(
+                asio::ssl::context::tlsv13);
+            asio_error_code ec;
+            ctx->set_default_verify_paths(ec);
+            if (ec) {
+                push(L, ec);
+                return lua_error(L);
+            }
+
+            lua_pushlightuserdata(L, &default_tls_context_key);
+            c = static_cast<std::shared_ptr<asio::ssl::context>*>(
+                lua_newuserdata(L, sizeof(std::shared_ptr<asio::ssl::context>))
+            );
+            rawgetp(L, LUA_REGISTRYINDEX, &tls_context_mt_key);
+            setmetatable(L, -2);
+            new (c) std::shared_ptr<asio::ssl::context>{std::move(ctx)};
+            lua_rawset(L, LUA_REGISTRYINDEX);
+        }
+        break;
+    case LUA_TUSERDATA:
+        c = static_cast<std::shared_ptr<asio::ssl::context>*>(
+            lua_touserdata(L, 2)
+        );
+        if (!c || !lua_getmetatable(L, 2)) {
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        }
+        rawgetp(L, LUA_REGISTRYINDEX, &tls_context_mt_key);
+        if (!lua_rawequal(L, -1, -2)) {
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        }
+        break;
     }
 
     auto s = static_cast<TlsSocket*>(lua_newuserdata(L, sizeof(TlsSocket)));

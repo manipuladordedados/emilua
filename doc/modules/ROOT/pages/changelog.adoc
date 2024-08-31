@@ -25,6 +25,11 @@
    `FSPICK_NO_AUTOMOUNT`, `FSPICK_EMPTY_PATH` (Linux).
 ** `open_tree()`, `OPEN_TREE_CLONE`, `OPEN_TREE_CLOEXEC` (Linux).
 
+=== Changed
+
+* `tls.context` is now an optional parameter to ``tls.socket``'s constructor. If
+  one is not provided, a default per-VM on-first-use generated one will be used.
+
 [id=0.9]
 == 0.9 - 2024-06-26
 
