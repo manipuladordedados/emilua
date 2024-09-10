@@ -12,11 +12,7 @@ endif::[]
 
 [source,lua]
 ----
-tls_ctx = tls.context.new('tlsv13')
-
-local s = ip.tcp.socket.new()
-ip.connect(s, ip.tcp.get_address_info('www.example.com', 'https'))
-s = tls.socket.new(s, tls_ctx)
+local s = tls.socket.new(ip.tcp.dial('www.example.com:https'))
 s:client_handshake()
 s = http.socket.new(s)
 
@@ -30,9 +26,12 @@ s:read_response(res)
 
 == Functions
 
-=== `new(sock: ip.tcp.socket, tls_ctx: tls.context) -> tls.socket`
+=== `new(sock: ip.tcp.socket[, tls_ctx: tls.context]) -> tls.socket`
 
 Constructor.
+
+If `tls_ctx` is not provided, a per-VM -- generated on first use -- default one
+will be used.
 
 === `client_handshake(self)`
 

@@ -21,11 +21,9 @@
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
 
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-namespace asio = ::asio;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#if !EMILUA_CONFIG_USE_STANDALONE_ASIO
 namespace asio = boost::asio;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 extern char** environ;
 

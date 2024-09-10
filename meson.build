@@ -2,8 +2,8 @@ project(
     'emilua', 'cpp',
     default_options : ['cpp_std=c++20'],
     meson_version : '>=1.2.0',
-    license : 'BSL-1.0',
-    version : '0.10.0',
+    license : 'BSL-1.0 OR MIT',
+    version : '0.10.1',
 )
 
 fs = import('fs')
@@ -308,6 +308,9 @@ bytecode_src = [
     # ip
     'bytecode/ip_connect.lua',
     'bytecode/ip_dial.lua',
+
+    # tls
+    'bytecode/tls_dial.lua',
 
     # unix
     'bytecode/unix_dial.lua',
