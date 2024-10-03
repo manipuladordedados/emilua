@@ -48,6 +48,17 @@ Constructor.
 
 When the `capacity` argument is omitted, it defaults to the specified `length`.
 
+=== `with_zeros(length: integer[, capacity: integer]) -> byte_span`
+
+Constructor.
+
+It initializes `capacity` bytes with zero (the NUL byte). If `length` and
+`capacity` differ then it goes beyond the first `length` bytes to initialize the
+whole memory region pointed to by the returned `byte_span`.
+
+If `length` and `capacity` are equal, then it's identical to
+`new(length):fill(0)`.
+
 === `slice(self[, start: integer, end: integer]) -> byte_span`
 
 Returns a new `byte_span` that points to a slice of the same memory region.

@@ -66,6 +66,53 @@ int byte_span_new(lua_State* L)
     return 1;
 }
 
+int byte_span_with_zeros(lua_State* L)
+{
+    if (lua_type(L, 1) != LUA_TNUMBER) {
+        push(L, std::errc::invalid_argument);
+        return lua_error(L);
+    }
+    lua_Integer length = lua_tointeger(L, 1);
+
+    lua_Integer capacity;
+    switch (lua_type(L, 2)) {
+    case LUA_TNIL:
+    case LUA_TNONE:
+        capacity = length;
+        break;
+    case LUA_TNUMBER:
+        capacity = lua_tointeger(L, 2);
+        break;
+    default:
+        push(L, std::errc::invalid_argument);
+        return lua_error(L);
+    }
+
+    if (length < 0 || capacity < 0 || length > capacity) {
+        push(L, std::errc::invalid_argument);
+        return lua_error(L);
+    }
+
+    if (capacity == 0) {
+        auto new_bs = static_cast<byte_span_handle*>(
+            lua_newuserdata(L, sizeof(byte_span_handle))
+        );
+        rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+        setmetatable(L, -2);
+        new (new_bs) byte_span_handle{nullptr, 0, 0};
+        return 1;
+    }
+
+    auto bs = static_cast<byte_span_handle*>(
+        lua_newuserdata(L, sizeof(byte_span_handle))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    setmetatable(L, -2);
+    new (bs) byte_span_handle{length, capacity};
+    std::memset(bs->data.get(), 0, bs->capacity);
+    return 1;
+}
+
 static int byte_span_mt_len(lua_State* L)
 {
     auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
@@ -2565,7 +2612,7 @@ static int byte_span_mt_newindex(lua_State* L)
 void init_byte_span(lua_State* L)
 {
     lua_pushlightuserdata(L, &byte_span_key);
-    lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+    lua_createtable(L, /*narr=*/0, /*nrec=*/3);
     {
         lua_pushliteral(L, "new");
         lua_pushcfunction(L, byte_span_new);
@@ -2573,6 +2620,10 @@ void init_byte_span(lua_State* L)
 
         lua_pushliteral(L, "append");
         lua_pushcfunction(L, byte_span_non_member_append);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "with_zeros");
+        lua_pushcfunction(L, byte_span_with_zeros);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
