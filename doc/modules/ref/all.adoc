@@ -210,6 +210,8 @@ include::pages/system.out.adoc[]
 
 include::pages/system.err.adoc[]
 
+include::pages/system.get_lowfd.adoc[]
+
 include::pages/system.exit.adoc[]
 
 include::pages/system.signal.adoc[]

@@ -87,6 +87,17 @@ int main(int argc, char *argv[], char *envp[])
     }
 #endif // BOOST_OS_UNIX
 
+#if BOOST_OS_UNIX
+    std::array<bool, 7> lowfds;
+    lowfds.fill(false);
+
+    for (int fd = 3 ; fd <= 9 ; ++fd) {
+        if (fcntl(fd, F_GETFD) != -1 || errno != EBADF) {
+            lowfds[fd - 3] = true;
+        }
+    }
+#endif // BOOST_OS_UNIX
+
 #if BOOST_OS_LINUX
     boost::context::fixedsize_stack clone_stack_allocator;
     auto clone_stack = clone_stack_allocator.allocate();
@@ -266,6 +277,7 @@ int main(int argc, char *argv[], char *envp[])
     appctx.app_env = std::move(tmp_env);
 
 #if BOOST_OS_UNIX
+    appctx.lowfds = lowfds;
     appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
 #endif // BOOST_OS_UNIX
 

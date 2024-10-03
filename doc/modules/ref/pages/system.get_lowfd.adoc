@@ -1,0 +1,31 @@
+= system.get_lowfd
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local system = require "system"
+system.get_lowfd(fd: integer) -> file_descriptor|nil
+----
+
+== Description
+
+If `fd` is a number between 3 and 9 (inclusive) and the process inherited this
+numbered file descriptor, returns it as `file_descriptor` object.
+
+Once a `file_descriptor` is returned, it's consumed from the runtime's internal
+registry, and this function will return `nil` on that point forward if called
+with the same argument.
+
+TIP: This function is useful to implement FD3-based protocols such as systemD's
+socket activation and Varlink.
+
+NOTE: Only the master VM is allowed to use this function.

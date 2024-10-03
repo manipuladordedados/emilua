@@ -843,7 +843,15 @@ if get_option('enable_tests')
 
                 # misc
                 'ipc_actor_1_56',
-            ]
+            ],
+            'system' : [
+                'get_lowfd1',
+                'get_lowfd2',
+                'get_lowfd3',
+                'get_lowfd4',
+                'get_lowfd5',
+                'get_lowfd6',
+            ],
         }
     endif
 

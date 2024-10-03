@@ -372,7 +372,12 @@ private:
     };
 
 public:
-    app_context() = default;
+    app_context()
+    {
+#if BOOST_OS_UNIX
+        lowfds.fill(false);
+#endif // BOOST_OS_UNIX
+    }
     app_context(const app_context&) = delete;
 
     template<class Dom>
@@ -432,6 +437,7 @@ public:
 
 #if BOOST_OS_UNIX
     int ipc_actor_service_sockfd = -1;
+    std::array<bool, 7> lowfds;
     static char*** environp;
 #endif // BOOST_OS_UNIX
 

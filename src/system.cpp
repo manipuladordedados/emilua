@@ -1902,6 +1902,38 @@ static int system_jailparam_all(lua_State* L)
 #endif // BOOST_OS_BSD_FREE
 
 #if BOOST_OS_UNIX
+static int system_get_lowfd(lua_State* L)
+{
+    lua_settop(L, 1);
+
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    int fd = luaL_checkinteger(L, 1) - 3;
+    if (fd < 0 || fd >= 7) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (!vm_ctx.appctx.lowfds[fd]) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    auto fdhandle = static_cast<file_descriptor_handle*>(
+        lua_newuserdata(L, sizeof(file_descriptor_handle))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    setmetatable(L, -2);
+
+    *fdhandle = fd + 3;
+    vm_ctx.appctx.lowfds[fd] = false;
+    return 1;
+}
+
 static int system_getresuid(lua_State* L)
 {
     uid_t ruid, euid, suid;
@@ -3334,6 +3366,16 @@ static int system_mt_index(lua_State* L)
             })
         EMILUA_GPERF_PAIR("out", system_out)
         EMILUA_GPERF_PAIR("err", system_err)
+        EMILUA_GPERF_PAIR(
+            "get_lowfd",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, system_get_lowfd);
+#else // BOOST_OS_UNIX
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
         EMILUA_GPERF_PAIR(
             "spawn",
             [](lua_State* L) -> int {
