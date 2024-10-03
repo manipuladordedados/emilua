@@ -88,6 +88,12 @@ capacity) is left unspecified and may change among Emilua releases.].
 For the second overload (non-member function), a new byte span is created from
 scratch.
 
+=== `fill(self, byte: integer) -> byte_span`
+
+As in C's `memset()`, it fills the memory area pointed to by `self` with `byte`.
+
+Returns `self`.
+
 == Functions (string algorithms)
 
 These functions operate in terms of octets/bytes (kinda like an 8-bit ASCII) and

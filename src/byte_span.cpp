@@ -297,6 +297,28 @@ static int byte_span_member_append(lua_State* L)
     }
 }
 
+static int byte_span_fill(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    int c = luaL_checkinteger(L, 2);
+    std::memset(bs->data.get(), c, bs->size);
+
+    lua_pushvalue(L, 1);
+    return 1;
+}
+
 static int byte_span_starts_with(lua_State* L)
 {
     lua_settop(L, 2);
@@ -2149,6 +2171,12 @@ static int byte_span_mt_index(lua_State* L)
             "append",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, byte_span_member_append);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "fill",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_fill);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
