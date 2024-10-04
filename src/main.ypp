@@ -88,6 +88,32 @@ int main(int argc, char *argv[], char *envp[])
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_UNIX
+    if (fcntl(0, F_GETFD) == -1 && errno == EBADF) {
+        int p[2];
+        if (pipe(p) == -1)
+            std::abort();
+        if (dup2(p[0], 0) == -1)
+            std::abort();
+        if (p[0] != 0)
+            close(p[0]);
+        if (p[1] != 0)
+            close(p[1]);
+    }
+
+    for (int fd = 1 ; fd <= 2 ; ++fd) {
+        if (fcntl(fd, F_GETFD) == -1 && errno == EBADF) {
+            int p[2];
+            if (pipe(p) == -1)
+                std::abort();
+            if (dup2(p[1], fd) == -1)
+                std::abort();
+            if (p[0] != fd)
+                close(p[0]);
+            if (p[1] != fd)
+                close(p[1]);
+        }
+    }
+
     std::array<bool, 7> lowfds;
     lowfds.fill(false);
 
