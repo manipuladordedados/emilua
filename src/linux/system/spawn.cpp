@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, 2023 Vinícius dos Santos Oliveira
+// Copyright (c) 2021, 2022, 2023, 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
@@ -37,6 +37,8 @@ extern char linux_capabilities_mt_key;
 static char subprocess_mt_key;
 static char subprocess_wait_key;
 
+using namespace std::string_view_literals;
+
 struct spawn_arguments_t
 {
     struct errno_reply_t
@@ -51,6 +53,7 @@ struct spawn_arguments_t
     int programfd;
     char** argv;
     char** envp;
+    std::string_view env_with_pid;
     int proc_stdin;
     int proc_stdout;
     int proc_stderr;
@@ -379,6 +382,21 @@ static int system_spawn_child_main(void* a)
         for (int signo = 1 ; signo != NSIG ; ++signo) {
             sigaction(signo, /*act=*/&sa, /*oldact=*/NULL);
         }
+    }
+
+    if (args->env_with_pid.size() > 0) {
+        char* value;
+        for (char** e = args->envp ;; ++e) {
+            if (*(e + 1) == NULL) {
+                value = *e;
+                break;
+            }
+        }
+        value += args->env_with_pid.size() + 1;
+        auto res = std::to_chars(
+            value, value + std::numeric_limits<pid_t>::digits10, getpid());
+        assert(res.ec == std::errc{});
+        std::ignore = res;
     }
 
     if (args->scheduler_policy) {
@@ -931,6 +949,7 @@ int system_spawn(lua_State* L)
     argumentsb.emplace_back(nullptr);
 
     std::vector<std::string> environment;
+    std::string_view env_with_pid;
     lua_getfield(L, 1, "environment");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
@@ -945,9 +964,24 @@ int system_spawn(lua_State* L)
                 return lua_error(L);
             }
 
-            environment.emplace_back(tostringview(L, -2));
-            environment.back() += '=';
-            environment.back() += tostringview(L, -1);
+            auto key = tostringview(L, -2);
+            auto value = tostringview(L, -1);
+
+            if (value == "\0pid"sv) {
+                if (env_with_pid.size() > 0) {
+                    push(L, std::errc::invalid_argument, "arg", "environment");
+                    return lua_error(L);
+                }
+
+                env_with_pid = key;
+            } else {
+                environment.emplace_back();
+                environment.back().reserve(key.size() + 1 + value.size());
+                environment.back() += key;
+                environment.back() += '=';
+                environment.back() += value;
+            }
+
             lua_pop(L, 1);
         }
         break;
@@ -956,6 +990,15 @@ int system_spawn(lua_State* L)
         return lua_error(L);
     }
     lua_pop(L, 1);
+    if (env_with_pid.size() > 0) {
+        std::size_t sz = env_with_pid.size() + /*equals_sign_size=*/1 +
+            std::numeric_limits<pid_t>::digits10;
+        environment.emplace_back();
+        environment.back().reserve(sz);
+        environment.back() += env_with_pid;
+        environment.back() += '=';
+        environment.back().resize(sz, '\0');
+    }
     std::vector<char*> environmentb;
     environmentb.reserve(environment.size() + 1);
     for (auto& e: environment) {
@@ -1796,6 +1839,7 @@ int system_spawn(lua_State* L)
     args.programfd = programfd;
     args.argv = argumentsb.data();
     args.envp = environmentb.data();
+    args.env_with_pid = env_with_pid;
     args.proc_stdin = proc_stdin;
     args.proc_stdout = proc_stdout;
     args.proc_stderr = proc_stderr;

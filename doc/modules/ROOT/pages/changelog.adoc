@@ -11,6 +11,7 @@
 * `byte_span.fill()`.
 * `byte_span.with_zeros()`.
 * `system.get_lowfd()`
+* Value `"\0pid"` for the parameter `"environment"` in `system.spawn()`.
 
 [id=0.10]
 == 0.10 - 2024-09-01

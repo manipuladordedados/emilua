@@ -851,6 +851,7 @@ if get_option('enable_tests')
                 'get_lowfd4',
                 'get_lowfd5',
                 'get_lowfd6',
+                'spawn_with_pid_on_env',
             ],
         }
     endif
@@ -938,6 +939,7 @@ if get_option('enable_tests')
                     meson.current_source_dir() / 'test' / 'run_test.awk',
                     meson.current_source_dir() / 'test' / 'libpsx1',
                 ],
+                workdir : meson.current_source_dir() / 'test',
                 env : tests_env,
 
                 # there's a libpsx bug for C++ projects that hasn't been solved
@@ -955,6 +957,7 @@ if get_option('enable_tests')
                      meson.current_source_dir() / 'test' / 'run_test.awk',
                      meson.current_source_dir() / 'test' / t,
                  ],
+                 workdir : meson.current_source_dir() / 'test',
                  env : tests_env)
         endforeach
     endforeach
