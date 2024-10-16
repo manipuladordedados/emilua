@@ -985,7 +985,8 @@ static int child_main(void*)
         int evfd = eventfd(0, EFD_SEMAPHORE);
         if (evfd == -1)
             return 1;
-        auto atfork_parent = [&evfd]() -> std::optional<int> {
+        auto atfork_parent = [&buffer,&evfd]() -> std::optional<int> {
+            explicit_bzero(buffer.data(), buffer.size());
             if (eventfd_write(evfd, 1) == -1)
                 return 1;
 
