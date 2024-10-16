@@ -148,6 +148,53 @@ inline int file_descriptor_non_blocking_get(lua_State* L)
 #endif // BOOST_OS_WINDOWS
 }
 
+inline int file_descriptor_type(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
+    struct stat st_fd;
+    if (fstat(*handle, &st_fd) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    std::string_view ret;
+    switch (st_fd.st_mode & S_IFMT) {
+    default:
+        ret = "unknown";
+        break;
+    case S_IFSOCK:
+        ret = "socket";
+        break;
+    case S_IFREG:
+        ret = "regular";
+        break;
+    case S_IFBLK:
+        ret = "block";
+        break;
+    case S_IFDIR:
+        ret = "directory";
+        break;
+    case S_IFCHR:
+        ret = "character";
+        break;
+    case S_IFIFO:
+        ret = "fifo";
+        break;
+    }
+
+    push(L, ret);
+    return 1;
+#endif // BOOST_OS_WINDOWS
+}
+
 #if BOOST_OS_LINUX
 static int file_descriptor_cap_get(lua_State* L)
 {
@@ -576,6 +623,7 @@ static int file_descriptor_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR("non_blocking", file_descriptor_non_blocking_get)
+        EMILUA_GPERF_PAIR("type", file_descriptor_type)
     EMILUA_GPERF_END(key)(L);
 }
 

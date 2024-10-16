@@ -143,6 +143,18 @@ Parameters:
 
 Query/set fcntl flag `O_NONBLOCK`.
 
+=== `type: string`
+
+One of:
+
+* `"regular"`
+* `"directory"`
+* `"block"`
+* `"character"`
+* `"fifo"`
+* `"socket"`
+* `"unknown"`
+
 == Metamethods
 
 === `__tostring()`
