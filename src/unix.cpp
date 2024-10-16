@@ -51,12 +51,14 @@ static char unix_datagram_socket_receive_from_with_fds_key;
 static char unix_datagram_socket_send_with_fds_key;
 static char unix_datagram_socket_send_to_with_fds_key;
 static char unix_stream_acceptor_accept_key;
+static char unix_stream_acceptor_wait_key;
 static char unix_stream_socket_connect_key;
 static char unix_stream_socket_read_some_key;
 static char unix_stream_socket_write_some_key;
 static char unix_stream_socket_receive_with_fds_key;
 static char unix_stream_socket_send_with_fds_key;
 static char unix_seqpacket_acceptor_accept_key;
+static char unix_seqpacket_acceptor_wait_key;
 static char unix_seqpacket_socket_connect_key;
 static char unix_seqpacket_socket_receive_key;
 static char unix_seqpacket_socket_send_key;
@@ -3540,6 +3542,63 @@ static int unix_stream_acceptor_accept(lua_State* L)
     return lua_yield(L, 0);
 }
 
+static int unix_stream_acceptor_wait(lua_State* L)
+{
+    luaL_checktype(L, 2, LUA_TSTRING);
+
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
+
+    auto acceptor = static_cast<asio::local::stream_protocol::acceptor*>(
+        lua_touserdata(L, 1));
+    if (!acceptor || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto key = tostringview(L, 2);
+    auto wait_type = EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(
+            asio::local::stream_protocol::acceptor::wait_type action)
+        EMILUA_GPERF_PAIR(
+            "read", asio::local::stream_protocol::acceptor::wait_read)
+        EMILUA_GPERF_PAIR(
+            "write", asio::local::stream_protocol::acceptor::wait_write)
+        EMILUA_GPERF_PAIR(
+            "error", asio::local::stream_protocol::acceptor::wait_error)
+    EMILUA_GPERF_END(key);
+    if (!wait_type) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
+
+    acceptor->async_wait(
+        *wait_type,
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
+            vm_ctx->strand_using_defer(),
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
+                auto opt_args = vm_context::options::arguments;
+                vm_ctx->fiber_resume(
+                    current_fiber,
+                    hana::make_set(
+                        vm_context::options::auto_detect_interrupt,
+                        hana::make_pair(
+                            opt_args, hana::make_tuple(ec))));
+            }
+        ))
+    );
+
+    return lua_yield(L, 0);
+}
+
 EMILUA_GPERF_DECLS_BEGIN(unix_stream_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_stream_acceptor_close(lua_State* L)
@@ -3856,6 +3915,12 @@ static int unix_stream_acceptor_mt_index(lua_State* L)
             "accept",
             [](lua_State* L) -> int {
                 rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_accept_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "wait",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_wait_key);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -5518,6 +5583,63 @@ static int unix_seqpacket_acceptor_accept(lua_State* L)
     return lua_yield(L, 0);
 }
 
+static int unix_seqpacket_acceptor_wait(lua_State* L)
+{
+    luaL_checktype(L, 2, LUA_TSTRING);
+
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
+
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
+        lua_touserdata(L, 1));
+    if (!acceptor || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_seqpacket_acceptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto key = tostringview(L, 2);
+    auto wait_type = EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(
+            asio::local::seq_packet_protocol::acceptor::wait_type action)
+        EMILUA_GPERF_PAIR(
+            "read", asio::local::seq_packet_protocol::acceptor::wait_read)
+        EMILUA_GPERF_PAIR(
+            "write", asio::local::seq_packet_protocol::acceptor::wait_write)
+        EMILUA_GPERF_PAIR(
+            "error", asio::local::seq_packet_protocol::acceptor::wait_error)
+    EMILUA_GPERF_END(key);
+    if (!wait_type) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
+
+    acceptor->async_wait(
+        *wait_type,
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
+            vm_ctx->strand_using_defer(),
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
+                auto opt_args = vm_context::options::arguments;
+                vm_ctx->fiber_resume(
+                    current_fiber,
+                    hana::make_set(
+                        vm_context::options::auto_detect_interrupt,
+                        hana::make_pair(
+                            opt_args, hana::make_tuple(ec))));
+            }
+        ))
+    );
+
+    return lua_yield(L, 0);
+}
+
 EMILUA_GPERF_DECLS_BEGIN(unix_seqpacket_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_seqpacket_acceptor_close(lua_State* L)
@@ -5846,6 +5968,13 @@ static int unix_seqpacket_acceptor_mt_index(lua_State* L)
             [](lua_State* L) -> int {
                 rawgetp(L, LUA_REGISTRYINDEX,
                         &unix_seqpacket_acceptor_accept_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "wait",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &unix_seqpacket_acceptor_wait_key);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -6357,6 +6486,13 @@ void init_unix(lua_State* L)
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 
+    lua_pushlightuserdata(L, &unix_stream_acceptor_wait_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
+    rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+    lua_pushcfunction(L, unix_stream_acceptor_wait);
+    lua_call(L, 2, 1);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
     lua_pushlightuserdata(L, &unix_seqpacket_socket_connect_key);
     rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
@@ -6401,6 +6537,13 @@ void init_unix(lua_State* L)
             &var_args__retval1_to_error__fwd_retval2__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
     lua_pushcfunction(L, unix_seqpacket_acceptor_accept);
+    lua_call(L, 2, 1);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &unix_seqpacket_acceptor_wait_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
+    rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+    lua_pushcfunction(L, unix_seqpacket_acceptor_wait);
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 }
