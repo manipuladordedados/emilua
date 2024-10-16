@@ -1023,6 +1023,17 @@ static int child_main(void*)
             // SIGINT to PID1.
             sigaction(SIGINT, /*act=*/&sa, /*oldact=*/NULL);
 
+            // SysVinit 3.10 was released with a change to handle
+            // SIGRTMIN+4. The change was motivated by systemD's machinectl
+            // behavior. Here we just follow the same trend.
+            //
+            // Given SIGRTMIN+4 is a RT signal, we should in theory be using
+            // sigqueue() instead of kill() in the sighandler and handle EAGAIN
+            // to avoid signal coalescing. However it's acceptable for the
+            // behavior desired here (poweroff.target) to coalesce as it's an
+            // one-time action anyway.
+            sigaction(SIGRTMIN+4, /*act=*/&sa, /*oldact=*/NULL);
+
             // Allow EPIPE to propagate if child process closes standard file
             // descriptors.
             close_range(0, UINT_MAX, /*flags=*/0);

@@ -124,9 +124,9 @@ runtime will fork if it's running as PID1. This new child will assume the role
 of starting your module (the Lua VM). The PID1 process will perform the
 following jobs:
 
-* Forward `SIGTERM`, `SIGUSR1`, `SIGUSR2`, `SIGHUP`, and `SIGINT` to the
-  child. There is no point in re-routing every signal, but more may be added to
-  this set if you present a compelling case.
+* Forward `SIGTERM`, `SIGUSR1`, `SIGUSR2`, `SIGHUP`, `SIGINT`, and `SIGRTMIN+4`
+  to the child. There is no point in re-routing every signal, but more may be
+  added to this set if you present a compelling case.
 * Reap zombie processes.
 * Exit when the child dies with the same exit code as the child's.
 --
