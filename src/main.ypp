@@ -90,9 +90,24 @@ int main(int argc, char *argv[], char *envp[])
     // supervisor. Also useful if you want to use Emilua to create your own init
     // system.
     if (getpid() == 1) {
-        auto exit_code = emilua::app_context::handle_pid1();
+        int evfd = eventfd(0, EFD_SEMAPHORE);
+        if (evfd == -1)
+            return 1;
+        auto atfork_parent = [&evfd]() -> std::optional<int> {
+            if (eventfd_write(evfd, 1) == -1)
+                return 1;
+
+            return std::nullopt;
+        };
+
+        auto exit_code = emilua::app_context::handle_pid1(atfork_parent);
         if (exit_code)
             return *exit_code;
+
+        eventfd_t evval;
+        if (eventfd_read(evfd, &evval) == -1)
+            return 1;
+        close(evfd);
     }
 #endif // BOOST_OS_UNIX
 

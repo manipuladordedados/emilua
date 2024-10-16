@@ -982,9 +982,24 @@ static int child_main(void*)
     }
 
     if (getpid() == 1) {
-        auto exit_code = app_context::handle_pid1();
+        int evfd = eventfd(0, EFD_SEMAPHORE);
+        if (evfd == -1)
+            return 1;
+        auto atfork_parent = [&evfd]() -> std::optional<int> {
+            if (eventfd_write(evfd, 1) == -1)
+                return 1;
+
+            return std::nullopt;
+        };
+
+        auto exit_code = app_context::handle_pid1(atfork_parent);
         if (exit_code)
             return *exit_code;
+
+        eventfd_t evval;
+        if (eventfd_read(evfd, &evval) == -1)
+            return 1;
+        close(evfd);
     }
 
     int ipc_actor_service_pipe[2];
@@ -1188,7 +1203,8 @@ static int child_main(void*)
     return appctx.exit_code;
 }
 
-std::optional<int> app_context::handle_pid1()
+std::optional<int> app_context::handle_pid1(
+    std::function<std::optional<int>()> atfork_on_parent)
 {
     assert(getpid() == 1);
 
@@ -1243,6 +1259,16 @@ std::optional<int> app_context::handle_pid1()
         // desired here (poweroff.target) to coalesce as it's an one-time action
         // anyway.
         sigaction(SIGRTMIN+4, /*act=*/&sa, /*oldact=*/NULL);
+
+        // We only call atfork_on_parent after sighandling registration finishes
+        // so it's possible to synchronize child actions that depend on
+        // sighandling being ready. An example of such sync needs may be found
+        // in systemD's sd_notify()/X_SYSTEMD_SIGNALS_LEVEL=2.
+        if (atfork_on_parent) {
+            if (auto exit_code = atfork_on_parent() ; exit_code)
+                return *exit_code;
+            atfork_on_parent = nullptr;
+        }
 
         // Allow EPIPE to propagate if child process closes standard file
         // descriptors.
