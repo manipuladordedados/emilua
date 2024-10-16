@@ -397,6 +397,7 @@ public:
     }
 
 #if BOOST_OS_UNIX
+    static std::optional<int> handle_pid1();
     static int ipc_actor_service_main(int sockfd);
 #endif // BOOST_OS_UNIX
 
