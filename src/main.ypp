@@ -42,6 +42,7 @@ extern "C" {
 
 #if BOOST_OS_UNIX
 #include <emilua/actor.hpp>
+#include <sys/eventfd.h>
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
