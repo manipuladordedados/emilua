@@ -31,6 +31,17 @@ stream-like interface.
 
 Creates a new file descriptor that refers to `STDERR_FILENO`.
 
+=== `dup_from(self, oldd: file_descriptor)`
+
+Same as `dup2(oldd, STDERR_FILENO)`. Useful to redirect standard streams.
+
+`oldd` is not closed by this call.
+
+NOTE: Only the master VM is allowed to use this function.
+
+TIP: If you want to close the standard stream, replace it by a closed pipe
+instead. That's safer.
+
 === `isatty(self) -> boolean`
 
 See isatty(3).

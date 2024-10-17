@@ -1676,6 +1676,75 @@ int app_context::ipc_actor_service_main(int sockfd)
             munmap(path, request.chroot_mfd_size);
             continue;
         }
+        case ipc_actor_start_vm_request::REPLACE_STDIN: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            if (dup2(fds[1], STDIN_FILENO) == -1)
+                goto out_cleanup_and_return_failure;
+            close(fds[1]);
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            continue;
+        }
+        case ipc_actor_start_vm_request::REPLACE_STDOUT: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            if (dup2(fds[1], STDOUT_FILENO) == -1)
+                goto out_cleanup_and_return_failure;
+            close(fds[1]);
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            continue;
+        }
+        case ipc_actor_start_vm_request::REPLACE_STDERR: {
+            int fds[2] = { -1, -1 };
+            char buf[1];
+
+            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level != SOL_SOCKET ||
+                    cmsg->cmsg_type != SCM_RIGHTS) {
+                    continue;
+                }
+
+                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
+                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
+                break;
+            }
+
+            if (dup2(fds[1], STDERR_FILENO) == -1)
+                goto out_cleanup_and_return_failure;
+            close(fds[1]);
+            write(fds[0], buf, 1);
+            close(fds[0]);
+            continue;
+        }
         case ipc_actor_start_vm_request::CREATE_PROCESS: {
             int fds[4] = {-1, -1, -1, -1};
             for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;

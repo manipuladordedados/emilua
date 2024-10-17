@@ -144,6 +144,9 @@ struct ipc_actor_start_vm_request
 #endif // BOOST_OS_LINUX
         CHDIR,
         CHROOT,
+        REPLACE_STDIN,
+        REPLACE_STDOUT,
+        REPLACE_STDERR,
     } type;
 
 #if BOOST_OS_LINUX

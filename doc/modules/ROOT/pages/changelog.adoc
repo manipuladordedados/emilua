@@ -14,6 +14,7 @@
 * Value `"\0pid"` for the parameter `"environment"` in `system.spawn()`.
 * Function `wait()` for acceptors.
 * Property `file_descriptor.type`.
+* Function `dup_from()` in `system.in_`, `system.out`, and `system.err`.
 
 [id=0.10]
 == 0.10 - 2024-09-01

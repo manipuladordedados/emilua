@@ -15,6 +15,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/scope_exit.hpp>
 #include <boost/vmd/empty.hpp>
 
+#include <boost/hana/integral_constant.hpp>
+#include <boost/hana/at_key.hpp>
+#include <boost/hana/value.hpp>
+#include <boost/hana/map.hpp>
+
 #include <emilua/file_descriptor.hpp>
 #include <emilua/actor.hpp>
 
@@ -1026,6 +1031,117 @@ static int system_stdhandle_dup(lua_State* L)
     *newhandle = newfd;
     newfd = -1;
     return 1;
+}
+
+template<int FD>
+static int system_stdhandle_dup_from(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 2));
+    if (!handle || !lua_getmetatable(L, 2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    int channel[2] = { -1, -1 };
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (channel[0] != -1) close(channel[0]);
+        if (channel[1] != -1) close(channel[1]);
+    };
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        int res = pipe(channel);
+        if (res != 0) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+    }
+
+    if (dup2(*handle, FD) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        using request_type = decltype(ipc_actor_start_vm_request::CHDIR);
+        constexpr auto request_types = hana::make_map(
+            hana::make_pair(
+                hana::int_c<STDIN_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDIN>),
+            hana::make_pair(
+                hana::int_c<STDOUT_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDOUT>),
+            hana::make_pair(
+                hana::int_c<STDERR_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDERR>));
+        request.type = hana::value(request_types[hana::int_c<FD>]);
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            std::memcpy(it, handle, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    }
+
+    return 0;
 }
 
 template<int FD>
@@ -3907,7 +4023,7 @@ void init_system(lua_State* L)
 #if !BOOST_OS_WINDOWS || EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
     lua_pushlightuserdata(L, &system_in_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/5);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/6);
 
         lua_pushliteral(L, "read_some");
         rawgetp(L, LUA_REGISTRYINDEX,
@@ -3920,6 +4036,10 @@ void init_system(lua_State* L)
 # if BOOST_OS_UNIX
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDIN_FILENO>);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "dup_from");
+        lua_pushcfunction(L, system_stdhandle_dup_from<STDIN_FILENO>);
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "isatty");
@@ -3940,7 +4060,7 @@ void init_system(lua_State* L)
 
     lua_pushlightuserdata(L, &system_out_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/5);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/6);
 
         lua_pushliteral(L, "write_some");
 #if BOOST_OS_WINDOWS
@@ -3957,6 +4077,10 @@ void init_system(lua_State* L)
 #if BOOST_OS_UNIX
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDOUT_FILENO>);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "dup_from");
+        lua_pushcfunction(L, system_stdhandle_dup_from<STDOUT_FILENO>);
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "isatty");
@@ -3976,7 +4100,7 @@ void init_system(lua_State* L)
 
     lua_pushlightuserdata(L, &system_err_key);
     {
-        lua_createtable(L, /*narr=*/0, /*nrec=*/5);
+        lua_createtable(L, /*narr=*/0, /*nrec=*/6);
 
         lua_pushliteral(L, "write_some");
 #if BOOST_OS_WINDOWS
@@ -3993,6 +4117,10 @@ void init_system(lua_State* L)
 #if BOOST_OS_UNIX
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDERR_FILENO>);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "dup_from");
+        lua_pushcfunction(L, system_stdhandle_dup_from<STDERR_FILENO>);
         lua_rawset(L, -3);
 
         lua_pushliteral(L, "isatty");
