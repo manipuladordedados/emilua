@@ -121,6 +121,22 @@ Parameters:
 ** `"unlinkat"`
 ** `"write"`
 
+=== `cap_rights_contains(self, rights: string[]) -> boolean`
+
+Returns whether all the given capability `rights` are set.
+
+`rights` has the same set of allowed values as `cap_rights_limit()`.
+
+=== `cap_rights_remove(self, rights: string[])`
+
+It performs the following actions (in a non-atomic manner):
+
+1. Query current capabilities on the file descriptor.
+2. Remove `rights` from the returned set.
+3. Limit capabilities to the new set.
+
+`rights` has the same set of allowed values as `cap_rights_limit()`.
+
 === `cap_ioctls_limit(self, cmds: integer[])`
 
 See cap_ioctls_limit(2).
