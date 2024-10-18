@@ -18,6 +18,7 @@
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.
+** `system.caph_limit_stdio()`.
 
 [id=0.10]
 == 0.10 - 2024-09-01

@@ -16,7 +16,9 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/vmd/empty.hpp>
 
 #include <boost/hana/integral_constant.hpp>
+#include <boost/hana/for_each.hpp>
 #include <boost/hana/at_key.hpp>
+#include <boost/hana/tuple.hpp>
 #include <boost/hana/value.hpp>
 #include <boost/hana/map.hpp>
 
@@ -68,6 +70,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_BSD_FREE
+#include <capsicum_helpers.h>
 #include <sys/procctl.h>
 #include <sys/jail.h>
 #include <jail.h>
@@ -2015,6 +2018,104 @@ static int system_jailparam_all(lua_State* L)
     }
     return 1;
 }
+
+static int system_caph_limit_stdio(lua_State* L)
+{
+    auto& vm_ctx = get_vm_context(L);
+    if (!vm_ctx.is_master()) {
+        push(L, std::errc::operation_not_permitted);
+        return lua_error(L);
+    }
+
+    if (caph_limit_stdio() == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    auto sync_forker_stream = [&vm_ctx](auto pair) {
+        int channel[2] = { -1, -1 };
+        BOOST_SCOPE_EXIT_ALL(&) {
+            if (channel[0] != -1) close(channel[0]);
+            if (channel[1] != -1) close(channel[1]);
+        };
+
+        int res = pipe(channel);
+        if (res != 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = hana::value(hana::second(pair));
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        struct iovec iov;
+        iov.iov_base = &request;
+        iov.iov_len = sizeof(request);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int) * 2)];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = CMSG_SPACE(sizeof(int) * 2);
+
+        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+
+        {
+            char* begin = (char*)CMSG_DATA(cmsg);
+            char* it = begin;
+
+            std::memcpy(it, &channel[1], sizeof(int));
+            it += sizeof(int);
+
+            const int FD = hana::value(hana::first(pair));
+            std::memcpy(it, &FD, sizeof(int));
+        }
+
+        sendmsg(vm_ctx.appctx.ipc_actor_service_sockfd, &msg, MSG_NOSIGNAL);
+        close(channel[1]);
+        channel[1] = -1;
+
+        char buf[1];
+        auto nread = read(channel[0], &buf, 1);
+        if (nread == -1 || nread == 0) {
+            // as described in <https://ewontfix.com/17/> the only safe answer
+            // is to SIGKILL when we cannot guarantee atomicity of failure
+            std::exit(1);
+        }
+    };
+
+    if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
+        using request_type = decltype(ipc_actor_start_vm_request::CHDIR);
+        constexpr auto streams = hana::make_tuple(
+            hana::make_pair(
+                hana::int_c<STDIN_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDIN>),
+            hana::make_pair(
+                hana::int_c<STDOUT_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDOUT>),
+            hana::make_pair(
+                hana::int_c<STDERR_FILENO>,
+                hana::integral_c<
+                    request_type,
+                    ipc_actor_start_vm_request::REPLACE_STDERR>));
+
+        hana::for_each(streams, sync_forker_stream);
+    }
+
+    return 0;
+}
 #endif // BOOST_OS_BSD_FREE
 
 #if BOOST_OS_UNIX
@@ -3482,6 +3583,16 @@ static int system_mt_index(lua_State* L)
             })
         EMILUA_GPERF_PAIR("out", system_out)
         EMILUA_GPERF_PAIR("err", system_err)
+        EMILUA_GPERF_PAIR(
+            "caph_limit_stdio",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, system_caph_limit_stdio);
+#else // BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
         EMILUA_GPERF_PAIR(
             "get_lowfd",
             [](lua_State* L) -> int {

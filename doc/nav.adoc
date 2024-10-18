@@ -128,6 +128,7 @@
 *** xref:ref:system.in_.adoc[in_]
 *** xref:ref:system.out.adoc[out]
 *** xref:ref:system.err.adoc[err]
+*** xref:ref:system.caph_limit_stdio.adoc[caph_limit_stdio]
 *** xref:ref:system.get_lowfd.adoc[get_lowfd]
 *** xref:ref:system.exit.adoc[exit]
 *** xref:ref:system.signal.adoc[signal]
