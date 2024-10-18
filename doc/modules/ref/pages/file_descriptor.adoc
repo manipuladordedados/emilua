@@ -157,6 +157,10 @@ Parameters:
 ** `"getown"`
 ** `"setown"`
 
+=== `cap_fcntls_get(self) -> string[]`
+
+See cap_fcntls_get(2).
+
 == Properties
 
 === `non_blocking: boolean`

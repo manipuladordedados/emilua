@@ -19,6 +19,7 @@
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.
 ** `file_descriptor.cap_ioctls_get()`.
+** `file_descriptor.cap_fcntls_get()`.
 ** `system.caph_limit_stdio()`.
 
 [id=0.10]

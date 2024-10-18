@@ -697,6 +697,65 @@ static int file_descriptor_cap_fcntls_limit(lua_State* L)
 
     return 0;
 }
+
+static int file_descriptor_cap_fcntls_get(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    std::uint32_t fcntlrights;
+    if (cap_fcntls_get(*handle, &fcntlrights) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_createtable(L, /*narr=*/4, /*nrec=*/0);
+    int i = 1;
+
+    if ((fcntlrights & CAP_FCNTL_GETFL) == CAP_FCNTL_GETFL) {
+        fcntlrights ^= CAP_FCNTL_GETFL;
+        lua_pushliteral(L, "getfl");
+        lua_rawseti(L, -2, i++);
+    }
+
+    if ((fcntlrights & CAP_FCNTL_SETFL) == CAP_FCNTL_SETFL) {
+        fcntlrights ^= CAP_FCNTL_SETFL;
+        lua_pushliteral(L, "setfl");
+        lua_rawseti(L, -2, i++);
+    }
+
+    if ((fcntlrights & CAP_FCNTL_GETOWN) == CAP_FCNTL_GETOWN) {
+        fcntlrights ^= CAP_FCNTL_GETOWN;
+        lua_pushliteral(L, "getown");
+        lua_rawseti(L, -2, i++);
+    }
+
+    if ((fcntlrights & CAP_FCNTL_SETOWN) == CAP_FCNTL_SETOWN) {
+        fcntlrights ^= CAP_FCNTL_SETOWN;
+        lua_pushliteral(L, "setown");
+        lua_rawseti(L, -2, i++);
+    }
+
+    if (fcntlrights != 0) {
+        push(L, std::errc::not_supported);
+        return lua_error(L);
+    }
+
+    return 1;
+}
 #endif // BOOST_OS_BSD_FREE
 EMILUA_GPERF_DECLS_END(file_descriptor)
 
@@ -796,6 +855,16 @@ static int file_descriptor_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_BSD_FREE
                 lua_pushcfunction(L, file_descriptor_cap_fcntls_limit);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "cap_fcntls_get",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, file_descriptor_cap_fcntls_get);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_BSD_FREE
