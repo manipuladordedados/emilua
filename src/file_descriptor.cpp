@@ -583,6 +583,60 @@ static int file_descriptor_cap_ioctls_limit(lua_State* L)
     return 0;
 }
 
+static int file_descriptor_cap_ioctls_get(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    std::vector<unsigned long> cmds;
+
+    auto ncmds = cap_ioctls_get(*handle, NULL, 0);
+    switch (ncmds) {
+    case -1:
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    case CAP_IOCTLS_ALL:
+        lua_pushliteral(L, "all");
+        return 1;
+    default:
+        break;
+    }
+
+    cmds.resize(ncmds);
+    ncmds = cap_ioctls_get(*handle, cmds.data(), cmds.size());
+    if (ncmds == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    if (ncmds < cmds.size())
+        cmds.resize(ncmds);
+
+    ncmds = cmds.size();
+
+    lua_createtable(L, /*narr=*/ncmds, /*nrec=*/0);
+
+    for (int i = 0 ; i != ncmds ; ++i) {
+        lua_pushinteger(L, cmds[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+
+    return 1;
+}
+
 static int file_descriptor_cap_fcntls_limit(lua_State* L)
 {
     lua_settop(L, 2);
@@ -722,6 +776,16 @@ static int file_descriptor_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_BSD_FREE
                 lua_pushcfunction(L, file_descriptor_cap_ioctls_limit);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "cap_ioctls_get",
+            [](lua_State* L) -> int {
+#if BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, file_descriptor_cap_ioctls_get);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_BSD_FREE
