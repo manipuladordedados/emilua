@@ -25,6 +25,10 @@
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
 
+#if BOOST_OS_BSD_FREE
+#include <sys/capsicum.h>
+#endif // BOOST_OS_BSD_FREE
+
 #if !BOOST_OS_WINDOWS
 extern "C" {
 #endif // !BOOST_OS_WINDOWS
@@ -1623,6 +1627,26 @@ static int spawn_vm(lua_State* L)
 
         shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+        // We require CAP_FCNTL because Boost.Asio still doesn't use
+        // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+        // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK really is
+        // something we shouldn't be using here as it fits very poorly with the
+        // assumed threat model.
+        cap_rights_t rights;
+        cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+        std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+        if (
+            cap_rights_limit(channel[1], &rights) == -1 ||
+            cap_fcntls_limit(channel[1], fcntlrights) == -1
+        ) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+#endif // BOOST_OS_BSD_FREE
+
         int pidfd = -1;
         BOOST_SCOPE_EXIT_ALL(&) {
             if (pidfd != -1) close(pidfd);
@@ -2183,6 +2207,28 @@ static int ipc_actor_chan_send(lua_State* L)
             shutdown(channel[0], SHUT_WR);
             shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+            // We require CAP_FCNTL because Boost.Asio still doesn't use
+            // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+            // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK
+            // really is something we shouldn't be using here as it fits very
+            // poorly with the assumed threat model.
+            cap_rights_t rights;
+            cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+            std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+            if (
+                cap_rights_limit(channel[1], &rights) == -1 ||
+                cap_fcntls_limit(channel[1], fcntlrights) == -1
+            ) {
+                close(channel[0]);
+                close(channel[1]);
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+#endif // BOOST_OS_BSD_FREE
+
             {
                 const auto& msg = *static_cast<const actor_address*>(
                     lua_touserdata(L, 2));
@@ -2228,6 +2274,28 @@ static int ipc_actor_chan_send(lua_State* L)
             }
             shutdown(channel[0], SHUT_WR);
             shutdown(channel[1], SHUT_RD);
+
+#if BOOST_OS_BSD_FREE
+            // We require CAP_FCNTL because Boost.Asio still doesn't use
+            // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+            // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK
+            // really is something we shouldn't be using here as it fits very
+            // poorly with the assumed threat model.
+            cap_rights_t rights;
+            cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+            std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+            if (
+                cap_rights_limit(channel[1], &rights) == -1 ||
+                cap_fcntls_limit(channel[1], fcntlrights) == -1
+            ) {
+                close(channel[0]);
+                close(channel[1]);
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+#endif // BOOST_OS_BSD_FREE
 
             ++vm_ctx.inbox.nsenders;
             auto inbox_service = new ipc_actor_inbox_service{
@@ -2336,6 +2404,31 @@ static int ipc_actor_chan_send(lua_State* L)
                     shutdown(channel[0], SHUT_WR);
                     shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+                    // We require CAP_FCNTL because Boost.Asio still doesn't use
+                    // MSG_DONTWAIT. As soon as Boost.Asio starts to use
+                    // MSG_DONTWAIT on FreeBSD, we can remove this
+                    // requirement. FIONBIO/O_NONBLOCK really is something we
+                    // shouldn't be using here as it fits very poorly with the
+                    // assumed threat model.
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+                    std::uint32_t fcntlrights =
+                        CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+                    if (
+                        cap_rights_limit(channel[1], &rights) == -1 ||
+                        cap_fcntls_limit(channel[1], fcntlrights) == -1
+                    ) {
+                        close(channel[0]);
+                        close(channel[1]);
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
+
                     {
                         const auto& msg = *static_cast<const actor_address*>(
                             lua_touserdata(L, -1));
@@ -2380,6 +2473,31 @@ static int ipc_actor_chan_send(lua_State* L)
                     }
                     shutdown(channel[0], SHUT_WR);
                     shutdown(channel[1], SHUT_RD);
+
+#if BOOST_OS_BSD_FREE
+                    // We require CAP_FCNTL because Boost.Asio still doesn't use
+                    // MSG_DONTWAIT. As soon as Boost.Asio starts to use
+                    // MSG_DONTWAIT on FreeBSD, we can remove this
+                    // requirement. FIONBIO/O_NONBLOCK really is something we
+                    // shouldn't be using here as it fits very poorly with the
+                    // assumed threat model.
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+                    std::uint32_t fcntlrights =
+                        CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+                    if (
+                        cap_rights_limit(channel[1], &rights) == -1 ||
+                        cap_fcntls_limit(channel[1], fcntlrights) == -1
+                    ) {
+                        close(channel[0]);
+                        close(channel[1]);
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
 
                     ++vm_ctx.inbox.nsenders;
                     auto inbox_service = new ipc_actor_inbox_service{
