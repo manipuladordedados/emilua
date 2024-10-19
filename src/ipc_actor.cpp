@@ -112,6 +112,16 @@ struct monotonic_allocator
     }
 };
 
+// may report false negative (e.g. ENOTCAPABLE preventing fstat())
+static inline bool is_socket(int fd)
+{
+    struct stat stfd;
+    if (fstat(fd, &stfd) == -1)
+        return false;
+
+    return S_ISSOCK(stfd.st_mode);
+}
+
 static int receive_with_fd(lua_State* L)
 {
     int fd = luaL_checkinteger(L, 1);
@@ -500,7 +510,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fds.size() != 1) {
+                if (fds.size() != 1 || !is_socket(fds[0])) {
                     remove_service();
                     queue.pop_back();
                     return;
@@ -590,7 +600,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 fds[fdsidx++] = -1;
                 break;
             case ipc_actor_message::actor_address:
-                if (fdsidx == fds.size()) {
+                if (fdsidx == fds.size() || !is_socket(fds[fdsidx])) {
                     remove_service();
                     queue.pop_back();
                     return;
@@ -659,7 +669,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fds.size() != 1) {
+                if (fds.size() != 1 || !is_socket(fds[0])) {
                     throw bad_message_t{};
                 }
 
@@ -744,7 +754,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fdsidx == fds.size()) {
+                if (fdsidx == fds.size() || !is_socket(fds[fdsidx])) {
                     throw bad_message_t{};
                 }
 
