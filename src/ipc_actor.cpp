@@ -19,6 +19,7 @@
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
+#include <cereal/types/unordered_map.hpp>
 #include <cereal/archives/binary.hpp>
 
 #include <emilua/file_descriptor.hpp>
@@ -45,6 +46,21 @@
 
 #define EMILUA_LUA_HOOK_BUFFER_SIZE (1024 * 1024)
 static_assert(EMILUA_LUA_HOOK_BUFFER_SIZE % alignof(std::max_align_t) == 0);
+
+namespace std::filesystem {
+template<class Archive>
+void CEREAL_LOAD_MINIMAL_FUNCTION_NAME(
+    const Archive&, path& out, const std::string& in)
+{
+  out = in;
+}
+
+template<class Archive>
+std::string CEREAL_SAVE_MINIMAL_FUNCTION_NAME(const Archive& ar, const path& p)
+{
+  return p.string();
+}
+} // namespace std::filesystem
 
 namespace emilua {
 
@@ -1102,6 +1118,8 @@ static int child_main(void*)
         }
         environ_buffer2.emplace_back(nullptr);
         *app_context::environp = environ_buffer2.data();
+
+        ia >> appctx.modules_cache_registry;
     }
     buffer.clear();
     buffer.shrink_to_fit();

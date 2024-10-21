@@ -21,6 +21,7 @@
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
+#include <cereal/types/unordered_map.hpp>
 #include <cereal/archives/binary.hpp>
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX
@@ -40,6 +41,21 @@ emilua_get_builtin_module(const std::filesystem::path&);
 #if !BOOST_OS_WINDOWS
 } // extern "C"
 #endif // !BOOST_OS_WINDOWS
+
+namespace std::filesystem {
+template<class Archive>
+void CEREAL_LOAD_MINIMAL_FUNCTION_NAME(
+    const Archive&, path& out, const std::string& in)
+{
+  out = in;
+}
+
+template<class Archive>
+std::string CEREAL_SAVE_MINIMAL_FUNCTION_NAME(const Archive& ar, const path& p)
+{
+  return p.string();
+}
+} // namespace std::filesystem
 
 namespace emilua {
 
@@ -1085,6 +1101,7 @@ static int spawn_vm(lua_State* L)
 #if BOOST_OS_UNIX
     bool run_in_subprocess = false;
     std::vector<std::string> newenv;
+    decltype(vm_ctx.appctx.modules_cache_registry) source_cache;
     std::optional<std::string> lua_hook;
     int lua_hook_fd = -1;
     int proc_stdin = -1;
@@ -1426,6 +1443,69 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
+            lua_getfield(L, -1, "source_tree_cache");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg","subprocess/source_tree_cache");
+                return lua_error(L);
+            case LUA_TTABLE: {
+                fs::path path;
+                path += fs::path::preferred_separator;
+                assert(path.is_absolute());
+                int nlevels = 0;
+                lua_newtable(L);
+                lua_insert(L, -2);
+
+                lua_pushnil(L);
+
+                loop_again:
+                while (lua_next(L, -2) != 0) {
+                    if (lua_type(L, -2) != LUA_TSTRING) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/source_tree_cache");
+                        return lua_error(L);
+                    }
+
+                    auto key = tostringview(L, -2);
+
+                    switch (lua_type(L, -1)) {
+                    default:
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/source_tree_cache");
+                        return lua_error(L);
+                    case LUA_TTABLE:
+                        lua_insert(L, -3);
+                        lua_rawseti(L, -4, 1 + nlevels * 2);
+                        lua_rawseti(L, -3, 1 + nlevels * 2 + 1);
+                        ++nlevels;
+                        path /= key;
+                        lua_pushnil(L);
+                        break;
+                    case LUA_TSTRING:
+                        source_cache.emplace(path / key, tostringview(L));
+                        lua_pop(L, 1);
+                        break;
+                    }
+                }
+
+                if (nlevels > 0) {
+                    lua_pop(L, 1);
+                    path = (path / "..").lexically_normal();
+                    --nlevels;
+                    lua_rawgeti(L, -1, 1 + nlevels * 2 + 1);
+                    lua_rawgeti(L, -2, 1 + nlevels * 2);
+                    goto loop_again;
+                }
+
+                lua_pop(L, 2);
+                break;
+            }
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                break;
+            }
+
             lua_getfield(L, -1, "init");
             switch (lua_type(L, -1)) {
             default:
@@ -1501,7 +1581,8 @@ static int spawn_vm(lua_State* L)
         {
             std::ostringstream os;
             cereal::BinaryOutputArchive oa{os};
-            oa << concurrency_hint << std::string{module} << newenv;
+            oa << concurrency_hint << std::string{module} << newenv <<
+                source_cache;
             body = os.str();
         }
 

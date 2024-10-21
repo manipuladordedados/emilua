@@ -11,6 +11,7 @@
 * `byte_span.fill()`.
 * `byte_span.with_zeros()`.
 * `system.get_lowfd()`
+* Parameter `subprocess.source_tree_cache` in `spawn_vm()`.
 * Value `"\0pid"` for the parameter `"environment"` in `system.spawn()`.
 * Function `wait()` for acceptors.
 * Property `file_descriptor.type`.

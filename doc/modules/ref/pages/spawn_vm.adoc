@@ -174,6 +174,20 @@ See also:
 to the `init.script`. The script can access this fd through the variable `arg`
 that is available within the script.
 
+`subprocess.source_tree_cache: table|nil`::
+
++
+--
+The Lua source code cache will be pre-populated with this data. Emilua always
+query the cache before the filesystem when loading Lua modules so you may use
+this cache to bundle the application that will run inside sandboxes w/o
+filesystem access (e.g. Capsicum on FreeBSD, Landlock/seccomp on Linux).
+
+That's a recursive structure (a tree). Each key must be a string with the
+component name and the value might be a string (the Lua source code) or another
+tree.
+--
+
 == `channel` functions
 
 === `send(self, msg)`
