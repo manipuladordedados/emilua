@@ -153,6 +153,7 @@ as the second result):
 * `unshare()`.
 * `setns()`.
 * `cap_enter()`.
+* `caph_limit_stdio()`.
 * `jail_attach()`.
 
 == Constants

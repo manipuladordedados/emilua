@@ -21,7 +21,7 @@
 ** `file_descriptor.cap_rights_remove()`.
 ** `file_descriptor.cap_ioctls_get()`.
 ** `file_descriptor.cap_fcntls_get()`.
-** `system.caph_limit_stdio()`.
+** `system.caph_limit_stdio()` (also in `init.script`).
 
 [id=0.10]
 == 0.10 - 2024-09-01

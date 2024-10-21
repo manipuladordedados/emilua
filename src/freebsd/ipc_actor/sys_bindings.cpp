@@ -3,6 +3,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/scope_exit.hpp>
 
+#include <capsicum_helpers.h>
 #include <sys/capsicum.h>
 #include <sys/mount.h>
 #include <sys/jail.h>
@@ -773,6 +774,19 @@ int posix_mt_index(lua_State* L)
                     int res = cap_enter();
                     int last_error = (res == -1) ? errno : 0;
                     CHECK_LAST_ERROR(L, last_error, "cap_enter");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "caph_limit_stdio",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int res = caph_limit_stdio();
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "caph_limit_stdio");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
