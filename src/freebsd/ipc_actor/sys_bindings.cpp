@@ -794,6 +794,50 @@ int posix_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "caph_cache_tzdata",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, ([](lua_State* L) -> int {
+                    lua_settop(L, 1);
+
+                    std::string_view str;
+                    switch (lua_type(L, 1)) {
+                    default:
+                        errno = EINVAL;
+                        perror("<3>ipc_actor/init/caph_cache_tzdata");
+                        std::exit(1);
+                    case LUA_TNIL:
+                        break;
+                    case LUA_TSTRING:
+                        str = tostringview(L, 1);
+                        break;
+                    }
+
+                    static constexpr std::string_view prefix{"TZ="};
+                    std::string env;
+                    env.reserve(prefix.size() + str.size());
+                    env += prefix;
+                    env += str;
+                    BOOST_SCOPE_EXIT_ALL(&) {
+                        // It may sound a bit ridiculous at this point, but yes
+                        // -- as much as possible -- we try to zero any
+                        // allocated memory if such memory contains data that
+                        // might change between different processes. We're still
+                        // leaking the _loaded_ TZ data to the next forked
+                        // processes though.
+                        std::span<char> edata = env;
+                        edata = edata.last(str.size());
+                        explicit_bzero(edata.data(), edata.size());
+                    };
+                    auto optr = *app_context::environp;
+                    std::array<char*, 2> newenv = { env.data(), NULL };
+                    *app_context::environp = newenv.data();
+                    BOOST_SCOPE_EXIT_ALL(&) { *app_context::environp = optr; };
+                    caph_cache_tzdata();
+                    return 0;
+                }));
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "jail_attach",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {

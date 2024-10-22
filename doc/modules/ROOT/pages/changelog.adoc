@@ -16,6 +16,8 @@
 * Function `wait()` for acceptors.
 * Property `file_descriptor.type`.
 * Function `dup_from()` in `system.in_`, `system.out`, and `system.err`.
+* `init.script`
+** `caph_cache_tzdata()` (FreeBSD).
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.

@@ -117,6 +117,10 @@ returned as the second result.
   Lua table.
 * `fexecve()`. Opposed to the C function, `argv` and `envp` are specified as a
   Lua table.
+* `caph_cache_tzdata()`: Opposed to the C function, it receives an optional
+  string argument that is used to fulfill the role of the environment variable
+  `TZ`. If no argument is given, a null string is used instead and `tzset()`
+  will use UTC as documented in its manpage.
 
 Other exported functions work as usual (except that `errno` or `0` is returned
 as the second result):
