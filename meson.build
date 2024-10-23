@@ -843,6 +843,8 @@ if get_option('enable_tests')
 
                 # misc
                 'ipc_actor_1_56',
+                'ipc_actor_1_57',
+                'ipc_actor_1_58',
             ],
             'ipc_actor_cache' : [
                 # Lua source code cache

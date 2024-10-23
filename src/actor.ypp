@@ -2410,6 +2410,25 @@ static int ipc_actor_chan_send(lua_State* L)
             op->descriptors_size = 1;
             break;
         }
+        rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
+        if (lua_rawequal(L, -1, -5)) {
+            auto channel = static_cast<ipc_actor_address*>(
+                lua_touserdata(L, 2));
+            int channelfd = dup(channel->dest.native_handle());
+            if (channelfd == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+
+            op->message.members[0].as_int = EXPONENT_MASK |
+                ipc_actor_message::nil;
+            op->message.members[1].as_int = EXPONENT_MASK |
+                ipc_actor_message::actor_address;
+            op->message_size = sizeof(op->message.members[0]) * 2;
+            op->descriptors[0].value = channelfd;
+            op->descriptors_size = 1;
+            break;
+        }
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     case LUA_TTABLE: {
@@ -2603,6 +2622,23 @@ static int ipc_actor_chan_send(lua_State* L)
                     op->message.members[nf].as_int = EXPONENT_MASK |
                         ipc_actor_message::file_descriptor;
                     op->descriptors[op->descriptors_size++].reference = msg;
+                    break;
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
+                if (lua_rawequal(L, -1, -5)) {
+                    lua_pop(L, 5);
+                    auto channel = static_cast<ipc_actor_address*>(
+                        lua_touserdata(L, -1));
+                    int channelfd = dup(channel->dest.native_handle());
+                    if (channelfd == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    op->message.members[nf].as_int = EXPONENT_MASK |
+                        ipc_actor_message::actor_address;
+                    op->descriptors[op->descriptors_size++].value =
+                        channelfd;
                     break;
                 }
                 push(L, std::errc::invalid_argument, "arg", 2);
