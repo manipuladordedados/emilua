@@ -1491,7 +1491,7 @@ static int spawn_vm(lua_State* L)
 
                 if (nlevels > 0) {
                     lua_pop(L, 1);
-                    path = (path / "..").lexically_normal();
+                    path = path.parent_path();
                     --nlevels;
                     lua_rawgeti(L, -1, 1 + nlevels * 2 + 1);
                     lua_rawgeti(L, -2, 1 + nlevels * 2);
