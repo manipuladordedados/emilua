@@ -1089,6 +1089,7 @@ static int child_main(void*)
 
     int main_ctx_concurrency_hint;
     fs::path entry_point;
+    fs::path import_root;
 
     app_context appctx;
     appctx.app_args.reserve(2);
@@ -1106,6 +1107,12 @@ static int child_main(void*)
 
         ia >> str;
         entry_point = fs::path{str, fs::path::native_format};
+        str.clear();
+
+        ia >> str;
+        if (str.size() > 0) {
+            import_root = fs::path{str, fs::path::native_format};
+        }
         str.clear();
 
         ia >> environ_buffer1;
@@ -1196,7 +1203,8 @@ static int child_main(void*)
     }
 
     try {
-        auto vm_ctx = make_vm(ioctx, appctx, ContextType::worker, entry_point);
+        auto vm_ctx = make_vm(
+            ioctx, appctx, ContextType::worker, entry_point, import_root);
         appctx.master_vm = vm_ctx;
 
         ++vm_ctx->inbox.nsenders;

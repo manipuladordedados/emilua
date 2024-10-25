@@ -847,6 +847,10 @@ if get_option('enable_tests')
                 'ipc_actor_1_57',
                 'ipc_actor_1_58',
             ],
+            'ipc_actor3' : [
+                # module path resolution
+                'ipc_actor_3_1',
+            ],
             'ipc_actor_cache' : [
                 # Lua source code cache
                 'ipc_actor_cache1',

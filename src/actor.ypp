@@ -1176,10 +1176,6 @@ static int spawn_vm(lua_State* L)
             }
             host_type_already_defined = true;
             run_in_subprocess = true;
-            if (module.size() > 0 && subprocess_module.size() == 0) {
-                push(L, std::errc::invalid_argument, "arg", "module");
-                return lua_error(L);
-            }
 
             lua_getfield(L, -1, "newns_uts");
             switch (lua_type(L, -1)) {
@@ -1600,8 +1596,186 @@ static int spawn_vm(lua_State* L)
         }
     }
 
+    fs::path module_path;
+    bool is_leaf = vm_ctx.import_tree[importer_path].is_leaf;
+
+    /*!re2c
+    re2c:define:YYCTYPE = char;
+    re2c:yyfill:enable = 0;
+    re2c:indent:string = "    ";
+    */
+    /*!include:re2c "emilua/modules.re" */
+    if (
+#if BOOST_OS_UNIX
+        // module path already resolved
+        (run_in_subprocess && subprocess_module.size() > 0) ||
+
+        // entry_point is intentionally invalid/ignored (most likely the user is
+        // only interested in init.script)
+        (run_in_subprocess && module.size() == 0) ||
+#endif // BOOST_OS_UNIX
+        false
+    ) {
+        // do nothing
+    } else if (module == ".") {
+        module_path = importer_path;
+    } else if (module.starts_with(".")) {
+        if (module.starts_with("./"))
+            module.remove_prefix(2);
+
+        const char* YYCURSOR = module.data();
+        const char* YYMARKER;
+        const char* begin;
+        int nparents = 0;
+    loop_parse_dot:
+        begin = YYCURSOR;
+        %{
+        * {
+            push(L, errc::invalid_module_name, "module", module);
+            return lua_error(L);
+        }
+        {emilua_parentpat} {
+            ++nparents;
+            goto loop_parse_dot;
+        }
+        {emilua_modnamepat} {
+            if (*YYCURSOR != '\0') {
+                push(L, errc::invalid_module_name, "module", module);
+                return lua_error(L);
+            }
+            goto end_parse_dot;
+        }
+        %}
+    end_parse_dot:
+
+        module = std::string_view(begin, YYCURSOR - begin);
+
+        if (nparents == 0 && is_leaf) {
+            push(L, errc::leaf_cannot_import_child);
+            return lua_error(L);
+        }
+
+        module_path = importer_path.parent_path();
+        for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
+            if (!module_path.has_parent_path() || module_path == import_root) {
+                push(L, errc::root_cannot_import_parent);
+                return lua_error(L);
+            }
+
+            module_path = module_path.parent_path();
+        }
+        if (emilua_get_builtin_module(
+            module_path / (std::string{module} + ".lua")
+        )) {
+            module_path /= std::string{module} + ".lua";
+        } else if (emilua_get_builtin_module(
+            module_path / module / "init.lua"
+        )) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else {
+                throw std::system_error{errc::module_not_found};
+            }
+        } catch (const std::system_error& e) {
+            push(L, e.code(), "module", module);
+            return lua_error(L);
+        }
+    } else if (module.starts_with("/")) {
+        const char* YYCURSOR = module.data();
+        const char* YYMARKER;
+        boost::ignore_unused(YYMARKER);
+        const char* begin;
+    loop_parse_slash:
+        begin = YYCURSOR;
+        %{
+        * {
+            push(L, errc::invalid_module_name, "module", module);
+            return lua_error(L);
+        }
+        {emilua_modseppat}{emilua_modnamepat} {
+            std::string_view component(begin + 1, YYCURSOR - begin - 1);
+            if (*YYCURSOR == '\0') {
+                module = component;
+                goto end_parse_slash;
+            } else {
+                module_path /= component;
+                goto loop_parse_slash;
+            }
+        }
+        %}
+    end_parse_slash:
+
+        module_path = import_root;
+        if (emilua_get_builtin_module(
+            module_path / (std::string{module} + ".lua")
+        )) {
+            module_path /= std::string{module} + ".lua";
+        } else if (emilua_get_builtin_module(
+            module_path / module / "init.lua"
+        )) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else {
+                throw std::system_error{errc::module_not_found};
+            }
+        } catch (const std::system_error& e) {
+            push(L, e.code(), "module", module);
+            return lua_error(L);
+        }
+    } else {
+        push(L, errc::invalid_module_name);
+        return lua_error(L);
+    }
+
 #if BOOST_OS_UNIX
     if (run_in_subprocess) {
+        bool send_import_root = false;
+        if (subprocess_module.size() == 0 && module.size() > 0) {
+            subprocess_module = module_path.string();
+            module = subprocess_module;
+            send_import_root = true;
+        }
+
         if (vm_ctx.appctx.ipc_actor_service_sockfd == -1) {
             push(L, std::errc::no_child_process);
             return lua_error(L);
@@ -1611,8 +1785,9 @@ static int spawn_vm(lua_State* L)
         {
             std::ostringstream os;
             cereal::BinaryOutputArchive oa{os};
-            oa << concurrency_hint << std::string{module} << newenv <<
-                source_cache;
+            oa << concurrency_hint << std::string{module} <<
+                (send_import_root ? import_root.string() : std::string{}) <<
+                newenv << source_cache;
             body = os.str();
         }
 
@@ -1846,165 +2021,6 @@ static int spawn_vm(lua_State* L)
         return 1;
     }
 #endif // BOOST_OS_UNIX
-
-    fs::path module_path;
-    bool is_leaf = vm_ctx.import_tree[importer_path].is_leaf;
-
-    /*!re2c
-    re2c:define:YYCTYPE = char;
-    re2c:yyfill:enable = 0;
-    re2c:indent:string = "    ";
-    */
-    /*!include:re2c "emilua/modules.re" */
-    if (module == ".") {
-        module_path = importer_path;
-    } else if (module.starts_with(".")) {
-        if (module.starts_with("./"))
-            module.remove_prefix(2);
-
-        const char* YYCURSOR = module.data();
-        const char* YYMARKER;
-        const char* begin;
-        int nparents = 0;
-    loop_parse_dot:
-        begin = YYCURSOR;
-        %{
-        * {
-            push(L, errc::invalid_module_name, "module", module);
-            return lua_error(L);
-        }
-        {emilua_parentpat} {
-            ++nparents;
-            goto loop_parse_dot;
-        }
-        {emilua_modnamepat} {
-            if (*YYCURSOR != '\0') {
-                push(L, errc::invalid_module_name, "module", module);
-                return lua_error(L);
-            }
-            goto end_parse_dot;
-        }
-        %}
-    end_parse_dot:
-
-        module = std::string_view(begin, YYCURSOR - begin);
-
-        if (nparents == 0 && is_leaf) {
-            push(L, errc::leaf_cannot_import_child);
-            return lua_error(L);
-        }
-
-        module_path = importer_path.parent_path();
-        for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
-            if (!module_path.has_parent_path() || module_path == import_root) {
-                push(L, errc::root_cannot_import_parent);
-                return lua_error(L);
-            }
-
-            module_path = module_path.parent_path();
-        }
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
-            module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
-            module_path /= module;
-            module_path /= "init.lua";
-        } else try {
-            std::shared_lock modules_cache_registry_rlock{
-                vm_ctx.appctx.modules_cache_registry_mtx};
-
-            if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / (std::string{module} + ".lua")
-            )) {
-                module_path /= std::string{module} + ".lua";
-            } else if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / module / "init.lua"
-            )) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else if (
-                fs::exists(module_path / (std::string{module} + ".lua"))
-            ) {
-                module_path /= std::string{module} + ".lua";
-            } else if (fs::exists(module_path / module / "init.lua")) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else {
-                throw std::system_error{errc::module_not_found};
-            }
-        } catch (const std::system_error& e) {
-            push(L, e.code(), "module", module);
-            return lua_error(L);
-        }
-    } else if (module.starts_with("/")) {
-        const char* YYCURSOR = module.data();
-        const char* YYMARKER;
-        boost::ignore_unused(YYMARKER);
-        const char* begin;
-    loop_parse_slash:
-        begin = YYCURSOR;
-        %{
-        * {
-            push(L, errc::invalid_module_name, "module", module);
-            return lua_error(L);
-        }
-        {emilua_modseppat}{emilua_modnamepat} {
-            std::string_view component(begin + 1, YYCURSOR - begin - 1);
-            if (*YYCURSOR == '\0') {
-                module = component;
-                goto end_parse_slash;
-            } else {
-                module_path /= component;
-                goto loop_parse_slash;
-            }
-        }
-        %}
-    end_parse_slash:
-
-        module_path = import_root;
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
-            module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
-            module_path /= module;
-            module_path /= "init.lua";
-        } else try {
-            std::shared_lock modules_cache_registry_rlock{
-                vm_ctx.appctx.modules_cache_registry_mtx};
-
-            if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / (std::string{module} + ".lua")
-            )) {
-                module_path /= std::string{module} + ".lua";
-            } else if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / module / "init.lua"
-            )) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else if (
-                fs::exists(module_path / (std::string{module} + ".lua"))
-            ) {
-                module_path /= std::string{module} + ".lua";
-            } else if (fs::exists(module_path / module / "init.lua")) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else {
-                throw std::system_error{errc::module_not_found};
-            }
-        } catch (const std::system_error& e) {
-            push(L, e.code(), "module", module);
-            return lua_error(L);
-        }
-    } else {
-        push(L, errc::invalid_module_name);
-        return lua_error(L);
-    }
 
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
     // * `work_guard` must live until we call strand.post()
