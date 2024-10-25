@@ -30,6 +30,15 @@
 
 * `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in
   subprocess-based actors no longer work.
+* `SIGPIPE` is set to `SIG_IGN` at process startup. Many Boost.Asio objects
+  won't use `MSG_NOSIGNAL` on `write()`
+  (e.g. `asio::posix::stream_descriptor`). It's not realistic to expect every
+  programmer to add extra code to ignore `SIGPIPE` in every programming
+  project. So let's just go ahead and migrate to the safer default. Programmers
+  wishing to retain the old behavior can just call
+  `system.signal.default(system.signal.SIGPIPE)`. `init.script` and PID1 still
+  run with `SIGPIPE=SIG_DFL`, but even the internal forker service will enjoy
+  the new behavior.
 
 [id=0.10]
 == 0.10 - 2024-09-01

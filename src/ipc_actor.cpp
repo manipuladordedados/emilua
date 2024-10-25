@@ -889,6 +889,7 @@ static int child_main(void*)
         // buggy CLONE_CLEAR_SIGHAND won't clear sa_flags so we do it manually
         sa.sa_flags = 0;
         sigaction(SIGCHLD, /*act=*/&sa, /*oldact=*/NULL);
+        sigaction(SIGPIPE, /*act=*/&sa, /*oldact=*/NULL);
 
         sigset_t set;
         sigfillset(&set);
@@ -1031,6 +1032,15 @@ static int child_main(void*)
         if (eventfd_read(evfd, &evval) == -1)
             return 1;
         close(evfd);
+    }
+
+    {
+        struct sigaction sa;
+        sa.sa_handler = SIG_IGN;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+
+        sigaction(SIGPIPE, /*act=*/&sa, /*oldact=*/NULL);
     }
 
     int ipc_actor_service_pipe[2];

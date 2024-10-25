@@ -3,7 +3,6 @@ local stream = require 'stream'
 local inbox = require 'inbox'
 
 if _CONTEXT ~= 'main' then
-    system.signal.ignore(system.signal.SIGPIPE)
     pcall(function() stream.write_all(system.out, 'garbage\n') end)
     local ch = inbox:receive()
     ch:send('localhost')
