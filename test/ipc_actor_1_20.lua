@@ -1,5 +1,5 @@
 -- serialization/good
-local spawn_vm = require('./ipc_actor_libspawn').spawn_vm
+local system = require 'system'
 local sleep = require('time').sleep
 local stream = require 'stream'
 local pipe = require 'pipe'
@@ -21,7 +21,14 @@ else
     local pin, pout = pipe.pair()
     pout = pout:release()
 
-    local my_channel = spawn_vm()
+    local my_channel = spawn_vm{
+        module = '.',
+        subprocess = {
+            stdout = 'share',
+            stderr = 'share',
+            environment = system.environment
+        }
+    }
 
     sleep(0.2)
     my_channel:send{ value = pout }

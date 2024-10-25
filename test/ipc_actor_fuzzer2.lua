@@ -1,7 +1,7 @@
 -- serialization/bad
 local NITER = 35000
 
-local spawn_vm = require('./ipc_actor_libspawn').spawn_vm
+local system = require 'system'
 local badinjector = require 'ipc_actor_badinjector'
 local stream = require 'stream'
 local system = require 'system'
@@ -87,7 +87,14 @@ else
         end
     end
 
-    local my_channel = spawn_vm()
+    local my_channel = spawn_vm{
+        module = '.',
+        subprocess = {
+            stdout = 'share',
+            stderr = 'share',
+            environment = system.environment
+        }
+    }
     my_channel:send(inbox)
     my_channel:send(NITER)
     do
