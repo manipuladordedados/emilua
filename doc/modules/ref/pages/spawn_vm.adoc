@@ -42,14 +42,16 @@ thread. Now use messaging to apply some load-balancing strategy of your choice.
 
 === Parameters
 
-`module: string`::
+`module: string|filesystem.path`::
 
+`string`:::
 The module that will serve as the entry point for the new actor.
 +
-NOTE: For IPC-based actors, this argument no longer means an actual module when
-Linux namespaces are involved. It'll just be passed along to the new process.
-+
 TIP: `'.'` is also a valid module to use when you spawn actors.
+
+`filesystem.path`:::
+
+Only valid for IPC-based actors (see parameter `subprocess` below).
 
 `inherit_context: boolean = true`::
 

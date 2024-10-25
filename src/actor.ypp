@@ -1100,6 +1100,7 @@ static int spawn_vm(lua_State* L)
 #endif
 #if BOOST_OS_UNIX
     bool run_in_subprocess = false;
+    std::string subprocess_module;
     std::vector<std::string> newenv;
     decltype(vm_ctx.appctx.modules_cache_registry) source_cache;
     std::optional<std::string> lua_hook;
@@ -1120,6 +1121,24 @@ static int spawn_vm(lua_State* L)
             break;
         case LUA_TNIL:
             break;
+#if BOOST_OS_UNIX
+        case LUA_TUSERDATA: {
+            if (!lua_getmetatable(L, -1)) {
+                push(L, std::errc::invalid_argument, "arg", "module");
+                return lua_error(L);
+            }
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            if (!lua_rawequal(L, -1, -2)) {
+                push(L, std::errc::invalid_argument, "arg", "module");
+                return lua_error(L);
+            }
+            lua_pop(L, 2);
+            auto p = static_cast<fs::path*>(lua_touserdata(L, -1));
+            subprocess_module = p->string();
+            module = subprocess_module;
+            break;
+        }
+#endif // BOOST_OS_UNIX
         default:
             push(L, std::errc::invalid_argument, "arg", "module");
             return lua_error(L);
@@ -1157,6 +1176,10 @@ static int spawn_vm(lua_State* L)
             }
             host_type_already_defined = true;
             run_in_subprocess = true;
+            if (module.size() > 0 && subprocess_module.size() == 0) {
+                push(L, std::errc::invalid_argument, "arg", "module");
+                return lua_error(L);
+            }
 
             lua_getfield(L, -1, "newns_uts");
             switch (lua_type(L, -1)) {
@@ -1566,6 +1589,13 @@ static int spawn_vm(lua_State* L)
 #else // BOOST_OS_UNIX
             push(L, std::errc::not_supported);
             return lua_error(L);
+#endif // BOOST_OS_UNIX
+        } else {
+#if BOOST_OS_UNIX
+            if (subprocess_module.size() > 0) {
+                module = std::string_view{};
+                subprocess_module.clear();
+            }
 #endif // BOOST_OS_UNIX
         }
     }

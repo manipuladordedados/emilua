@@ -1,10 +1,11 @@
 local inbox = require 'inbox'
+local fs = require 'filesystem'
 
 local child_src = {}
 
 local function spwn(mod)
     spawn_vm{
-        module = format('/{}.lua', mod),
+        module = fs.path.new(format('/{}.lua', mod)),
         subprocess = {
             source_tree_cache = child_src,
             stdout = 'share',

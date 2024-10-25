@@ -1,4 +1,5 @@
 local inbox = require 'inbox'
+local fs = require 'filesystem'
 
 local child_src = {}
 
@@ -13,7 +14,7 @@ parent:send('exit')
 ]]
 
 spawn_vm{
-    module = '/app.lua',
+    module = fs.path.new('/app.lua'),
     subprocess = {
         source_tree_cache = child_src,
         stdout = 'share',

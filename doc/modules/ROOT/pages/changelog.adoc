@@ -12,6 +12,7 @@
 * `byte_span.with_zeros()`.
 * `system.get_lowfd()`
 * Parameter `subprocess.source_tree_cache` in `spawn_vm()`.
+* Parameter `module` in `spawn_vm()` accepts `filesystem.path` too now.
 * Value `"\0pid"` for the parameter `"environment"` in `system.spawn()`.
 * Function `wait()` for acceptors.
 * Property `file_descriptor.type`.
@@ -24,6 +25,11 @@
 ** `file_descriptor.cap_ioctls_get()`.
 ** `file_descriptor.cap_fcntls_get()`.
 ** `system.caph_limit_stdio()` (also in `init.script`).
+
+=== Changed
+
+* `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in
+  subprocess-based actors no longer work.
 
 [id=0.10]
 == 0.10 - 2024-09-01
