@@ -729,7 +729,7 @@ static int on_external_package(
         bool module_is_leaf;
         rdf_error_category* error_category_module = nullptr;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-        plugin* native_module;
+        plugin* native_module = nullptr;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
         try {
             if (emilua_get_builtin_module(
