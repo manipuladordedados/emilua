@@ -490,6 +490,7 @@ static plugin& load_native_module(
     auto deps_path = pluginsdir / (std::string{module_id} + ".deps");
     if (fs::exists(deps_path)) {
         nowide::ifstream in{deps_path, std::ios::in | std::ios::binary};
+        in.imbue(std::locale::classic());
         in.exceptions(std::ios_base::badbit);
         if (in.fail())
             throw std::system_error{std::io_errc::stream};
