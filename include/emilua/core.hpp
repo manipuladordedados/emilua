@@ -426,6 +426,12 @@ public:
     std::unordered_map<std::string, boost::shared_ptr<plugin>>
         native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
+
+# if BOOST_OS_UNIX
+    std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
+        native_modules_file_preload;
+    std::vector<int> native_modules_dir_preload;
+# endif // BOOST_OS_UNIX
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_mutex modules_cache_registry_mtx;
 

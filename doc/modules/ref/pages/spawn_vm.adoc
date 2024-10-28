@@ -190,6 +190,26 @@ component name and the value might be a string (the Lua source code) or another
 tree.
 --
 
+`subprocess.native_modules_cache: string[]|"all"|nil`::
+
+`string[]`:::
+A list of plugins to resolve (but not load) on the host and send as file
+descriptors to be ``fdlopen()``ed on the subprocess. Plugin file descriptors
+will be stored in a special cache on the subprocess, but will only be loaded
+once ``require()``d from Lua code.
++
+If the character `":"` is appended to a module-id, a file descriptor to the
+containing directory will be sent instead.
++
+Under FreeBSD, these file descriptors are protected using Capsicum. Under Linux,
+you're pretty much exposing the whole mount namespace, and should be preparing
+for such accordingly.
+
+`"all"`:::
+
+Send file descriptors to all `EMILUA_PATH` directories (and the related builtin
+search paths as well).
+
 == `channel` functions
 
 === `send(self, msg)`

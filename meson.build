@@ -902,8 +902,43 @@ if get_option('enable_tests')
             gnu_symbol_visibility : 'hidden',
         )
 
+        plugin_hello = shared_module(
+            'hello',
+            ['test/hello.cpp'],
+            dependencies : [
+                thread_dep,
+                boost,
+                asio,
+                luajit,
+                fmt,
+            ],
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+            gnu_symbol_visibility : 'hidden',
+        )
+
+        plugin_hello2 = shared_module(
+            'hello2',
+            ['test/hello2.cpp'],
+            dependencies : [
+                thread_dep,
+                boost,
+                asio,
+                luajit,
+                fmt,
+            ],
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+            gnu_symbol_visibility : 'hidden',
+        )
+
+        # hello and hello2 are probably in the same directory anyway, so we
+        # can't write all tests that we should be writing
         tests_env += (
-            'EMILUA_PATH=' + fs.parent(ipc_actor_badinjector.full_path()))
+            'EMILUA_PATH=' + fs.parent(ipc_actor_badinjector.full_path()) +
+                ':' + fs.parent(plugin_hello.full_path()) +
+                ':' + fs.parent(plugin_hello2.full_path())
+        )
 
         tests +=  {
             'ipc_actor2' : [
@@ -932,7 +967,15 @@ if get_option('enable_tests')
 
                 'ipc_actor_fuzzer1',
                 'ipc_actor_fuzzer2',
-            ]
+            ],
+            'ipc_actor4' : [
+                'ipc_actor_4_1',
+                'ipc_actor_4_2',
+                'ipc_actor_4_3',
+                'ipc_actor_4_4',
+                'ipc_actor_4_5',
+                'ipc_actor_4_6',
+            ],
         }
     endif
 

@@ -73,6 +73,9 @@ static int proc_stdin;
 static int proc_stdout;
 static int proc_stderr;
 static bool proc_stderr_has_color;
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+static bool has_native_modules_cache;
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 static bool has_lua_hook;
 
 static std::vector<std::string> environ_buffer1;
@@ -932,6 +935,44 @@ static int child_main(void*)
         buffer.resize(nread);
     }
 
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+    if (has_native_modules_cache) {
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        char buf[1];
+
+        struct iovec iov;
+        iov.iov_base = buf;
+        iov.iov_len = 1;
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = sizeof(cmsgbuf);
+
+        auto nread = recvmsg(inboxfd, &msg, MSG_CMSG_CLOEXEC);
+        if (
+            nread == -1 || nread == 0 ||
+            (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
+        ) {
+            return 1;
+        }
+
+        int fdarg = -1;
+        for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                continue;
+
+            std::memcpy(&fdarg, CMSG_DATA(cmsg), sizeof(int));
+            break;
+        }
+        assert(fdarg == 4);
+    }
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+
     if (has_lua_hook) {
         monotonic_allocator allocator{
             malloc(EMILUA_LUA_HOOK_BUFFER_SIZE), EMILUA_LUA_HOOK_BUFFER_SIZE};
@@ -1008,8 +1049,18 @@ static int child_main(void*)
             return 1;
         }
 
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+        if (has_native_modules_cache) {
+            if (close_range(5, UINT_MAX, /*flags=*/0) == -1)
+                return 1;
+        } else {
+            if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
+                return 1;
+        }
+#else // EMILUA_CONFIG_ENABLE_PLUGINS
         if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
             return 1;
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
     }
 
     if (getpid() == 1) {
@@ -1106,6 +1157,62 @@ static int child_main(void*)
     appctx.app_args.emplace_back();
     appctx.app_args.emplace_back(entry_point.string());
     appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
+
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+    while (has_native_modules_cache) {
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        std::array<char, 256 + /*sentinel_sz=*/1> buf;
+
+        struct iovec iov;
+        iov.iov_base = buf.data();
+        iov.iov_len = buf.size() - 1; //< the extra byte will be used for '\0'
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = cmsgbuf;
+        msg.msg_controllen = sizeof(cmsgbuf);
+
+        auto nread = recvmsg(4, &msg, MSG_CMSG_CLOEXEC);
+        if (
+            nread == -1 || nread == 0 ||
+            (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
+        ) {
+            return 1;
+        }
+        buf[nread] = '\0'; //< doesn't overflow because extraneous alloc'ed byte
+
+        int fdarg = -1;
+        for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                continue;
+
+            std::memcpy(&fdarg, CMSG_DATA(cmsg), sizeof(int));
+            break;
+        }
+
+        switch (buf[0]) {
+        default:
+            assert(false);
+        case ipc_actor_start_vm_request::PRELOAD_EOF:
+            assert(fdarg == -1);
+            close(4);
+            has_native_modules_cache = false;
+            break;
+        case ipc_actor_start_vm_request::PRELOAD_FILE:
+            assert(fdarg != -1);
+            appctx.native_modules_file_preload.emplace(buf.data() + 1, fdarg);
+            break;
+        case ipc_actor_start_vm_request::PRELOAD_DIR:
+            assert(fdarg != -1);
+            appctx.native_modules_dir_preload.emplace_back(fdarg);
+            break;
+        }
+    }
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
     {
         std::istringstream is{buffer};
@@ -1884,6 +1991,9 @@ int app_context::ipc_actor_service_main(int sockfd)
             assert(fds[2] == -1);
             assert(fds[3] == -1);
 
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+            has_native_modules_cache = request.has_native_modules_cache;
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
             has_lua_hook = request.has_lua_hook;
 
             ipc_actor_start_vm_reply reply;
