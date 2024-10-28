@@ -1784,6 +1784,7 @@ static int spawn_vm(lua_State* L)
         std::string body;
         {
             std::ostringstream os;
+            os.imbue(std::locale::classic());
             cereal::BinaryOutputArchive oa{os};
             oa << concurrency_hint << std::string{module} <<
                 (send_import_root ? import_root.string() : std::string{}) <<

@@ -1109,6 +1109,7 @@ static int child_main(void*)
 
     {
         std::istringstream is{buffer};
+        is.imbue(std::locale::classic());
         cereal::BinaryInputArchive ia{is};
 
         std::string str;
