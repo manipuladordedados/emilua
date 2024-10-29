@@ -294,6 +294,32 @@ struct send_native_modules_cache_op
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(
                 CMSG_DATA(cmsg), &directories.begin()->second, sizeof(int));
+        } else if (files2.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
+
+            const auto& entry = *files2.begin();
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &entry.second, sizeof(int));
+
+            iov[1].iov_base = const_cast<char*>(entry.first.data());
+            iov[1].iov_len = entry.first.size();
+            ++msg.msg_iovlen;
+        } else if (directories2.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_DIR;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &*directories2.begin(), sizeof(int));
         } else {
             request_type = ipc_actor_start_vm_request::PRELOAD_EOF;
         }
@@ -318,6 +344,10 @@ struct send_native_modules_cache_op
             auto it = directories.begin();
             close(it->second);
             directories.erase(it);
+        } else if (files2.size() > 0) {
+            files2.erase(files2.begin());
+        } else if (directories2.size() > 0) {
+            directories2.erase(directories2.begin());
         }
 
         do_wait();
@@ -329,6 +359,13 @@ struct send_native_modules_cache_op
     std::unordered_map<fs::path, int> directories;
     asio::local::seq_packet_protocol::socket sock;
     int box = -1;
+
+    // We don't close these file descriptors. They stay alive for the duration
+    // of the process. {{{
+    std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
+        files2;
+    std::set<int> directories2;
+    // }}}
 };
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
 #endif // BOOST_OS_UNIX
@@ -1699,6 +1736,10 @@ static int spawn_vm(lua_State* L)
                         ++it;
                     }
                 }
+                op.files2 = vm_ctx.appctx.native_modules_file_preload;
+                for (int dirfd : vm_ctx.appctx.native_modules_dir_preload) {
+                    op.directories2.emplace(dirfd);
+                }
                 break;
             }
             case LUA_TTABLE: {
@@ -1725,7 +1766,17 @@ static int spawn_vm(lua_State* L)
                         break;
                     }
 
-                    native_modules_cache_op->files.emplace(tostringview(L), -1);
+                    auto module_id = tostringview(L);
+                    if (
+                        auto it = vm_ctx.appctx.native_modules_file_preload
+                            .find(module_id) ;
+                        it != vm_ctx.appctx.native_modules_file_preload.end()
+                    ) {
+                        native_modules_cache_op->files2.emplace(
+                            module_id, it->second);
+                    } else {
+                        native_modules_cache_op->files.emplace(module_id, -1);
+                    }
 
                     lua_pop(L, 1);
                 }
@@ -1736,38 +1787,76 @@ static int spawn_vm(lua_State* L)
                     bool found = false;
                     if (id.ends_with(":")) {
                         id.remove_suffix(1);
-                        for (const auto& p : vm_ctx.appctx.emilua_path) {
-                            auto p2 = dll::shared_library::decorate(p / id);
-                            if (fs::exists(p2)) {
-                                op.directories.emplace(p, -1);
-                                found = true;
-                                break;
+                        if (
+                            const auto& dirfds =
+                                vm_ctx.appctx.native_modules_dir_preload ;
+                            dirfds.size() > 0
+                        ) {
+                            auto p2 = dll::shared_library::decorate(id);
+                            for (int dirfd : dirfds) {
+                                int fd = openat(dirfd, p2.c_str(), O_RDONLY);
+                                if (fd != -1) {
+                                    close(fd);
+                                    op.directories2.emplace(dirfd);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!found) {
+                            for (const auto& p : vm_ctx.appctx.emilua_path) {
+                                auto p2 = dll::shared_library::decorate(p / id);
+                                if (fs::exists(p2)) {
+                                    op.directories.emplace(p, -1);
+                                    found = true;
+                                    break;
+                                }
                             }
                         }
                         op.files.erase(it++);
                     } else {
                         int& fd = it->second;
-                        for (const auto& p : vm_ctx.appctx.emilua_path) {
-                            auto p2 = dll::shared_library::decorate(p / id);
-                            fd = open(p2.c_str(), O_RDONLY);
-                            if (fd == -1)
-                                continue;
+                        if (
+                            const auto& dirfds =
+                                vm_ctx.appctx.native_modules_dir_preload ;
+                            dirfds.size() > 0
+                        ) {
+                            auto p2 = dll::shared_library::decorate(id);
+                            for (int dirfd : dirfds) {
+                                fd = openat(dirfd, p2.c_str(), O_RDONLY);
+                                if (fd == -1)
+                                    continue;
+
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found) {
+                            for (const auto& p : vm_ctx.appctx.emilua_path) {
+                                auto p2 = dll::shared_library::decorate(p / id);
+                                fd = open(p2.c_str(), O_RDONLY);
+                                if (fd == -1)
+                                    continue;
 
 #if BOOST_OS_BSD_FREE
-                            cap_rights_t rights;
-                            cap_rights_init(&rights, CAP_FSTAT, CAP_MMAP_RX);
+                                cap_rights_t rights;
+                                cap_rights_init(
+                                    &rights, CAP_FSTAT, CAP_MMAP_RX);
 
-                            if (cap_rights_limit(fd, &rights) == -1) {
-                                std::error_code ec{
-                                    errno, std::system_category()};
-                                push(L, ec);
-                                return lua_error(L);
-                            }
+                                if (cap_rights_limit(fd, &rights) == -1) {
+                                    std::error_code ec{
+                                        errno, std::system_category()};
+                                    push(L, ec);
+                                    return lua_error(L);
+                                }
 #endif // BOOST_OS_BSD_FREE
 
-                            found = true;
-                            break;
+                                found = true;
+                                break;
+                            }
                         }
+
                         ++it;
                     }
                     if (!found) {

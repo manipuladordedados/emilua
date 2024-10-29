@@ -969,12 +969,21 @@ if get_option('enable_tests')
                 'ipc_actor_fuzzer2',
             ],
             'ipc_actor4' : [
+                # flat
                 'ipc_actor_4_1',
                 'ipc_actor_4_2',
                 'ipc_actor_4_3',
                 'ipc_actor_4_4',
                 'ipc_actor_4_5',
                 'ipc_actor_4_6',
+
+                # nested
+                'ipc_actor_4_7',
+                'ipc_actor_4_8',
+                'ipc_actor_4_9',
+                'ipc_actor_4_10',
+                'ipc_actor_4_11',
+                'ipc_actor_4_12',
             ],
         }
     endif
