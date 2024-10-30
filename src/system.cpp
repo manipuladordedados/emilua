@@ -49,6 +49,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #if BOOST_OS_UNIX
 #include <sys/mman.h>
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+#  include <boost/dll.hpp>
+#  include <unordered_set>
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
 #endif // BOOST_OS_UNIX
 
 #if BOOST_OS_LINUX
@@ -2151,6 +2156,78 @@ static int system_get_lowfd(lua_State* L)
     return 1;
 }
 
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+static int system_get_ld_library_directories(lua_State* L)
+{
+#if BOOST_OS_BSD_FREE
+    void* main_object = RTLD_SELF;
+#else // BOOST_OS_BSD_FREE
+    void* main_object = dlopen(NULL, RTLD_LAZY | RTLD_NOLOAD);
+    if (main_object == NULL) {
+        lua_pushliteral(L, "dlopen(NULL) returned NULL");
+        return lua_error(L);
+    }
+#endif // BOOST_OS_BSD_FREE
+
+    decltype(std::declval<Dl_serinfo>().dls_size) dls_size;
+    decltype(std::declval<Dl_serinfo>().dls_cnt) dls_cnt;
+
+    {
+        Dl_serinfo info;
+        if (dlinfo(main_object, RTLD_DI_SERINFOSIZE, &info) == -1) {
+            lua_pushstring(L, dlerror());
+            return lua_error(L);
+        }
+        dls_size = info.dls_size;
+        dls_cnt = info.dls_cnt;
+    }
+
+    Dl_serinfo* info = static_cast<Dl_serinfo*>(std::malloc(dls_size));
+    if (info == NULL) {
+        push(L, std::errc::not_enough_memory);
+        return lua_error(L);
+    }
+    BOOST_SCOPE_EXIT_ALL(&) { std::free(info); };
+
+    info->dls_size = dls_size;
+    info->dls_cnt = dls_cnt;
+
+    if (dlinfo(main_object, RTLD_DI_SERINFO, info) == -1) {
+        lua_pushstring(L, dlerror());
+        return lua_error(L);
+    }
+
+    std::unordered_set<std::string> paths;
+
+    for (decltype(dls_cnt) i = 0; i != info->dls_cnt; ++i) {
+        paths.emplace(info->dls_serpath[i].dls_name);
+    }
+
+    lua_createtable(L, /*narr=*/paths.size(), /*nrec=*/0);
+
+    int i = 1;
+    for (const auto& p : paths) {
+        int fd = open(p.c_str(), O_RDONLY | O_DIRECTORY);
+        if (fd == -1) {
+            continue;
+        }
+        BOOST_SCOPE_EXIT_ALL(&) { if (fd != -1) close(fd); };
+
+        auto fdhandle = static_cast<file_descriptor_handle*>(
+            lua_newuserdata(L, sizeof(file_descriptor_handle))
+        );
+        rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+        setmetatable(L, -2);
+        *fdhandle = fd;
+        fd = -1;
+
+        lua_rawseti(L, -2, i++);
+    }
+
+    return 1;
+}
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+
 static int system_getresuid(lua_State* L)
 {
     uid_t ruid, euid, suid;
@@ -3601,6 +3678,16 @@ static int system_mt_index(lua_State* L)
 #else // BOOST_OS_UNIX
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "get_ld_library_directories",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
+                lua_pushcfunction(L, system_get_ld_library_directories);
+#else // BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
                 return 1;
             })
         EMILUA_GPERF_PAIR(

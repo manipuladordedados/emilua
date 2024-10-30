@@ -214,6 +214,8 @@ include::pages/system.caph_limit_stdio.adoc[]
 
 include::pages/system.get_lowfd.adoc[]
 
+include::pages/system.get_ld_library_directories.adoc[]
+
 include::pages/system.exit.adoc[]
 
 include::pages/system.signal.adoc[]

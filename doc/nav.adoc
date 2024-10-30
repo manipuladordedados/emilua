@@ -130,6 +130,7 @@
 *** xref:ref:system.err.adoc[err]
 *** xref:ref:system.caph_limit_stdio.adoc[caph_limit_stdio]
 *** xref:ref:system.get_lowfd.adoc[get_lowfd]
+*** xref:ref:system.get_ld_library_directories.adoc[get_ld_library_directories]
 *** xref:ref:system.exit.adoc[exit]
 *** xref:ref:system.signal.adoc[signal]
 *** xref:ref:system.signal.raise.adoc[signal.raise]
