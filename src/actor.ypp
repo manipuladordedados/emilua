@@ -235,6 +235,12 @@ struct send_native_modules_cache_op
             if (fd != -1)
                 close(fd);
         }
+#if BOOST_OS_BSD_FREE
+        for (const auto& fd : ld_directories) {
+            if (fd != -1)
+                close(fd);
+        }
+#endif // BOOST_OS_BSD_FREE
         if (box != -1)
             close(box);
     }
@@ -294,6 +300,19 @@ struct send_native_modules_cache_op
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(
                 CMSG_DATA(cmsg), &directories.begin()->second, sizeof(int));
+#if BOOST_OS_BSD_FREE
+        } else if (ld_directories.size() > 0) {
+            request_type =
+                ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &ld_directories.back(), sizeof(int));
+#endif // BOOST_OS_BSD_FREE
         } else if (files2.size() > 0) {
             request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
 
@@ -344,6 +363,11 @@ struct send_native_modules_cache_op
             auto it = directories.begin();
             close(it->second);
             directories.erase(it);
+#if BOOST_OS_BSD_FREE
+        } else if (ld_directories.size() > 0) {
+            close(ld_directories.back());
+            ld_directories.pop_back();
+#endif // BOOST_OS_BSD_FREE
         } else if (files2.size() > 0) {
             files2.erase(files2.begin());
         } else if (directories2.size() > 0) {
@@ -357,6 +381,9 @@ struct send_native_modules_cache_op
         std::string, int, TransparentStringHash, std::equal_to<>
     > files;
     std::unordered_map<fs::path, int> directories;
+#if BOOST_OS_BSD_FREE
+    std::vector<int> ld_directories;
+#endif // BOOST_OS_BSD_FREE
     asio::local::seq_packet_protocol::socket sock;
     int box = -1;
 
@@ -1890,6 +1917,89 @@ static int spawn_vm(lua_State* L)
                      "arg", "subprocess/native_modules_cache");
                 return lua_error(L);
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
+            case LUA_TNIL:
+                break;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "ld_library_directories");
+            switch (lua_type(L, -1)) {
+#if EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg","subprocess/ld_library_directories");
+                return lua_error(L);
+            case LUA_TTABLE:
+                request.has_native_modules_cache = 1;
+                if (!native_modules_cache_op) {
+                    native_modules_cache_op =
+                        std::make_shared<send_native_modules_cache_op>(
+                            vm_ctx.strand().context());
+                }
+
+                for (int i = 1 ;; ++i) {
+                    lua_rawgeti(L, -1, i);
+                    auto current_element_type = lua_type(L, -1);
+                    if (current_element_type == LUA_TNIL) {
+                        lua_pop(L, 1);
+                        break;
+                    }
+
+                    switch (current_element_type) {
+                    default:
+                        assert(current_element_type != LUA_TNIL);
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    case LUA_TUSERDATA:
+                        break;
+                    }
+
+                    auto fdhandle = static_cast<file_descriptor_handle*>(
+                        lua_touserdata(L, -1));
+                    if (!lua_getmetatable(L, -1)) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    }
+                    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                    if (!lua_rawequal(L, -1, -2)) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    }
+
+                    if (*fdhandle == INVALID_FILE_DESCRIPTOR) {
+                        push(L, std::errc::device_or_resource_busy);
+                        return lua_error(L);
+                    }
+
+                    int& fd = native_modules_cache_op->ld_directories
+                        .emplace_back(-1);
+                    fd = dup(*fdhandle);
+                    if (fd == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_LOOKUP, CAP_FSTAT, CAP_MMAP_RX);
+
+                    if (cap_rights_limit(fd, &rights) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    lua_pop(L, 3);
+                }
+                break;
+#else // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+            default:
+                push(L, std::errc::not_supported,
+                     "arg", "subprocess/ld_library_directories");
+                return lua_error(L);
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
             case LUA_TNIL:
                 break;
             }

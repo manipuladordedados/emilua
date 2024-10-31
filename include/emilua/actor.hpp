@@ -156,6 +156,10 @@ struct ipc_actor_start_vm_request
         PRELOAD_FILE,
         PRELOAD_DIR,
         PRELOAD_EOF,
+
+# if BOOST_OS_BSD_FREE
+        PRELOAD_LD_LIBRARY_DIRECTORY,
+# endif // BOOST_OS_BSD_FREE
     };
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 

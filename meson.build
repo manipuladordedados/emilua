@@ -988,6 +988,42 @@ if get_option('enable_tests')
         }
     endif
 
+    if host_machine.system() == 'freebsd' and get_option('enable_plugins')
+        sample_lib_for_plugin = shared_library(
+            'sample_lib_for_plugin',
+            ['test/sample_lib_for_plugin.cpp'],
+            dependencies : [ boost ],
+            implicit_include_directories : false,
+        )
+        sample_plugin_for_lib = shared_module(
+            'sample_plugin_for_lib',
+            ['test/sample_plugin_for_lib.cpp'],
+            dependencies : [
+                thread_dep,
+                boost,
+                asio,
+                luajit,
+                fmt,
+            ],
+            link_with : sample_lib_for_plugin,
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+            gnu_symbol_visibility : 'hidden',
+        )
+
+        tests_env += (
+            'SAMPLE_LIB_FOR_PLUGIN_PATH=' +
+                fs.parent(sample_lib_for_plugin.full_path())
+        )
+
+        tests +=  {
+            'ipc_actor5' : [
+                'ipc_actor5_1',
+                'ipc_actor5_2',
+            ],
+        }
+    endif
+
     if host_machine.system() == 'linux'
         tests +=  {
             'module_system2' : [

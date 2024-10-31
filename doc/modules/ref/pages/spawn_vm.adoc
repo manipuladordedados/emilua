@@ -210,6 +210,18 @@ for such accordingly.
 Send file descriptors to all `EMILUA_PATH` directories (and the related builtin
 search paths as well).
 
+`subprocess.ld_library_directories: file_descriptor[]`::
+
++
+--
+1. `dup()` each file descriptor.
+2. For each duplicate, `cap_rights_limit()`.
+3. Send the duplicates to the new subprocess to fill the environment variable
+   `LD_LIBRARY_PATH_FDS`.
+
+NOTE: Only available on FreeBSD.
+--
+
 == `channel` functions
 
 === `send(self, msg)`

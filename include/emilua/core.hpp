@@ -431,6 +431,10 @@ public:
     std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
         native_modules_file_preload;
     std::vector<int> native_modules_dir_preload;
+
+#  if BOOST_OS_BSD_FREE
+    std::vector<int> ld_library_directories;
+#  endif // BOOST_OS_BSD_FREE
 # endif // BOOST_OS_UNIX
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_mutex modules_cache_registry_mtx;

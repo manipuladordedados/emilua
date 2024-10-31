@@ -2160,6 +2160,8 @@ static int system_get_lowfd(lua_State* L)
 static int system_get_ld_library_directories(lua_State* L)
 {
 #if BOOST_OS_BSD_FREE
+    auto& vm_ctx = get_vm_context(L);
+
     void* main_object = RTLD_SELF;
 #else // BOOST_OS_BSD_FREE
     void* main_object = dlopen(NULL, RTLD_LAZY | RTLD_NOLOAD);
@@ -2223,6 +2225,22 @@ static int system_get_ld_library_directories(lua_State* L)
 
         lua_rawseti(L, -2, i++);
     }
+#if BOOST_OS_BSD_FREE
+    for (const int fd : vm_ctx.appctx.ld_library_directories) {
+        auto fdhandle = static_cast<file_descriptor_handle*>(
+            lua_newuserdata(L, sizeof(file_descriptor_handle))
+        );
+        rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+        setmetatable(L, -2);
+        *fdhandle = dup(fd);
+        if (*fdhandle == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        lua_rawseti(L, -2, i++);
+    }
+#endif // BOOST_OS_BSD_FREE
 
     return 1;
 }

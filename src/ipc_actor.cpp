@@ -81,6 +81,10 @@ static bool has_lua_hook;
 static std::vector<std::string> environ_buffer1;
 static std::vector<char*> environ_buffer2;
 
+# if BOOST_OS_BSD_FREE
+static std::string environ_ld_library_path_fds_buffer;
+# endif // BOOST_OS_BSD_FREE
+
 struct monotonic_allocator
 {
     monotonic_allocator(void* buffer, std::size_t buffer_size)
@@ -1210,8 +1214,36 @@ static int child_main(void*)
             assert(fdarg != -1);
             appctx.native_modules_dir_preload.emplace_back(fdarg);
             break;
+# if BOOST_OS_BSD_FREE
+        case ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY:
+            assert(fdarg != -1);
+            appctx.ld_library_directories.emplace_back(fdarg);
+            break;
+# endif // BOOST_OS_BSD_FREE
         }
     }
+
+# if BOOST_OS_BSD_FREE
+    if (appctx.ld_library_directories.size() > 0) {
+        environ_ld_library_path_fds_buffer = "LD_LIBRARY_PATH_FDS=";
+
+        auto it = appctx.ld_library_directories.begin();
+        environ_ld_library_path_fds_buffer += std::to_string(*it);
+        for (++it ; it != appctx.ld_library_directories.end() ; ++it) {
+            environ_ld_library_path_fds_buffer += ':' + std::to_string(*it);
+        }
+
+        // One could argue that we should be filling appctx.app_env as
+        // well. However right now it's not clear what to do about a highly
+        // hybrid stack of nested layers (e.g. first emilua process is not
+        // sandboxed, but received LD_LIBRARY_PATH_FDS anyways (should we even
+        // trust the env var?), and then many nested layers were built using
+        // spawn_vm(), so on and on). For now, make LD_LIBRARY_PATH_FDS itself
+        // an internal implementation detail. We can revisit this decision in
+        // the future when more thought is given about the implications.
+        environ_buffer2.emplace_back(environ_ld_library_path_fds_buffer.data());
+    }
+# endif // BOOST_OS_BSD_FREE
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
     {
@@ -1234,7 +1266,8 @@ static int child_main(void*)
         str.clear();
 
         ia >> environ_buffer1;
-        environ_buffer2.reserve(environ_buffer1.size() + 1);
+        environ_buffer2.reserve(
+            environ_buffer2.size() + environ_buffer1.size() + 1);
         for (auto& s : environ_buffer1) {
             environ_buffer2.emplace_back(s.data());
             auto idx = s.find('=');
