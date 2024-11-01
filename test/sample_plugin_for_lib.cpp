@@ -1,13 +1,13 @@
 // Copyright (c) 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#include <emilua/plugin.hpp>
+#include <emilua/native_module.hpp>
 
 using emilua::push;
 
 std::string foobar();
 
-class plugin : emilua::plugin
+class plugin : emilua::native_module
 {
 public:
     std::error_code init_lua_module(

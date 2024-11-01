@@ -330,7 +330,7 @@ public:
 };
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-class BOOST_SYMBOL_VISIBLE plugin;
+class BOOST_SYMBOL_VISIBLE native_module;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 class vm_context;
@@ -423,7 +423,7 @@ public:
         std::filesystem::path, std::unique_ptr<rdf_error_category>, path_hash
     > rdf_ec_cache_registry;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-    std::unordered_map<std::string, boost::shared_ptr<plugin>>
+    std::unordered_map<std::string, boost::shared_ptr<native_module>>
         native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 

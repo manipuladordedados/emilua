@@ -62,7 +62,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // BOOST_OS_UNIX
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-#include <emilua/plugin.hpp>
+#include <emilua/native_module.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/dll.hpp>
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -104,7 +104,7 @@ std::optional<std::reference_wrapper<emilua::rdf_error_category>>
 get_builtin_rdf_ec(const std::filesystem::path&);
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-std::optional<std::reference_wrapper<emilua::plugin>>
+std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view);
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
@@ -456,12 +456,12 @@ static rdf_error_category& load_rdf_error_category(
 // * std::system_error
 // * std::exception
 #if BOOST_OS_UNIX
-static plugin& load_native_module(
+static native_module& load_native_module(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     emilua::app_context& appctx, const fs::path& pluginsdir,
     std::string_view module_id, int dirfd = -1, int fd = -1)
 #else // BOOST_OS_UNIX
-static plugin& load_native_module(
+static native_module& load_native_module(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     emilua::app_context& appctx, const fs::path& pluginsdir,
     std::string_view module_id)
@@ -546,7 +546,7 @@ static plugin& load_native_module(
 #if BOOST_OS_UNIX
     if (fd != -1) {
 # if BOOST_OS_LINUX
-        auto native_module = dll::import_symbol<plugin>(
+        auto natmod = dll::import_symbol<native_module>(
             fs::path{"/proc/self/fd"} / std::to_string(fd),
             BOOST_PP_STRINGIZE(EMILUA_PLUGIN_SYMBOL));
         if (dirfd != -1) {
@@ -575,14 +575,14 @@ static plugin& load_native_module(
         if (s == NULL) {
             throw std::runtime_error{dlerror()};
         }
-        boost::shared_ptr<plugin> native_module{
-            std::move(raw), static_cast<plugin*>(s)};
+        boost::shared_ptr<native_module> natmod{
+            std::move(raw), static_cast<native_module*>(s)};
 # endif // BOOST_OS_LINUX
         cache_registry.emplace(
             std::piecewise_construct, std::forward_as_tuple(module_id),
-            std::forward_as_tuple(native_module));
-        native_module->init_appctx(modules_cache_registry_wlock, appctx);
-        return *native_module;
+            std::forward_as_tuple(natmod));
+        natmod->init_appctx(modules_cache_registry_wlock, appctx);
+        return *natmod;
     }
 #endif // BOOST_OS_UNIX
 
@@ -602,14 +602,14 @@ static plugin& load_native_module(
             throw std::system_error{std::io_errc::stream};
     }
 
-    auto native_module = dll::import_symbol<plugin>(
+    auto natmod = dll::import_symbol<native_module>(
         pluginsdir / module_id, BOOST_PP_STRINGIZE(EMILUA_PLUGIN_SYMBOL),
         dll::load_mode::append_decorations);
     cache_registry.emplace(
         std::piecewise_construct, std::forward_as_tuple(module_id),
-        std::forward_as_tuple(native_module));
-    native_module->init_appctx(modules_cache_registry_wlock, appctx);
-    return *native_module;
+        std::forward_as_tuple(natmod));
+    natmod->init_appctx(modules_cache_registry_wlock, appctx);
+    return *natmod;
 }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
@@ -813,17 +813,16 @@ static int on_external_package(
         lua_pop(L, 2);
     }
 
-    auto on_native_module = [&](plugin* native_module) -> int {
-        assert(native_module);
+    auto on_native_module = [&](native_module* natmod) -> int {
+        assert(natmod);
 
-        auto ec = native_module->init_ioctx_services(
+        auto ec = natmod->init_ioctx_services(
             modules_cache_registry_rlock, vm_ctx->strand().context());
         if (ec) {
             push(L, ec, "module", module_id);
             return lua_error(L);
         }
-        ec = native_module->init_lua_module(
-            modules_cache_registry_rlock, *vm_ctx, L);
+        ec = natmod->init_lua_module(modules_cache_registry_rlock, *vm_ctx, L);
         if (ec) {
             push(L, ec, "module", module_id);
             return lua_error(L);
@@ -856,7 +855,7 @@ static int on_external_package(
         bool module_is_leaf;
         rdf_error_category* error_category_module = nullptr;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-        plugin* native_module = nullptr;
+        native_module* natmod = nullptr;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
         try {
             if (get_builtin_module(p / (std::string{module_id} + ".lua"))) {
@@ -873,13 +872,13 @@ static int on_external_package(
                 error_category_module = &m->get();
 #if EMILUA_CONFIG_ENABLE_PLUGINS
             } else if (auto m = get_builtin_native_module(module_id) ; m) {
-                native_module = &m->get();
+                natmod = &m->get();
             } else if (
                 auto it = vm_ctx->appctx.native_modules_cache_registry.find(
                     std::string{module_id}) ;
                 it != vm_ctx->appctx.native_modules_cache_registry.end()
             ) {
-                native_module = it->second.get();
+                natmod = it->second.get();
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
             } else if (
                 auto it = vm_ctx->appctx.modules_cache_registry.find(
@@ -935,7 +934,7 @@ static int on_external_package(
                 };
                 std::unique_lock wlock{
                     vm_ctx->appctx.modules_cache_registry_mtx};
-                native_module = &load_native_module(
+                natmod = &load_native_module(
                     wlock, vm_ctx->appctx, p, module_id);
 #else // EMILUA_CONFIG_ENABLE_PLUGINS
                 throw std::system_error{errc::module_not_found};
@@ -946,9 +945,9 @@ static int on_external_package(
         }
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-        if (native_module) {
+        if (natmod) {
             assert(!already_loaded);
-            return on_native_module(native_module);
+            return on_native_module(natmod);
         }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
@@ -1024,7 +1023,7 @@ static int on_external_package(
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
     {
-        plugin* native_module = nullptr;
+        native_module* natmod = nullptr;
 
         const auto& pre = vm_ctx->appctx.native_modules_file_preload;
         if (auto it = pre.find(module_id) ; it != pre.end()) try {
@@ -1034,15 +1033,15 @@ static int on_external_package(
             };
             std::unique_lock wlock{
                 vm_ctx->appctx.modules_cache_registry_mtx};
-            native_module = &load_native_module(
+            natmod = &load_native_module(
                 wlock, vm_ctx->appctx, fs::path{}, module_id, -1, it->second);
         } catch (const std::exception&) {}
 
-        if (native_module)
-            return on_native_module(native_module);
+        if (natmod)
+            return on_native_module(natmod);
     }
     for (const auto& dirfd : vm_ctx->appctx.native_modules_dir_preload) {
-        plugin* native_module = nullptr;
+        native_module* natmod = nullptr;
 
         try {
             modules_cache_registry_rlock.unlock();
@@ -1051,14 +1050,14 @@ static int on_external_package(
             };
             std::unique_lock wlock{
                 vm_ctx->appctx.modules_cache_registry_mtx};
-            native_module = &load_native_module(
+            natmod = &load_native_module(
                 wlock, vm_ctx->appctx, fs::path{}, module_id, dirfd);
         } catch (const std::exception&) {
             continue;
         }
 
-        if (native_module)
-            return on_native_module(native_module);
+        if (natmod)
+            return on_native_module(natmod);
     }
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 

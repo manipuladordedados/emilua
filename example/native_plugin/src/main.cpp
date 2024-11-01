@@ -1,9 +1,9 @@
-#include <emilua/plugin.hpp>
+#include <emilua/native_module.hpp>
 #include <iostream>
 
 namespace asio = boost::asio;
 
-class my_plugin : emilua::plugin
+class my_plugin : emilua::native_module
 {
 public:
     my_plugin()

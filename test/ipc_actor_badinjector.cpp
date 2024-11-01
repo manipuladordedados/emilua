@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#include <emilua/plugin.hpp>
+#include <emilua/native_module.hpp>
 #include <emilua/actor.hpp>
 
 #include <boost/archive/iterators/base64_from_binary.hpp>
@@ -11,7 +11,7 @@
 
 namespace emilua {
 
-class ipc_actor_badinjector_plugin : plugin
+class ipc_actor_badinjector_plugin : native_module
 {
 public:
     void init_appctx(

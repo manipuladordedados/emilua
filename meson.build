@@ -338,7 +338,7 @@ if host_machine.system() == 'linux'
 endif
 
 if get_option('enable_plugins')
-    src += 'src/plugin.cpp'
+    src += 'src/native_module.cpp'
 endif
 
 if get_option('enable_file_io')

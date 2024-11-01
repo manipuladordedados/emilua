@@ -76,7 +76,7 @@ get_builtin_rdf_ec(const std::filesystem::path&)
 # if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-std::optional<std::reference_wrapper<emilua::plugin>>
+std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view)
 {
     return std::nullopt;

@@ -29,7 +29,7 @@ namespace emilua {
 //
 // init_lua_module() is only called on io contexts for which
 // init_ioctx_services() has already been called (and the call succeeded).
-class BOOST_SYMBOL_VISIBLE plugin
+class BOOST_SYMBOL_VISIBLE native_module
 {
 public:
     // Called only once per `appctx`. On normal conditions there is only one
@@ -77,9 +77,9 @@ public:
         std::shared_lock<std::shared_mutex>& modules_cache_registry_rlock,
         vm_context& vm_ctx, lua_State* L);
 
-    virtual ~plugin() = 0;
+    virtual ~native_module() = 0;
 };
 
-inline plugin::~plugin() = default;
+inline native_module::~native_module() = default;
 
 } // namespace emilua

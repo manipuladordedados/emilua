@@ -1,11 +1,11 @@
 // Copyright (c) 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#include <emilua/plugin.hpp>
+#include <emilua/native_module.hpp>
 
 namespace emilua {
 
-class hello2_plugin : plugin
+class hello2_plugin : native_module
 {
 public:
     std::error_code init_lua_module(
