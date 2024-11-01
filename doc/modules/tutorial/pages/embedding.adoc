@@ -192,3 +192,10 @@ sa.sa_sigaction = emilua::longjmp_on_rtsigno;
 sa.sa_flags = SA_RESTART | SA_SIGINFO;
 sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
 ----
+
+== libemilua-main
+
+If aren't trying to embed Emilua into an existing application and just want to
+create a single-binary application embedding the Lua sources it'll be easier to
+just use libemilua-main. It's a ready to roll implementation for the function
+`main()` with some hooks you may use to customize simple behavior.

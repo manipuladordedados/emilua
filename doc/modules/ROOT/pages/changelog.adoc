@@ -8,6 +8,7 @@
 
 === Added
 
+* New library: libemilua-main.
 * `byte_span.fill()`.
 * `byte_span.with_zeros()`.
 * `system.get_lowfd()`

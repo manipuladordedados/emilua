@@ -6,6 +6,7 @@ project(
     version : '0.11.0',
 )
 
+pkgconfig = import('pkgconfig')
 fs = import('fs')
 
 # https://github.com/mesonbuild/meson/issues/2320
@@ -398,10 +399,35 @@ libemilua_dep = declare_dependency(
         [] : [libemilua],
 )
 
+libemilua_main = library(
+    'emilua-main',
+    re2c_gen.process('src/lib_main.ypp'),
+    dependencies : [
+        thread_dep,
+        boost,
+        asio,
+        luajit,
+        fmt,
+        curses,
+        liburing,
+    ],
+    link_with : libemilua,
+    include_directories : include_directories(incdir),
+    implicit_include_directories : false,
+    cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
+    version : meson.project_version(),
+    install : true,
+)
+
+libemilua_main_dep = declare_dependency(
+    dependencies : [ libemilua_dep ],
+    link_with : [libemilua_main],
+)
+
 emilua_bin = executable(
     'emilua',
-    re2c_gen.process('src/main.ypp'),
-    dependencies : libemilua_dep,
+    ['src/main.cpp'],
+    dependencies : [libemilua_dep, libemilua_main_dep],
     export_dynamic : get_option('enable_plugins'),
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
@@ -457,7 +483,7 @@ if get_option('use_wolfssl')
     endif
 endif
 
-import('pkgconfig').generate(
+pkgconfig.generate(
     libemilua,
     filebase : 'emilua',
     name : 'Emilua Plugin API',
@@ -482,6 +508,14 @@ import('pkgconfig').generate(
         'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
     ],
     extra_cflags : pc_extra_cflags,
+)
+
+pkgconfig.generate(
+    libemilua_main,
+    filebase : 'emilua_main',
+    name : 'Emilua\'s default main()',
+    description : 'A default main() for the Emilua runtime with some hooks',
+    requires : ['emilua'],
 )
 
 if get_option('enable_tests')
