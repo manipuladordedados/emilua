@@ -1,7 +1,7 @@
 project(
     'emilua', 'cpp',
     default_options : ['cpp_std=c++20'],
-    meson_version : '>=1.2.0',
+    meson_version : '>=1.3.0',
     license : 'BSL-1.0 OR MIT',
     version : '0.11.0',
 )
@@ -368,6 +368,7 @@ libemilua = library(
     ],
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
+    cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
     version : meson.project_version(),
     install : true,
 )
@@ -869,22 +870,16 @@ if get_option('enable_tests')
         }
     endif
 
-    if host_machine.system() != 'windows'
-        test(
-            'builtin_modules1', executable(
-                'builtin_modules1',
-                'test/builtin_modules1.cpp',
-                dependencies : libemilua_dep,
-                include_directories : include_directories(incdir),
-                implicit_include_directories : false,
-                link_args : [
-                    '-Wl,--defsym,emilua_get_builtin_module=' +
-                        '__wrap_emilua_get_builtin_module'
-                ],
-            ),
-            suite : 'builtin_modules',
-        )
-    endif
+    test(
+        'builtin_modules1', executable(
+            'builtin_modules1',
+            'test/builtin_modules1.cpp',
+            dependencies : libemilua_dep,
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+        ),
+        suite : 'builtin_modules',
+    )
 
     if host_machine.system() != 'windows' and get_option('enable_plugins')
         ipc_actor_badinjector = shared_module(

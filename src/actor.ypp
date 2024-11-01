@@ -34,18 +34,6 @@
 #include <sys/capsicum.h>
 #endif // BOOST_OS_BSD_FREE
 
-#if !BOOST_OS_WINDOWS
-extern "C" {
-#endif // !BOOST_OS_WINDOWS
-
-std::optional<std::string_view>
-BOOST_SYMBOL_IMPORT
-emilua_get_builtin_module(const std::filesystem::path&);
-
-#if !BOOST_OS_WINDOWS
-} // extern "C"
-#endif // !BOOST_OS_WINDOWS
-
 #if BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
 namespace dll = boost::dll;
 #endif // BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
@@ -82,6 +70,9 @@ static char chan_send_key;
 #if BOOST_OS_UNIX
 char ipc_actor_chan_mt_key;
 static char ipc_actor_chan_send_key;
+
+std::optional<std::string_view>
+get_builtin_module(const std::filesystem::path&);
 
 struct ipc_actor_send_op
     : public std::enable_shared_from_this<ipc_actor_send_op>
@@ -2144,13 +2135,9 @@ static int spawn_vm(lua_State* L)
 
             module_path = module_path.parent_path();
         }
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
+        if (get_builtin_module(module_path / (std::string{module} + ".lua"))) {
             module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
+        } else if (get_builtin_module(module_path / module / "init.lua")) {
             module_path /= module;
             module_path /= "init.lua";
         } else try {
@@ -2206,13 +2193,9 @@ static int spawn_vm(lua_State* L)
     end_parse_slash:
 
         module_path = import_root;
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
+        if (get_builtin_module(module_path / (std::string{module} + ".lua"))) {
             module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
+        } else if (get_builtin_module(module_path / module / "init.lua")) {
             module_path /= module;
             module_path /= "init.lua";
         } else try {

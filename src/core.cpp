@@ -17,39 +17,6 @@
 #include <emilua/fiber.hpp>
 #include <emilua/actor.hpp>
 
-#if !BOOST_OS_WINDOWS
-extern "C" {
-#endif // !BOOST_OS_WINDOWS
-
-std::optional<std::string_view>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_module(const std::filesystem::path&)
-{
-    return std::nullopt;
-}
-
-std::optional<std::reference_wrapper<emilua::rdf_error_category>>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_rdf_ec(const std::filesystem::path&)
-{
-    return std::nullopt;
-}
-
-// TODO: We should modularize build such that it becomes possible to enable
-// emilua_builtin_native_module_getter() w/o enabling plugins.
-#if EMILUA_CONFIG_ENABLE_PLUGINS
-std::optional<std::reference_wrapper<emilua::plugin>>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_native_module(std::string_view)
-{
-    return std::nullopt;
-}
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
-
-#if !BOOST_OS_WINDOWS
-} // extern "C"
-#endif // !BOOST_OS_WINDOWS
-
 namespace emilua {
 
 bool stdout_has_color;
@@ -84,6 +51,37 @@ char error_code_mt_key;
 char error_category_mt_key;
 char rdf_error_category_module_mt_key;
 } // namespace detail
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+std::optional<std::string_view>
+get_builtin_module(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+get_builtin_rdf_ec(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+// TODO: We should modularize build such that it becomes possible to enable
+// get_builtin_native_module() w/o enabling plugins.
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+# if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+std::optional<std::reference_wrapper<emilua::plugin>>
+get_builtin_native_module(std::string_view)
+{
+    return std::nullopt;
+}
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 const char* rdf_error_category::name() const noexcept
 {

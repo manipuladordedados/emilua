@@ -61,11 +61,12 @@ for. Do this before you start the first Lua VM. However there's a better way
 
 == Builtin modules
 
-Just use linker args to override some or all of the following 3 functions:
+Just define some or all of the following 3 functions and your module name
+resolution will be favoured over filesystem queries:
 
-* `emilua_get_builtin_module`
-* `emilua_get_builtin_rdf_ec`
-* `emilua_get_builtin_native_module`
+* `emilua::get_builtin_module`
+* `emilua::get_builtin_rdf_ec`
+* `emilua::get_builtin_native_module`
 
 Using this method instead of pre-filling the module cache allows actors spawned
 in subprocesses to import these modules as well. This method may also lead to

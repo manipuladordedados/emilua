@@ -27,11 +27,10 @@ namespace asio = boost::asio;
 
 extern char** environ;
 
-extern "C" {
+namespace emilua {
 
 std::optional<std::string_view>
-BOOST_SYMBOL_EXPORT
-__wrap_emilua_get_builtin_module(const std::filesystem::path& p)
+get_builtin_module(const std::filesystem::path& p)
 {
     if (p == "/app/main.lua") {
         return "print('Hello World')\n";
@@ -40,7 +39,7 @@ __wrap_emilua_get_builtin_module(const std::filesystem::path& p)
     }
 }
 
-} // extern "C"
+} // namespace emilua
 
 int main(int argc, char *argv[], char *envp[])
 {
