@@ -227,6 +227,7 @@ src = [
     'src/file_descriptor.cpp',
     'src/recursive_mutex.cpp',
     'src/generic_error.cpp',
+    'src/native_module.cpp',
     'src/scope_cleanup.cpp',
     'src/serial_port.cpp',
     'src/async_base.cpp',
@@ -335,10 +336,6 @@ endif
 
 if host_machine.system() == 'linux'
     src += 'src/linux/landlock.cpp'
-endif
-
-if get_option('enable_plugins')
-    src += 'src/native_module.cpp'
 endif
 
 if get_option('enable_file_io')
@@ -908,6 +905,17 @@ if get_option('enable_tests')
         'builtin_modules1', executable(
             'builtin_modules1',
             'test/builtin_modules1.cpp',
+            dependencies : libemilua_dep,
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+        ),
+        suite : 'builtin_modules',
+    )
+
+    test(
+        'builtin_modules2', executable(
+            'builtin_modules2',
+            'test/builtin_modules2.cpp',
             dependencies : libemilua_dep,
             include_directories : include_directories(incdir),
             implicit_include_directories : false,

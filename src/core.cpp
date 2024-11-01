@@ -14,6 +14,7 @@
 #include <boost/hana/plus.hpp>
 
 #include <emilua/detail/core.hpp>
+#include <emilua/native_module.hpp>
 #include <emilua/fiber.hpp>
 #include <emilua/actor.hpp>
 
@@ -70,9 +71,6 @@ get_builtin_rdf_ec(const std::filesystem::path&)
     return std::nullopt;
 }
 
-// TODO: We should modularize build such that it becomes possible to enable
-// get_builtin_native_module() w/o enabling plugins.
-#if EMILUA_CONFIG_ENABLE_PLUGINS
 # if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -81,7 +79,6 @@ get_builtin_native_module(std::string_view)
 {
     return std::nullopt;
 }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 const char* rdf_error_category::name() const noexcept
 {

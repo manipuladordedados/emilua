@@ -29,7 +29,11 @@ namespace emilua {
 //
 // init_lua_module() is only called on io contexts for which
 // init_ioctx_services() has already been called (and the call succeeded).
-class BOOST_SYMBOL_VISIBLE native_module
+class
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+    BOOST_SYMBOL_VISIBLE
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+    native_module
 {
 public:
     // Called only once per `appctx`. On normal conditions there is only one

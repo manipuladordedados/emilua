@@ -25,6 +25,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file_descriptor.hpp>
 #include <emilua/recursive_mutex.hpp>
 #include <emilua/generic_error.hpp>
+#include <emilua/native_module.hpp>
 #include <emilua/scope_cleanup.hpp>
 #include <emilua/serial_port.hpp>
 #include <emilua/async_base.hpp>
@@ -62,7 +63,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // BOOST_OS_UNIX
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-#include <emilua/native_module.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/dll.hpp>
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -103,10 +103,8 @@ get_builtin_module(const std::filesystem::path&);
 std::optional<std::reference_wrapper<emilua::rdf_error_category>>
 get_builtin_rdf_ec(const std::filesystem::path&);
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
 std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view);
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 #if BOOST_OS_WINDOWS
 static int lua_print(lua_State* L)
@@ -798,7 +796,6 @@ static int on_external_package(
 ) {
     assert(modules_cache_registry_rlock.owns_lock());
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
     {
         rawgetp(L, LUA_REGISTRYINDEX, &loaded_modules_key);
         // relative path (module_id), so it will only resolve native
@@ -838,7 +835,6 @@ static int on_external_package(
         lua_insert(L, -2);
         return 2;
     };
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
     for (const auto& p: vm_ctx->appctx.emilua_path) {
         bool already_loaded = !vm_ctx->visited_external_packages
@@ -854,9 +850,7 @@ static int on_external_package(
         fs::path module_path;
         bool module_is_leaf;
         rdf_error_category* error_category_module = nullptr;
-#if EMILUA_CONFIG_ENABLE_PLUGINS
         native_module* natmod = nullptr;
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
         try {
             if (get_builtin_module(p / (std::string{module_id} + ".lua"))) {
                 module_path = p / (std::string{module_id} + ".lua");
@@ -870,9 +864,9 @@ static int on_external_package(
                 ) ; m
             ) {
                 error_category_module = &m->get();
-#if EMILUA_CONFIG_ENABLE_PLUGINS
             } else if (auto m = get_builtin_native_module(module_id) ; m) {
                 natmod = &m->get();
+#if EMILUA_CONFIG_ENABLE_PLUGINS
             } else if (
                 auto it = vm_ctx->appctx.native_modules_cache_registry.find(
                     std::string{module_id}) ;
@@ -944,12 +938,10 @@ static int on_external_package(
             continue;
         }
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
         if (natmod) {
             assert(!already_loaded);
             return on_native_module(natmod);
         }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
         if (error_category_module) {
             assert(!already_loaded);
