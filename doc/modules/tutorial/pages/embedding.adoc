@@ -118,21 +118,6 @@ file descriptor for this process is stored in
 `app_context::ipc_actor_service_sockfd`. See `src/main.ypp` for an example on
 how to initialize this variable.
 
-You also need to initialize `emilua::app_context::environp`. This is a pointer
-to `environ`. This step must be done before you fork to create the supervisor
-process. Emilua uses an indirection instead of using `environ` directly because
-FreeBSD is not POSIX-compliant and the usual declaration for `environ` doesn't
-work from shared libraries. Emilua never modifies the environment for the main
-process, so you don't need to worry about what Emilua uses this variable
-for. Its usage is internal to Emilua and won't affect your {cpp} program.
-
-[source,cpp]
-----
-#if BOOST_OS_UNIX
-emilua::app_context::environp = &environ;
-#endif // BOOST_OS_UNIX
-----
-
 On Linux, you also need to initialize `emilua::clone_stack_address`.
 
 If you don't intend to have Lua VMs tied to their own processes triggered by Lua

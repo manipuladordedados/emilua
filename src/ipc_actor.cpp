@@ -42,10 +42,18 @@
 
 #if BOOST_OS_BSD_FREE
 #include <sys/procdesc.h>
+
+# if !defined(EMILUA_STATIC_BUILD)
+#  include <dlfcn.h>
+# endif // !defined(EMILUA_STATIC_BUILD)
 #endif // BOOST_OS_BSD_FREE
 
 #define EMILUA_LUA_HOOK_BUFFER_SIZE (1024 * 1024)
 static_assert(EMILUA_LUA_HOOK_BUFFER_SIZE % alignof(std::max_align_t) == 0);
+
+#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+extern char** environ;
+#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
 
 namespace std::filesystem {
 template<class Archive>
@@ -1275,7 +1283,12 @@ static int child_main(void*)
             appctx.app_env.emplace(s2.substr(0, idx), s2.substr(idx + 1));
         }
         environ_buffer2.emplace_back(nullptr);
-        *app_context::environp = environ_buffer2.data();
+#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+        environ = environ_buffer2.data();
+#else // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+        char*** environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
+        *environp = environ_buffer2.data();
+#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
 
         ia >> appctx.modules_cache_registry;
     }
@@ -1499,7 +1512,12 @@ int app_context::ipc_actor_service_main(int sockfd)
         // we don't use clearenv() because it's unsafe when we manipulate
         // environ directly
         static char* emptyenv[1] = { NULL };
-        *app_context::environp = emptyenv;
+#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+        environ = emptyenv;
+#else // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+        char*** environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
+        *environp = emptyenv;
+#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
     }
 
     if (dup2(sockfd, 3) == -1) {

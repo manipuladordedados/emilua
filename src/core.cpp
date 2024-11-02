@@ -37,7 +37,6 @@ void* clone_stack_address;
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
-char*** app_context::environp;
 thread_local sigjmp_buf* longjmp_on_rtsigno_env;
 #endif // BOOST_OS_UNIX
 

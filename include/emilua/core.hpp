@@ -450,7 +450,6 @@ public:
 #if BOOST_OS_UNIX
     int ipc_actor_service_sockfd = -1;
     std::array<bool, 7> lowfds;
-    static char*** environp;
 #endif // BOOST_OS_UNIX
 
 private:

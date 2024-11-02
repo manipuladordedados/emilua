@@ -16,11 +16,19 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file_descriptor.hpp>
 #include <emilua/filesystem.hpp>
 
+#if !defined(EMILUA_STATIC_BUILD)
+# include <dlfcn.h>
+#endif // !defined(EMILUA_STATIC_BUILD)
+
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/posix/stream_descriptor.hpp>
 #else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/posix/stream_descriptor.hpp>
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+
+#if defined(EMILUA_STATIC_BUILD)
+extern char** environ;
+#endif // defined(EMILUA_STATIC_BUILD)
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -68,6 +76,10 @@ struct spawn_arguments_t
     std::optional<std::string> working_directory;
     int working_directoryfd;
     std::optional<int> pdeathsig;
+
+#if !defined(EMILUA_STATIC_BUILD)
+    char*** environp;
+#endif // !defined(EMILUA_STATIC_BUILD)
 };
 
 struct subprocess
@@ -758,7 +770,11 @@ static int subprocess_mt_index(lua_State* L)
     if (args->programfd != -1) {
         fexecve(args->programfd, args->argv, args->envp);
     } else if (args->use_path) {
-        *app_context::environp = args->envp;
+#if defined(EMILUA_STATIC_BUILD)
+        environ = args->envp;
+#else // defined(EMILUA_STATIC_BUILD)
+        *args->environp = args->envp;
+#endif // defined(EMILUA_STATIC_BUILD)
         execvp(args->program, args->argv);
     } else {
         execve(args->program, args->argv, args->envp);
@@ -1553,6 +1569,9 @@ int system_spawn(lua_State* L)
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;
     args.pdeathsig = pdeathsig;
+#if !defined(EMILUA_STATIC_BUILD)
+    args.environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
+#endif // !defined(EMILUA_STATIC_BUILD)
 
     int pdfork_flags = 0;
     if (pd_daemon)

@@ -9,11 +9,19 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <sys/jail.h>
 #include <jail.h>
 
+#if !defined(EMILUA_STATIC_BUILD)
+# include <dlfcn.h>
+#endif // !defined(EMILUA_STATIC_BUILD)
+
 #define EMILUA_DETAIL_INT_CONSTANT(X) \
     [](lua_State* L) -> int {         \
         lua_pushinteger(L, X);        \
         return 1;                     \
     }
+
+#if defined(EMILUA_STATIC_BUILD)
+extern char** environ;
+#endif // defined(EMILUA_STATIC_BUILD)
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -828,10 +836,19 @@ int posix_mt_index(lua_State* L)
                         edata = edata.last(str.size());
                         explicit_bzero(edata.data(), edata.size());
                     };
-                    auto optr = *app_context::environp;
+#if defined(EMILUA_STATIC_BUILD)
+                    auto optr = environ;
                     std::array<char*, 2> newenv = { env.data(), NULL };
-                    *app_context::environp = newenv.data();
-                    BOOST_SCOPE_EXIT_ALL(&) { *app_context::environp = optr; };
+                    environ = newenv.data();
+                    BOOST_SCOPE_EXIT_ALL(&) { environ = optr; };
+#else // defined(EMILUA_STATIC_BUILD)
+                    char*** environp =
+                        static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
+                    auto optr = *environp;
+                    std::array<char*, 2> newenv = { env.data(), NULL };
+                    *environp = newenv.data();
+                    BOOST_SCOPE_EXIT_ALL(&) { *environp = optr; };
+#endif // defined(EMILUA_STATIC_BUILD)
                     caph_cache_tzdata();
                     return 0;
                 }));

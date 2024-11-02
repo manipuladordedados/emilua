@@ -25,8 +25,6 @@ namespace fs = std::filesystem;
 namespace asio = boost::asio;
 #endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
-extern char** environ;
-
 namespace emilua {
 
 std::optional<std::string_view>
@@ -67,8 +65,6 @@ int main(int argc, char *argv[], char *envp[])
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
-    emilua::app_context::environp = &environ;
-
     int ipc_actor_service_pipe[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
         ipc_actor_service_pipe[0] = -1;
