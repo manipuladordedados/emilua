@@ -1,3 +1,6 @@
+// Copyright (c) 2023, 2024 Vinícius dos Santos Oliveira
+// SPDX-License-Identifier: MIT OR BSL-1.0
+
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/detail/landlock.hpp>
 #include <emilua/core.hpp>

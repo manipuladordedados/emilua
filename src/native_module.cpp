@@ -1,3 +1,6 @@
+// Copyright (c) 2021, 2023, 2024 Vinícius dos Santos Oliveira
+// SPDX-License-Identifier: MIT OR BSL-1.0
+
 #include <emilua/native_module.hpp>
 
 namespace emilua {
