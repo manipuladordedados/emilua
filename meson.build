@@ -905,7 +905,7 @@ if get_option('enable_tests')
         'builtin_modules1', executable(
             'builtin_modules1',
             'test/builtin_modules1.cpp',
-            dependencies : libemilua_dep,
+            dependencies : [libemilua_dep, libemilua_main_dep],
             include_directories : include_directories(incdir),
             implicit_include_directories : false,
         ),
@@ -916,7 +916,7 @@ if get_option('enable_tests')
         'builtin_modules2', executable(
             'builtin_modules2',
             'test/builtin_modules2.cpp',
-            dependencies : libemilua_dep,
+            dependencies : [libemilua_dep, libemilua_main_dep],
             include_directories : include_directories(incdir),
             implicit_include_directories : false,
         ),
