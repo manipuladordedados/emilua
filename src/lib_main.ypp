@@ -351,6 +351,21 @@ void fill_forker_service_socket(app_context& appctx)
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void parse_args(int argc, char *argv[], app_context& appctx)
 {
+    appctx.app_args.resize(2);
+    if (argc > 0)
+        appctx.app_args[0] = argv[0];
+
+    char** cur_arg = argv;
+    while (*++cur_arg) {
+        appctx.app_args.emplace_back(*cur_arg);
+    }
+}
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void parse_emilua_bin_args(int argc, char *argv[], app_context& appctx)
+{
 #define NEXT_ARG(OPTION, LABEL) do {                           \
         if (YYCURSOR = *++cur_arg ; YYCURSOR != nullptr) {     \
             goto LABEL;                                        \
