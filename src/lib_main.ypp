@@ -83,6 +83,41 @@ static int main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 static ContextType main_context_type = ContextType::main;
 
+// Useful to run an Emilua program inside Docker w/o any sort of mini-init
+// supervisor. Also useful if you want to use Emilua to create your own init
+// system.
+//
+// You might want to override this function to no-op if you're creating a binary
+// to run from an initramfs image to exec() into systemD.
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void depart_pid1()
+{
+#if BOOST_OS_UNIX
+    if (getpid() == 1) {
+        int evfd = eventfd(0, EFD_SEMAPHORE);
+        if (evfd == -1)
+            std::exit(1);
+        auto atfork_parent = [&evfd]() -> std::optional<int> {
+            if (eventfd_write(evfd, 1) == -1)
+                return 1;
+
+            return std::nullopt;
+        };
+
+        auto exit_code = app_context::handle_pid1(atfork_parent);
+        if (exit_code)
+            std::exit(*exit_code);
+
+        eventfd_t evval;
+        if (eventfd_read(evfd, &evval) == -1)
+            std::exit(1);
+        close(evfd);
+    }
+#endif // BOOST_OS_UNIX
+}
+
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -589,31 +624,11 @@ int main(int argc, char *argv[], char *envp[])
         sigfillset(&set);
         sigprocmask(SIG_UNBLOCK, &set, /*oldset=*/NULL);
     }
+#endif // BOOST_OS_UNIX
 
-    // Useful to run an Emilua program inside Docker w/o any sort of mini-init
-    // supervisor. Also useful if you want to use Emilua to create your own init
-    // system.
-    if (getpid() == 1) {
-        int evfd = eventfd(0, EFD_SEMAPHORE);
-        if (evfd == -1)
-            return 1;
-        auto atfork_parent = [&evfd]() -> std::optional<int> {
-            if (eventfd_write(evfd, 1) == -1)
-                return 1;
+    depart_pid1();
 
-            return std::nullopt;
-        };
-
-        auto exit_code = app_context::handle_pid1(atfork_parent);
-        if (exit_code)
-            return *exit_code;
-
-        eventfd_t evval;
-        if (eventfd_read(evfd, &evval) == -1)
-            return 1;
-        close(evfd);
-    }
-
+#if BOOST_OS_UNIX
     {
         struct sigaction sa;
         sa.sa_handler = SIG_IGN;
