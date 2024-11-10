@@ -159,9 +159,9 @@ function process_decls_block(    symbol, idx, saved_input, value, matches) {
     value = value $0
     $0 = saved_input
 
-    match(value, /EMILUA_GPERF_NAMESPACE\(([[:alpha:]_][[:alnum:]_]*)?\)/,
+    match(value, /EMILUA_GPERF_NAMESPACE\(([[:alpha:]_][[:alnum:]_:]*)?\)/,
           matches)
-    gsub(/EMILUA_GPERF_NAMESPACE\(([[:alpha:]_][[:alnum:]_]*)?\)/, "", value)
+    gsub(/EMILUA_GPERF_NAMESPACE\(([[:alpha:]_][[:alnum:]_:]*)?\)/, "", value)
     if (matches[1, "length"] > 0) {
         output_header = sprintf( \
             "%1$snamespace %2$s {\n%3$s\n} // namespace %2$s\n",
