@@ -1607,7 +1607,7 @@ static int unix_datagram_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -1717,7 +1717,7 @@ static int unix_datagram_socket_send_to_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 4);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -2675,7 +2675,7 @@ static int unix_stream_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -4726,7 +4726,7 @@ static int unix_seqpacket_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
