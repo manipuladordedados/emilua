@@ -475,11 +475,12 @@ struct send_with_fds_op
             return;
         }
 
+        --sock.nbusy;
+        for (auto& fdlock : fds) {
+            *fdlock.reference = fdlock.value;
+        }
+
         if (nwritten == -1) {
-            --sock.nbusy;
-            for (auto& fdlock: fds) {
-                *fdlock.reference = fdlock.value;
-            }
             std::error_code ec2{errno, std::system_category()};
             vm_ctx->fiber_resume(
                 current_fiber,
@@ -489,10 +490,6 @@ struct send_with_fds_op
             return;
         }
 
-        --sock.nbusy;
-        for (auto& fdlock: fds) {
-            *fdlock.reference = fdlock.value;
-        }
         vm_ctx->fiber_resume(
             current_fiber,
             hana::make_set(
