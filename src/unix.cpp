@@ -452,15 +452,16 @@ struct send_with_fds_op
         msg.msg_iovlen = 1;
 
         std::vector<struct cmsghdr> cmsgbuf;
-        msg.msg_controllen = CMSG_SPACE(sizeof(int) * fds.size());
-        cmsgbuf.resize(msg.msg_controllen / sizeof(struct cmsghdr) + 1);
-        msg.msg_control = cmsgbuf.data();
+        if (fds.size() > 0) {
+            msg.msg_controllen = CMSG_SPACE(sizeof(int) * fds.size());
+            cmsgbuf.resize(msg.msg_controllen / sizeof(struct cmsghdr) + 1);
+            msg.msg_control = cmsgbuf.data();
 
-        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * fds.size());
-        {
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int) * fds.size());
+
             char* out = (char*)CMSG_DATA(cmsg);
             for (auto& fdlock: fds) {
                 std::memcpy(out, &fdlock.value, sizeof(int));

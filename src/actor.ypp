@@ -149,14 +149,15 @@ struct ipc_actor_send_op
 
         alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(
             sizeof(int) * EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
-        msg.msg_control = cmsgbuf;
-        msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
+        if (descriptors_size > 0) {
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
 
-        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * descriptors_size);
-        {
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int) * descriptors_size);
+
             char* out = (char*)CMSG_DATA(cmsg);
             for (auto& fdlock: descriptors) {
                 std::memcpy(out, &fdlock.value, sizeof(int));
