@@ -122,6 +122,10 @@
 *** xref:ref:stream.read_all.adoc[read_all]
 *** xref:ref:stream.read_at_least.adoc[read_at_least]
 *** xref:ref:stream.scanner.adoc[scanner]
+** libc_service
+*** xref:ref:libc_service.adoc[libc_service]
+*** xref:ref:libc_service.master.adoc[master]
+*** xref:ref:libc_service.slave.adoc[slave]
 ** system
 *** xref:ref:system.arguments.adoc[arguments]
 *** xref:ref:system.environment.adoc[environment]

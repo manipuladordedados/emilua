@@ -149,19 +149,21 @@ struct ipc_actor_start_vm_request
         REPLACE_STDERR,
     } type;
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
     // opcodes for the native_modules_cache channel
     enum : std::uint8_t
     {
+#if EMILUA_CONFIG_ENABLE_PLUGINS
         PRELOAD_FILE,
         PRELOAD_DIR,
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
         PRELOAD_EOF,
 
-# if BOOST_OS_BSD_FREE
+#if EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
         PRELOAD_LD_LIBRARY_DIRECTORY,
-# endif // BOOST_OS_BSD_FREE
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+
+        PRELOAD_LIBC_SERVICE,
     };
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 #if BOOST_OS_LINUX
     int clone_flags;
@@ -170,9 +172,7 @@ struct ipc_actor_start_vm_request
     action stdout_action;
     action stderr_action;
     std::uint8_t stderr_has_color;
-#if EMILUA_CONFIG_ENABLE_PLUGINS
     std::uint8_t has_native_modules_cache;
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::uint8_t has_lua_hook;
 
     uid_t resuid[3];

@@ -6,6 +6,7 @@
 
 #include <boost/scope_exit.hpp>
 
+#include <emilua/ambient_authority.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/windows.hpp>
@@ -18,6 +19,7 @@
 
 #if BOOST_OS_UNIX
 #include <emilua/file_descriptor.hpp>
+#include <emilua/libc_service.hpp>
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
@@ -211,7 +213,6 @@ struct ipc_actor_send_op
     static constexpr auto opt_args = vm_context::options::arguments;
 };
 
-# if EMILUA_CONFIG_ENABLE_PLUGINS
 struct send_native_modules_cache_op
     : public std::enable_shared_from_this<send_native_modules_cache_op>
 {
@@ -219,6 +220,7 @@ struct send_native_modules_cache_op
 
     ~send_native_modules_cache_op()
     {
+# if EMILUA_CONFIG_ENABLE_PLUGINS
         for (const auto& [_, fd] : files) {
             if (fd != -1)
                 close(fd);
@@ -227,12 +229,15 @@ struct send_native_modules_cache_op
             if (fd != -1)
                 close(fd);
         }
-#if BOOST_OS_BSD_FREE
+#  if BOOST_OS_BSD_FREE
         for (const auto& fd : ld_directories) {
             if (fd != -1)
                 close(fd);
         }
-#endif // BOOST_OS_BSD_FREE
+#  endif // BOOST_OS_BSD_FREE
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (libc_service != -1)
+            close(libc_service);
         if (box != -1)
             close(box);
     }
@@ -265,6 +270,7 @@ struct send_native_modules_cache_op
 
         alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
 
+# if EMILUA_CONFIG_ENABLE_PLUGINS
         if (files.size() > 0) {
             request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
 
@@ -292,7 +298,7 @@ struct send_native_modules_cache_op
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(
                 CMSG_DATA(cmsg), &directories.begin()->second, sizeof(int));
-#if BOOST_OS_BSD_FREE
+#  if BOOST_OS_BSD_FREE
         } else if (ld_directories.size() > 0) {
             request_type =
                 ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY;
@@ -304,7 +310,21 @@ struct send_native_modules_cache_op
             cmsg->cmsg_type = SCM_RIGHTS;
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(CMSG_DATA(cmsg), &ld_directories.back(), sizeof(int));
-#endif // BOOST_OS_BSD_FREE
+#  endif // BOOST_OS_BSD_FREE
+# else // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (false) {
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (libc_service != -1) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_LIBC_SERVICE;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &libc_service, sizeof(int));
+# if EMILUA_CONFIG_ENABLE_PLUGINS
         } else if (files2.size() > 0) {
             request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
 
@@ -331,6 +351,7 @@ struct send_native_modules_cache_op
             cmsg->cmsg_type = SCM_RIGHTS;
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(CMSG_DATA(cmsg), &*directories2.begin(), sizeof(int));
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
         } else {
             request_type = ipc_actor_start_vm_request::PRELOAD_EOF;
         }
@@ -347,6 +368,7 @@ struct send_native_modules_cache_op
         if (request_type == ipc_actor_start_vm_request::PRELOAD_EOF)
             return;
 
+# if EMILUA_CONFIG_ENABLE_PLUGINS
         if (files.size() > 0) {
             auto it = files.begin();
             close(it->second);
@@ -355,38 +377,50 @@ struct send_native_modules_cache_op
             auto it = directories.begin();
             close(it->second);
             directories.erase(it);
-#if BOOST_OS_BSD_FREE
+#  if BOOST_OS_BSD_FREE
         } else if (ld_directories.size() > 0) {
             close(ld_directories.back());
             ld_directories.pop_back();
-#endif // BOOST_OS_BSD_FREE
+#  endif // BOOST_OS_BSD_FREE
+# else // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (false) {
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (libc_service != -1) {
+            close(libc_service);
+            libc_service = -1;
+# if EMILUA_CONFIG_ENABLE_PLUGINS
         } else if (files2.size() > 0) {
             files2.erase(files2.begin());
         } else if (directories2.size() > 0) {
             directories2.erase(directories2.begin());
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
         }
 
         do_wait();
     }
 
+# if EMILUA_CONFIG_ENABLE_PLUGINS
     std::unordered_map<
         std::string, int, TransparentStringHash, std::equal_to<>
     > files;
     std::unordered_map<fs::path, int> directories;
-#if BOOST_OS_BSD_FREE
+#  if BOOST_OS_BSD_FREE
     std::vector<int> ld_directories;
-#endif // BOOST_OS_BSD_FREE
+#  endif // BOOST_OS_BSD_FREE
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+    int libc_service = -1;
     asio::local::seq_packet_protocol::socket sock;
     int box = -1;
 
+# if EMILUA_CONFIG_ENABLE_PLUGINS
     // We don't close these file descriptors. They stay alive for the duration
     // of the process. {{{
     std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
         files2;
     std::set<int> directories2;
     // }}}
-};
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
+};
 #endif // BOOST_OS_UNIX
 
 static int deserializer_closure(lua_State* L)
@@ -1280,9 +1314,8 @@ static int spawn_vm(lua_State* L)
     std::string subprocess_module;
     std::vector<std::string> newenv;
     decltype(vm_ctx.appctx.modules_cache_registry) source_cache;
-#if EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_ptr<send_native_modules_cache_op> native_modules_cache_op;
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+    std::map<int, std::string> libc_service_lua_filters;
     std::optional<std::string> lua_hook;
     int lua_hook_fd = -1;
     int proc_stdin = -1;
@@ -1997,6 +2030,59 @@ static int spawn_vm(lua_State* L)
             }
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "libc_service");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg", "subprocess/libc_service");
+                return lua_error(L);
+            case LUA_TUSERDATA: {
+                auto slave = static_cast<libc_service::slave*>(
+                    lua_touserdata(L, -1));
+                if (!lua_getmetatable(L, -1)) {
+                    push(L, std::errc::invalid_argument,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &libc_service::slave_mt_key);
+                if (!lua_rawequal(L, -1, -2)) {
+                    push(L, std::errc::invalid_argument,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+                lua_pop(L, 2);
+
+                if (!has_libc_service) {
+                    push(L, std::errc::not_supported,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+
+                request.has_native_modules_cache = 1;
+                if (!native_modules_cache_op) {
+                    native_modules_cache_op =
+                        std::make_shared<send_native_modules_cache_op>(
+                            vm_ctx.strand().context());
+                }
+
+                asio_error_code ec;
+                int fd = slave->socket.release(ec);
+                if (ec) {
+                    push(L, ec);
+                    return lua_error(L);
+                }
+
+                native_modules_cache_op->libc_service = fd;
+                libc_service_lua_filters = std::move(slave->lua_chunk_filters);
+                lua_pushnil(L);
+                lua_setmetatable(L, -2);
+                slave->~slave();
+            }
+            case LUA_TNIL:
+                break;
+            }
+            lua_pop(L, 1);
+
             lua_getfield(L, -1, "init");
             switch (lua_type(L, -1)) {
             default:
@@ -2253,6 +2339,12 @@ static int spawn_vm(lua_State* L)
             oa << concurrency_hint << std::string{module} <<
                 (send_import_root ? import_root.string() : std::string{}) <<
                 newenv << source_cache;
+            if (
+                native_modules_cache_op &&
+                native_modules_cache_op->libc_service != -1
+            ) {
+                oa << libc_service_lua_filters;
+            }
             body = os.str();
         }
 
@@ -2438,7 +2530,6 @@ static int spawn_vm(lua_State* L)
             return lua_error(L);
         }
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
         if (native_modules_cache_op) {
             {
                 asio::local::seq_packet_protocol protocol;
@@ -2485,7 +2576,6 @@ static int spawn_vm(lua_State* L)
             native_modules_cache_op->box = -1;
             native_modules_cache_op->do_wait();
         }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
         if (lua_hook) {
             std::memset(&msg, 0, sizeof(msg));

@@ -63,7 +63,7 @@ Create and use a closed pipe end as the specified standard handle (`stdin`,
 NOTE: On Windows, it's unspecified (will vary depending on whether any
 redirection is done at all, ``dwCreationFlags``'s value, etc).
 
-`extra_fds: { [integer]: file_descriptor }|nil`::
+`extra_fds: { [integer]: file_descriptor|libc_service.slave }|nil`::
 
 Extra file descriptors for the child to inherit. Parent and child processes
 don't need to share the same numeric value reference for a given file

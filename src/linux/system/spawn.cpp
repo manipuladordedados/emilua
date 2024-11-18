@@ -18,8 +18,13 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <grp.h>
 
 #include <emilua/file_descriptor.hpp>
+#include <emilua/libc_service.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/byte_span.hpp>
+
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/map.hpp>
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/posix/stream_descriptor.hpp>
@@ -126,6 +131,34 @@ struct subprocess
     std::optional<spawn_reaper> reaper;
     bool wait_in_progress = false;
     result<siginfo_t, void> info;
+};
+
+struct libc_service_send_op
+    : public std::enable_shared_from_this<libc_service_send_op>
+{
+    libc_service_send_op(asio::io_context& ioctx,
+                         const std::map<int, std::string>& lua_filters)
+        : sock{ioctx}
+    {
+        std::ostringstream os;
+        os.imbue(std::locale::classic());
+        cereal::BinaryOutputArchive oa{os};
+
+        oa << lua_filters;
+        buffer = os.str();
+    }
+
+    void do_send()
+    {
+        sock.async_send(
+            asio::buffer(buffer.data(), buffer.size()),
+            /*flags=*/0,
+            [self=shared_from_this()](const asio_error_code&, std::size_t) {}
+        );
+    }
+
+    asio::local::seq_packet_protocol::socket sock;
+    std::string buffer;
 };
 EMILUA_GPERF_DECLS_END(system)
 
@@ -1118,6 +1151,11 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     boost::container::small_vector<std::pair<int, int>, 7> extra_fds;
+    boost::container::small_vector<int, 7> to_be_closed_fds;
+    BOOST_SCOPE_EXIT_ALL(&) { for (int fd : to_be_closed_fds) {
+        if (fd != -1) std::ignore = close(fd);
+    }};
+
     lua_getfield(L, 1, "extra_fds");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
@@ -1130,23 +1168,58 @@ int system_spawn(lua_State* L)
                 lua_pop(L, 1);
                 break;
             case LUA_TUSERDATA: {
-                auto handle = static_cast<file_descriptor_handle*>(
-                    lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1)) {
                     push(L, std::errc::invalid_argument, "arg", "extra_fds");
                     return lua_error(L);
                 }
-                if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+                if (lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
+                    auto handle = static_cast<file_descriptor_handle*>(
+                        lua_touserdata(L, -2));
+
+                    if (*handle == INVALID_FILE_DESCRIPTOR) {
+                        push(L, std::errc::device_or_resource_busy,
+                             "arg", "extra_fds");
+                        return lua_error(L);
+                    }
+                    extra_fds.emplace_back(i, *handle);
+                    lua_pop(L, 2);
+                    break;
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &libc_service::slave_mt_key);
+                if (!lua_rawequal(L, -1, -2)) {
                     push(L, std::errc::invalid_argument, "arg", "extra_fds");
                     return lua_error(L);
                 }
-                if (*handle == INVALID_FILE_DESCRIPTOR) {
-                    push(L, std::errc::device_or_resource_busy,
-                         "arg", "extra_fds");
+                auto slave = static_cast<libc_service::slave*>(
+                    lua_touserdata(L, -3));
+                to_be_closed_fds.emplace_back(-1);
+                asio_error_code ec;
+                to_be_closed_fds.back() = slave->socket.release(ec);
+                if (ec) {
+                    push(L, ec);
                     return lua_error(L);
                 }
-                extra_fds.emplace_back(i, *handle);
-                lua_pop(L, 2);
+
+                extra_fds.emplace_back(i, to_be_closed_fds.back());
+
+                auto op = std::make_shared<libc_service_send_op>(
+                    vm_ctx.strand().context(), slave->lua_chunk_filters);
+
+                {
+                    asio_error_code ec;
+                    op->sock.assign(
+                        asio::local::seq_packet_protocol{}, slave->masterdupfd,
+                        ec);
+                    assert(!ec);
+                    slave->masterdupfd = -1;
+                }
+
+                lua_pushnil(L);
+                lua_setmetatable(L, -4);
+                slave->~slave();
+                lua_pop(L, 3);
+
+                op->do_send();
                 break;
             }
             default:

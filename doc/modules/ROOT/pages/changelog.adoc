@@ -9,9 +9,12 @@
 === Added
 
 * New library: libemilua-main.
+* New library: libemilua-libc-service.
 * `byte_span.fill()`.
 * `byte_span.with_zeros()`.
 * `system.get_lowfd()`
+* Module `libc_service`.
+* Parameter `subprocess.libc_service` in `spawn_vm()`.
 * Parameter `subprocess.source_tree_cache` in `spawn_vm()`.
 * Parameter `subprocess.native_modules_cache` in `spawn_vm()`.
 * Parameter `subprocess.ld_library_directories` in `spawn_vm()`.

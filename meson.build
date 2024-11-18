@@ -329,8 +329,12 @@ re2c_src = [
 if host_machine.system() != 'windows'
     src += [
         'src/unix.cpp',
+        'src/open_posix_libs.cpp',
         'src/ipc_actor.cpp',
+        'src/libc_service.cpp',
+        'src/proc_set_libc_service.cpp',
         'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
+        'src/ambient_authority.cpp',
     ]
 endif
 
@@ -421,10 +425,81 @@ libemilua_main_dep = declare_dependency(
     link_with : [libemilua_main],
 )
 
+libc_service_src = []
+
+if host_machine.system() == 'linux'
+    if (
+        meson.get_compiler('cpp').has_define(
+            '__GLIBC__', prefix : '#include <cstddef>') or
+        meson.get_compiler('cpp').has_define(
+            '__GNU_LIBRARY__', prefix : '#include <cstddef>')
+    )
+        libc_service_src += 'src/linux/glibc/libc_service.cpp'
+    endif
+elif host_machine.system() != 'windows'
+    libc_service_src += 'src/posix/libc_service.cpp'
+endif
+
+if libc_service_src.length() == 0
+    libemilua_libc_service_dep = dependency('', required : false)
+else
+    libemilua_libc_service = library(
+        'emilua-libc-service',
+        libc_service_src,
+        override_options : ['b_lundef=false'],
+        dependencies : [ boost ],
+        include_directories : include_directories(incdir),
+        implicit_include_directories : false,
+        version : meson.project_version(),
+        install : true,
+    )
+
+    libemilua_libc_service_dep = declare_dependency(
+        dependencies : [ libemilua_dep ],
+        link_with : [libemilua_libc_service],
+    )
+
+    preload_libc_src = [
+        'src/open_posix_libs.cpp',
+        'src/preload_libc.cpp',
+    ]
+
+    preload_libc_gperf_src = [
+        'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
+    ]
+
+    if host_machine.system() == 'linux'
+        preload_libc_gperf_src += 'src/linux/landlock.cpp'
+    endif
+
+    libemilua_preload_libc = shared_library(
+        'emilua-preload-libc',
+        libc_service_src,
+        preload_libc_src,
+        gperf_gen.process(preload_libc_gperf_src),
+        dependencies : [
+            cereal,
+            libcap,
+            luajit,
+            boost,
+        ],
+        include_directories : include_directories(incdir),
+        implicit_include_directories : false,
+        version : meson.project_version(),
+        install : true,
+    )
+endif
+
 emilua_bin = executable(
     'emilua',
     ['src/main.cpp'],
-    dependencies : [libemilua_dep, libemilua_main_dep],
+    dependencies : [
+        # libc_service must be linked first to override glibc functions
+        libemilua_libc_service_dep,
+
+        libemilua_dep,
+        libemilua_main_dep,
+    ],
     export_dynamic : get_option('enable_plugins'),
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
@@ -515,6 +590,31 @@ pkgconfig.generate(
     requires : ['emilua'],
 )
 
+if libc_service_src.length() != 0
+    pkgconfig.generate(
+        libemilua_libc_service,
+        filebase : 'emilua_libc_service',
+        name : 'Emilua\'s default libc overriders for ambient authority',
+        description : 'in sandboxed mode, we forward requests to process ' +
+            'outside the sandbox',
+        requires : ['emilua'],
+    )
+
+    pkgconfig.generate(
+        filebase : 'emilua_preload_libc',
+        name : 'Emilua\'s LD_PRELOAD for ambient authority',
+        description : 'in sandboxed mode, we forward requests to process ' +
+            'outside the sandbox',
+        variables : [
+            'libpath=' + get_option('prefix') / get_option('libdir') / fs.name(
+                libemilua_preload_libc.full_path()),
+        ],
+        uninstalled_variables : [
+            'libpath=' + libemilua_preload_libc.full_path(),
+        ],
+    )
+endif
+
 if get_option('enable_tests')
     normalize_path_bin = executable(
         'normalize_path',
@@ -560,6 +660,9 @@ if get_option('enable_tests')
     if host_machine.system() == 'windows'
         tests_env += ('APPVEYOR_FIXUP=' +
             meson.current_source_dir() / 'test' / 'force_windows.awk')
+    else
+        tests_env += ('EMILUA_PRELOAD_LIBC_PATH=' +
+            libemilua_preload_libc.full_path())
     endif
 
     tests = {
@@ -898,7 +1001,29 @@ if get_option('enable_tests')
                 'get_lowfd6',
                 'spawn_with_pid_on_env',
             ],
+            'libc_service' : [
+                'libc_service_cat',
+            ],
         }
+
+        test(
+            'libc_service_read_dev_null', executable(
+                'libc_service_read_dev_null',
+                'test/libc_service_read_dev_null.cpp',
+                dependencies : [
+                    # libc_service must be linked first to override glibc
+                    # functions
+                    libemilua_libc_service_dep,
+
+                    libemilua_dep,
+                    libemilua_main_dep,
+                ],
+                include_directories : include_directories(incdir),
+                implicit_include_directories : false,
+            ),
+            suite : 'libc_service',
+            protocol : 'tap',
+        )
     endif
 
     test(

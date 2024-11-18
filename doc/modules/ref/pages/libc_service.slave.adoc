@@ -1,0 +1,76 @@
+= libc_service.slave
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local libc_service = require "libc_service"
+----
+
+The handle to the slave end's initialization data. When the handle is used in
+some function, it's consumed and can no longer be used in different calls. The
+resources associated with the handle will be sent to the process created by the
+function that consumes this handle.
+
+You cannot configure properties from this handle after a call that consumes it
+(e.g. `spawn_vm()`). If some setting is desired, it must be prepared before the
+call that consumes this object.
+
+== Metamethods
+
+=== `__newindex()`
+
+Assigns a Lua chunk (the source code as a string) to run on the slave end when
+the libc function (identified by the key) is attempted. The Lua function will be
+called with the proxified libc function as the first argument (before the
+arguments that were passed to the attempted libc function call). If no Lua
+function is assigned and the libc function is called, the proxified libc
+function will be called directly.
+
+The Lua function has access to the same API that is available to
+xref:init.script.adoc[init.script(3em)]. However `errexit` will be `false` by
+default.
+
+[ditaa, libc_service_filters]
+....
++--------------------+
+|                    |
+|       Process      |
+|                    |
++-+------------------+
+  |                ^
+  | calls libc     | receives result
+  | function       |
+  v                |
++------------------+-+
+|                    |
+|  Lua chunk filter  |
+|                    |
++---+----------------+
+    |           ^
+    v           |
++---------------+----+    +-----------+
+|                    +--->|           |
+| Proxified function |    | Real libc |
+|                    |<---+           |
++---+----------------+    +-----------+
+    |           ^
+    v           |
++---------------+-----+
+|                     |
+| libc_service.master |
+|                     |
++---------------------+
+....
+
+Whether the proxified function forwards the request to the real libc depends on
+``libc_service.master``'s reply. If the Lua chunk never calls the proxified
+function, then the proxified function never even runs.

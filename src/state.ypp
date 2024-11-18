@@ -59,6 +59,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_UNIX
+#include <emilua/libc_service.hpp>
 #include <emilua/unix.hpp>
 #endif // BOOST_OS_UNIX
 
@@ -1630,6 +1631,19 @@ static int require(lua_State* L)
 #endif // BOOST_OS_UNIX
                 })
             EMILUA_GPERF_PAIR(
+                "libc_service",
+                [](std::shared_lock<std::shared_mutex>&,
+                   std::shared_ptr<vm_context>, ContextType, std::string_view,
+                   lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                    lua_pushboolean(L, 1);
+                    rawgetp(L, LUA_REGISTRYINDEX, &libc_service::key);
+                    return 2;
+#else // BOOST_OS_UNIX
+                    return throw_enosys(L);
+#endif // BOOST_OS_UNIX
+                })
+            EMILUA_GPERF_PAIR(
                 "stream",
                 [](std::shared_lock<std::shared_mutex>&,
                    std::shared_ptr<vm_context>, ContextType, std::string_view,
@@ -2109,6 +2123,7 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
     init_pipe(L);
 
 #if BOOST_OS_UNIX
+    libc_service::init(L);
     init_unix(L);
 #endif // BOOST_OS_UNIX
 

@@ -222,6 +222,16 @@ search paths as well).
 NOTE: Only available on FreeBSD.
 --
 
+`subprocess.libc_service: libc_service.slave|nil`::
+
+The proxy used to override functions from libc that are used for ambient
+authority access within the new subprocess.
++
+The object is consumed by the call and cannot be reused elsewhere afterwards.
++
+TIP: It's wise to combine this with a real syscall firewall (e.g. FreeBSD's
+Capsicum, Linux's seccomp).
+
 == `channel` functions
 
 === `send(self, msg)`

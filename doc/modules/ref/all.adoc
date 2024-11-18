@@ -216,6 +216,12 @@ include::pages/system.get_lowfd.adoc[]
 
 include::pages/system.get_ld_library_directories.adoc[]
 
+include::pages/libc_service.adoc[]
+
+include::pages/libc_service.master.adoc[]
+
+include::pages/libc_service.slave.adoc[]
+
 include::pages/system.exit.adoc[]
 
 include::pages/system.signal.adoc[]
