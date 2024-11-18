@@ -11,6 +11,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <sys/mount.h>
 #include <sys/jail.h>
 #include <jail.h>
+#include <span>
 
 #if !defined(EMILUA_STATIC_BUILD)
 # include <dlfcn.h>
