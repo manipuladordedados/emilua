@@ -836,7 +836,10 @@ static int on_external_package(
         return 2;
     };
 
-    for (const auto& p: vm_ctx->appctx.emilua_path) {
+    if (auto m = get_builtin_native_module(module_id) ; m) {
+        native_module& natmod = m->get();
+        return on_native_module(&natmod);
+    } else for (const auto& p: vm_ctx->appctx.emilua_path) {
         bool already_loaded = !vm_ctx->visited_external_packages
             .emplace(module_id).second;
         bool commit_package_as_loaded = false;
@@ -851,6 +854,7 @@ static int on_external_package(
         bool module_is_leaf;
         rdf_error_category* error_category_module = nullptr;
         native_module* natmod = nullptr;
+
         try {
             if (get_builtin_module(p / (std::string{module_id} + ".lua"))) {
                 module_path = p / (std::string{module_id} + ".lua");
@@ -864,8 +868,6 @@ static int on_external_package(
                 ) ; m
             ) {
                 error_category_module = &m->get();
-            } else if (auto m = get_builtin_native_module(module_id) ; m) {
-                natmod = &m->get();
 #if EMILUA_CONFIG_ENABLE_PLUGINS
             } else if (
                 auto it = vm_ctx->appctx.native_modules_cache_registry.find(
