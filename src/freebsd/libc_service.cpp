@@ -4,7 +4,11 @@
 #include <fcntl.h>
 
 #include <emilua/ambient_authority.hpp>
+#include <string_view>
+#include <unistd.h>
 #include <cstdarg>
+#include <cerrno>
+#include <cstdio>
 
 namespace emilua {
 bool has_libc_service = true;
@@ -40,6 +44,58 @@ int open(const char *file, int oflag, ...)
     } else {
         return __sys_open(file, oflag);
     }
+}
+
+FILE* fopen(const char* pathname, const char* mode)
+{
+    int oflag = 0;
+    bool has_mode = false;
+    {
+        std::string_view mode2{mode};
+
+        if (mode2.starts_with("r+")) {
+            oflag |= O_RDWR;
+        } else if (mode2.starts_with("r")) {
+            oflag |= O_RDONLY;
+        } else if (mode2.starts_with("w+x")) {
+            oflag |= O_RDWR | O_CREAT | O_TRUNC | O_EXCL;
+            has_mode = true;
+        } else if (mode2.starts_with("w+")) {
+            oflag |= O_RDWR | O_CREAT | O_TRUNC;
+            has_mode = true;
+        } else if (mode2.starts_with("wx")) {
+            oflag |= O_WRONLY | O_CREAT | O_TRUNC | O_EXCL;
+            has_mode = true;
+        } else if (mode2.starts_with("w")) {
+            oflag |= O_WRONLY | O_CREAT | O_TRUNC;
+            has_mode = true;
+        } else if (mode2.starts_with("a+")) {
+            oflag |= O_RDWR | O_CREAT | O_APPEND;
+            has_mode = true;
+        } else if (mode2.starts_with("a")) {
+            oflag |= O_WRONLY | O_CREAT | O_APPEND;
+            has_mode = true;
+        } else {
+            errno = EINVAL;
+            return NULL;
+        }
+
+        if (mode2.find('e') != std::string_view::npos) {
+            oflag |= O_CLOEXEC;
+        }
+    }
+
+    int fd = has_mode ? open(pathname, oflag, 0666) : open(pathname, oflag);
+    if (fd == -1)
+        return NULL;
+
+    FILE* ret = fdopen(fd, mode);
+    if (ret == NULL) {
+        auto last_errno = errno;
+        (void)close(fd);
+        errno = last_errno;
+    }
+    return ret;
 }
 
 } // extern "C"

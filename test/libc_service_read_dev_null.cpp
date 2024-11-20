@@ -20,10 +20,10 @@ struct : public emilua::native_module
         std::shared_lock<std::shared_mutex>&, emilua::vm_context& /*vm_ctx*/,
         lua_State* L) override
     {
-        FILE* file = fdopen(open("/dev/null", O_RDONLY), "r");
-
-        char buf[1024];
-        std::printf("%s", fgets(buf, 1024, file));
+        std::ifstream in{"/dev/null", std::ios::in | std::ios::binary};
+        std::string line;
+        if (std::getline(in, line))
+            std::cout << line << std::endl;
 
         lua_pushnil(L);
         return {};
@@ -92,6 +92,7 @@ spawn(function() pcall(function()
         pi = pi:release()
         spawn(function()
             stream.write_all(po, 'ok 1\n')
+            po:close()
         end):detach()
         master:send_with_fds(-2, {pi})
         ::continue::
