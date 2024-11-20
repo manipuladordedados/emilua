@@ -257,6 +257,18 @@ static void receive_with_fds(reply_with_metadata& reply, thread_id id)
             }
         }
     }
+
+    if (msg.msg_flags & MSG_CTRUNC) {
+        for (int& fd : reply.fds) {
+            if (fd != -1) {
+                std::ignore = close(fd);
+                fd = -1;
+            }
+        }
+
+        reply.action = reply::FORWARD_TO_REAL_LIBC;
+        return;
+    }
 }
 
 static reply_with_metadata_ptr get_reply(thread_id id)
