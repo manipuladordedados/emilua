@@ -436,6 +436,8 @@ if host_machine.system() == 'linux'
     )
         libc_service_src += 'src/linux/glibc/libc_service.cpp'
     endif
+elif host_machine.system() == 'freebsd'
+    libc_service_src += 'src/freebsd/libc_service.cpp'
 elif host_machine.system() != 'windows'
     libc_service_src += 'src/posix/libc_service.cpp'
 endif
