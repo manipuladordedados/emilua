@@ -17,6 +17,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
 #include <emilua/system.hpp>
+#include <linux/kcmp.h>
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_BSD_FREE
@@ -268,6 +269,59 @@ static int file_descriptor_dup(lua_State* L)
     return 1;
 #endif // BOOST_OS_WINDOWS
 }
+
+#if BOOST_OS_LINUX || BOOST_OS_BSD_FREE
+static int file_descriptor_kcmp(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto handle1 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle1 || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle1 == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    auto handle2 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 2));
+    if (!handle2 || !lua_getmetatable(L, 2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    if (*handle2 == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+# if BOOST_OS_LINUX
+    auto res = syscall(
+        SYS_kcmp, getpid(), getpid(), KCMP_FILE, *handle1, *handle2);
+# else
+    auto res = kcmp(getpid(), getpid(), KCMP_FILE, *handle1, *handle2);
+# endif
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_pushinteger(L, res);
+    return 1;
+}
+#endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
 
 inline int file_descriptor_non_blocking_get(lua_State* L)
 {
@@ -778,6 +832,16 @@ static int file_descriptor_mt_index(lua_State* L)
             "dup",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, file_descriptor_dup);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "kcmp",
+            [](lua_State* L) -> int {
+#if BOOST_OS_LINUX || BOOST_OS_BSD_FREE
+                lua_pushcfunction(L, file_descriptor_kcmp);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
                 return 1;
             })
         EMILUA_GPERF_PAIR(

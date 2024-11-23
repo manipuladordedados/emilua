@@ -27,6 +27,10 @@ Closes the file descriptor w/o waiting for the GC.
 
 Creates a new file descriptor that refers to the same open file description.
 
+=== `kcmp(self, other: file_descriptor) -> integer`
+
+See kcmp(2) and `KCMP_FILE`.
+
 === `cap_get(self) -> system.linux_capabilities`
 
 See cap_get_fd(3).
