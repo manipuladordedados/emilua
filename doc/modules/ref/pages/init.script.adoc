@@ -125,6 +125,8 @@ returned as the second result.
 Other exported functions work as usual (except that `errno` or `0` is returned
 as the second result):
 
+* `dup()`.
+* `dup2()`.
 * `open()`.
 * `mkdir()`.
 * `chdir()`.

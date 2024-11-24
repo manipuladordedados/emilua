@@ -27,6 +27,7 @@
 * Function `system.get_ld_library_directories()`.
 * `init.script`
 ** `caph_cache_tzdata()` (FreeBSD).
+** `dup()` and `dup2()`.
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.

@@ -391,6 +391,35 @@ int posix_mt_index(lua_State* L)
             EMILUA_DETAIL_INT_CONSTANT(SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED))
         // ### FUNCTIONS ###
         EMILUA_GPERF_PAIR(
+            "dup",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int oldfd = luaL_checkinteger(L, 1);
+                    int res = dup(oldfd);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "dup");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "dup2",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int oldfd = luaL_checkinteger(L, 1);
+                    int newfd = luaL_checkinteger(L, 2);
+                    int res = dup2(oldfd, newfd);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "dup2");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "read",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {
