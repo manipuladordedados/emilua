@@ -50,6 +50,13 @@ else
     asio = dependency('', required : false)
 endif
 
+# https://stackoverflow.com/a/79204761/883113
+dont_link_libc_args = {
+    'gcc' : ['-nostdlib','-nodefaultlibs'],
+    'clang' : ['-nostdlib','-nodefaultlibs'],
+    'msvc' : ['/NODEFAULTLIB'],
+}[meson.get_compiler('cpp').get_id()]
+
 add_project_arguments(
     '-DBOOST_DLL_USE_STD_FS',
     '-DBOOST_BEAST_USE_STD_STRING_VIEW',
@@ -352,6 +359,7 @@ libemilua = library(
     bytecode_gen.process(bytecode_src),
     gperf_gen.process(re2c_gen.process(re2c_src)),
     cpp_pch : 'pch/pchheader.hpp',
+    override_options : ['b_lundef=false'],
     dependencies : [
         thread_dep,
         boost,
@@ -368,6 +376,7 @@ libemilua = library(
         liburing,
         libcap,
     ],
+    link_args : dont_link_libc_args,
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
     cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
@@ -403,6 +412,7 @@ libemilua_dep = declare_dependency(
 libemilua_main = library(
     'emilua-main',
     re2c_gen.process('src/lib_main.ypp'),
+    override_options : ['b_lundef=false'],
     dependencies : [
         thread_dep,
         boost,
@@ -412,6 +422,7 @@ libemilua_main = library(
         curses,
         liburing,
     ],
+    link_args : dont_link_libc_args,
     link_with : libemilua,
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
@@ -450,6 +461,7 @@ else
         libc_service_src,
         override_options : ['b_lundef=false'],
         dependencies : [ boost ],
+        link_args : dont_link_libc_args,
         include_directories : include_directories(incdir),
         implicit_include_directories : false,
         version : meson.project_version(),
