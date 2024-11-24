@@ -44,6 +44,7 @@ int open(const char *file, int oflag, ...)
 
 int open64(const char *file, int oflag, ...)
 {
+    oflag |= O_LARGEFILE;
     if (((oflag & O_CREAT) == O_CREAT) || ((oflag & O_TMPFILE) == O_TMPFILE)) {
         std::va_list args;
         va_start(args, oflag);
@@ -66,7 +67,7 @@ int open64(const char *file, int oflag, ...)
 
 FILE* fopen64(const char* pathname, const char* mode)
 {
-    int oflag = 0;
+    int oflag = O_LARGEFILE;
     bool has_mode = false;
     {
         std::string_view mode2{mode};
