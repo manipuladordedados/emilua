@@ -64,7 +64,7 @@ int open64(const char *file, int oflag, ...)
     }
 }
 
-FILE* fopen(const char* pathname, const char* mode)
+FILE* fopen64(const char* pathname, const char* mode)
 {
     int oflag = 0;
     bool has_mode = false;
@@ -107,3 +107,51 @@ FILE* fopen(const char* pathname, const char* mode)
 }
 
 } // extern "C"
+
+namespace emilua {
+
+FILE* __REDIRECT(fopen, (const char* pathname, const char* mode), fopen);
+
+FILE* fopen(const char* pathname, const char* mode)
+{
+    int oflag = 0;
+    bool has_mode = false;
+    {
+        std::string_view mode2{mode};
+
+        if (mode2.starts_with("r+")) {
+            oflag |= O_RDWR;
+        } else if (mode2.starts_with("r")) {
+            oflag |= O_RDONLY;
+        } else if (mode2.starts_with("w+")) {
+            oflag |= O_RDWR | O_CREAT | O_TRUNC;
+            has_mode = true;
+        } else if (mode2.starts_with("w")) {
+            oflag |= O_WRONLY | O_CREAT | O_TRUNC;
+            has_mode = true;
+        } else if (mode2.starts_with("a+")) {
+            oflag |= O_RDWR | O_CREAT | O_APPEND;
+            has_mode = true;
+        } else if (mode2.starts_with("a")) {
+            oflag |= O_WRONLY | O_CREAT | O_APPEND;
+            has_mode = true;
+        } else {
+            errno = EINVAL;
+            return NULL;
+        }
+    }
+
+    int fd = has_mode ? open(pathname, oflag, 0666) : open(pathname, oflag);
+    if (fd == -1)
+        return NULL;
+
+    FILE* ret = fdopen(fd, mode);
+    if (ret == NULL) {
+        auto last_errno = errno;
+        (void)close(fd);
+        errno = last_errno;
+    }
+    return ret;
+}
+
+} // namespace emilua
