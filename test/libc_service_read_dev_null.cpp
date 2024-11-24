@@ -20,12 +20,20 @@ struct : public emilua::native_module
         std::shared_lock<std::shared_mutex>&, emilua::vm_context& /*vm_ctx*/,
         lua_State* L) override
     {
-        std::ifstream in{"/dev/null", std::ios::in | std::ios::binary};
-        std::string line;
-        if (std::getline(in, line))
-            std::cout << line << std::endl;
-
         lua_pushnil(L);
+
+        std::ifstream in{"/dev/null", std::ios::in | std::ios::binary};
+        in.imbue(std::locale::classic());
+        in.exceptions(std::ios_base::failbit);
+        std::string line;
+        try {
+            std::getline(in, line);
+        } catch (const std::exception& e) {
+            std::cout << "not ok 1 - getline: " << e.what() << std::endl;
+            return {};
+        }
+
+        std::cout << line << std::endl;
         return {};
     }
 } foobar333;
