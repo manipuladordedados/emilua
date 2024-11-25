@@ -13,7 +13,14 @@
 #include <cstdio>
 
 namespace emilua {
-bool has_libc_service = true;
+
+extern bool has_libc_service;
+
+namespace {
+static char set_has_libc_service = []() {
+    has_libc_service = true; return 0; }();
+}
+
 } // namespace emilua
 
 extern "C" {

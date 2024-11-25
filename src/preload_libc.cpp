@@ -16,6 +16,7 @@
 namespace emilua {
 
 struct ambient_authority ambient_authority;
+bool has_libc_service = true;
 
 namespace {
 static struct preload_libc
