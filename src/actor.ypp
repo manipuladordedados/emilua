@@ -1308,6 +1308,12 @@ static int spawn_vm(lua_State* L)
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
     int concurrency_hint = 1;
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #endif
 #if BOOST_OS_UNIX
     bool run_in_subprocess = false;
