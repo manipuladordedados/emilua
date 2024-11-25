@@ -59,7 +59,7 @@ struct context_password_callback
 
                 lua_State* L = vm_ctx->async_event_thread();
                 luaL_unref(L, LUA_REGISTRYINDEX, ref);
-            });
+            }, std::allocator<void>{});
         }
 
         std::weak_ptr<vm_context> vm_ctx;
