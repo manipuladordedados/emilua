@@ -458,7 +458,7 @@ else
 
     libemilua_libc_service_dep = declare_dependency(
         dependencies : [ libemilua_dep ],
-        link_with : [libemilua_libc_service],
+        objects : libemilua_libc_service.extract_all_objects(),
     )
 
     preload_libc_src = [
