@@ -975,7 +975,6 @@ static int child_main(void*)
     app_context appctx;
     appctx.app_args.reserve(2);
     appctx.app_args.emplace_back();
-    appctx.app_args.emplace_back(entry_point.string());
     appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
 
     int libc_service_sockfd = -1;
@@ -1080,6 +1079,7 @@ static int child_main(void*)
 
         ia >> str;
         entry_point = fs::path{str, fs::path::native_format};
+        appctx.app_args.emplace_back(entry_point.c_str());
         str.clear();
 
         ia >> str;
