@@ -127,6 +127,11 @@ as the second result):
 
 * `dup()`.
 * `dup2()`.
+* `close()`.
+* `closefrom()`. Aside from invalid arguments (e.g. passing a string/boolean as
+  argument), this function doesn't report errors (errors are ignored and no
+  value is ever returned). This function is also available on Linux (the
+  implementation emulates the intended behavior using `close_range()`).
 * `open()`.
 * `mkdir()`.
 * `chdir()`.
