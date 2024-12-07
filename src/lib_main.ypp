@@ -583,6 +583,20 @@ void fill_emilua_path(app_context& appctx)
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void create_native_modules(
+    const std::unique_lock<std::shared_mutex>& /*modules_cache_registry_wlock*/,
+    app_context& /*appctx*/)
+{}
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void destroy_native_modules()
+{}
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 int main_ctx_concurrency_hint()
 {
     return main_ctx_concurrency_hint_;
@@ -717,6 +731,11 @@ int main(int argc, char *argv[], char *envp[])
     fill_emilua_path(appctx);
 
     {
+        const std::unique_lock wlock{appctx.modules_cache_registry_mtx};
+        create_native_modules(wlock, appctx);
+    }
+
+    {
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
         asio::io_context ioctx{main_ctx_concurrency_hint()};
         asio::make_service<properties_service>(
@@ -744,6 +763,8 @@ int main(int argc, char *argv[], char *envp[])
         while (appctx.extra_threads_count > 0)
             appctx.extra_threads_count_empty_cond.wait(lk);
     }
+
+    destroy_native_modules();
 
     return appctx.exit_code;
 }

@@ -11,20 +11,32 @@ namespace fs = std::filesystem;
 namespace asio = boost::asio;
 #endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
-struct : public emilua::native_module
+
+static int exit_code = 1;
+
+struct native_module : public emilua::native_module
 {
+    ~native_module()
+    {
+        if (imported) {
+            exit_code = 0;
+        }
+    }
+
     std::error_code init_lua_module(
         std::shared_lock<std::shared_mutex>&, emilua::vm_context& /*vm_ctx*/,
         lua_State* L) override
     {
-        exit_code = 0;
+        imported = true;
 
         lua_pushnil(L);
         return {};
     }
 
-    int exit_code = 1;
-} foobar333;
+    bool imported = false;
+};
+
+std::optional<native_module> foobar333;
 
 namespace emilua {
 
@@ -43,7 +55,7 @@ std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view id)
 {
     if (id == "foobar333") {
-        return std::ref(static_cast<emilua::native_module&>(foobar333));
+        return std::ref(static_cast<emilua::native_module&>(*foobar333));
     } else {
         return std::nullopt;
     }
@@ -52,6 +64,19 @@ get_builtin_native_module(std::string_view id)
 namespace main {
 
 int main(int argc, char *argv[], char *envp[]);
+
+void create_native_modules(
+    const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+    app_context& appctx)
+{
+    foobar333.emplace();
+    foobar333->init_appctx(modules_cache_registry_wlock, appctx);
+}
+
+void destroy_native_modules()
+{
+    foobar333.reset();
+}
 
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {
@@ -73,5 +98,5 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 int main(int argc, char *argv[], char *envp[])
 {
     std::ignore = emilua::main::main(argc, argv, envp);
-    return foobar333.exit_code;
+    return exit_code;
 }
