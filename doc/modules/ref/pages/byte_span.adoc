@@ -71,6 +71,16 @@ We can grow a `byte_span` to its capacity by slicing it again.
 Invalid ranges (e.g. `start` below `1`, a `byte_span` running beyond its
 capacity, negative indexes, ...) will raise `EINVAL`.
 
+=== `first(self, count: integer) -> byte_span`
+
+Returns a new `byte_span` that points to the first `count` bytes of the same
+memory region.
+
+=== `last(self, count: integer) -> byte_span`
+
+Returns a new `byte_span` that points to the last `count` bytes of the same
+memory region.
+
 === `copy(self, src: byte_span|string) -> integer`
 
 Copy `src` into `self`.

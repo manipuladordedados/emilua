@@ -870,6 +870,21 @@ if get_option('enable_tests')
             'byte_span17',
             'byte_span18',
             'byte_span19',
+
+            # first
+            'byte_span20',
+            'byte_span21',
+            'byte_span22',
+            'byte_span23',
+            'byte_span24',
+
+            # last
+            'byte_span25',
+            'byte_span26',
+            'byte_span27',
+            'byte_span28',
+            'byte_span29',
+            'byte_span30',
         ],
         'primserdes' : [
             'primserdes_u16be',

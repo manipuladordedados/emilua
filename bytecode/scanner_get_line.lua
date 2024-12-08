@@ -2,8 +2,7 @@ local type, getmetatable, pcall, error, byte_span_new,
     regex_search, re_search_flags, regex_split,
     regex_patsplit, EEOF, EMSGSIZE = ...
 return function(self)
-    local ready_wnd = self.buffer_:slice(
-        1, self.buffer_used - self.record_size)
+    local ready_wnd = self.buffer_:first(self.buffer_used - self.record_size)
     if self.record_size > 0 then
         ready_wnd:copy(self.buffer_:slice(1 + self.record_size))
         self.buffer_used = self.buffer_used - self.record_size
@@ -31,7 +30,7 @@ return function(self)
         if record_separator_type == 'string' then
             local idx = ready_wnd:find(record_separator)
             if idx then
-                line = ready_wnd:slice(1, idx - 1)
+                line = ready_wnd:first(idx - 1)
                 self.record_terminator = record_separator
                 self.record_size = idx - 1 + #record_separator
             end
@@ -39,7 +38,7 @@ return function(self)
             local m = regex_search(record_separator, ready_wnd,
                                    re_search_flags)
             if not m.empty then
-                line = ready_wnd:slice(1, m[0].start - 1)
+                line = ready_wnd:first(m[0].start - 1)
                 self.record_terminator = ready_wnd:slice(
                     m[0].start, m[0].end_)
                 self.record_size = m[0].end_
@@ -59,7 +58,7 @@ return function(self)
                     local nf = 1
                     local idx = line:find(field_separator)
                     while idx do
-                        ret[nf] = line:slice(1, idx - 1)
+                        ret[nf] = line:first(idx - 1)
                         nf = nf + 1
                         -- TODO: use several indexes to avoid reslicing so
                         -- much
@@ -116,7 +115,7 @@ return function(self)
                     local nf = 1
                     local idx = ready_wnd:find(field_separator)
                     while idx do
-                        ret[nf] = ready_wnd:slice(1, idx - 1)
+                        ret[nf] = ready_wnd:first(idx - 1)
                         nf = nf + 1
                         -- TODO: use several indexes to avoid reslicing so
                         -- much
@@ -135,6 +134,6 @@ return function(self)
             end
         end
         self.buffer_used = self.buffer_used + nread
-        ready_wnd = self.buffer_:slice(1, self.buffer_used)
+        ready_wnd = self.buffer_:first(self.buffer_used)
     end
 end

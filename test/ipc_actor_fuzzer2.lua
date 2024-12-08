@@ -22,7 +22,7 @@ if _CONTEXT ~= 'main' then
         utf8_converter:send(byte_span.append(value))
         local buf = byte_span.new(8192)
         local nread = utf8_converter:receive(buf)
-        return tostring(buf:slice(1, nread))
+        return tostring(buf:first(nread))
     end
 
     local function stringize(value)
@@ -110,9 +110,9 @@ else
             while true do
                 local ok = pcall(function()
                     local nread = utf8_converter:receive(buf)
-                    local result = to_base64(tostring(buf:slice(1, nread)))
+                    local result = to_base64(tostring(buf:first(nread)))
                     local size = buf:copy(result)
-                    utf8_converter:send(buf:slice(1, size))
+                    utf8_converter:send(buf:first(size))
                 end)
                 if not ok then
                     return

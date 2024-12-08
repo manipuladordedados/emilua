@@ -18,7 +18,7 @@ sock.bind(filesystem.path.new('/tmp/9Lq7BNBnBycd6nxy.socket'))
 
 local buf = byte_span.new(1024)
 local nread = sock:receive(buf)
-print(buf:slice(1, nread))
+print(buf:first(nread))
 ----
 
 == Functions

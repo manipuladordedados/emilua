@@ -12,6 +12,7 @@
 * New library: libemilua-libc-service.
 * `byte_span.fill()`.
 * `byte_span.with_zeros()`.
+* `byte_span.first()` and `byte_span.last()`.
 * `system.get_lowfd()`
 * Module `libc_service`.
 * Parameter `subprocess.libc_service` in `spawn_vm()`.

@@ -19,7 +19,7 @@ else
     print('received data:')
 end
 nread = sock:read_some(buf)
-print(buf:slice(1, nread))
+print(buf:first(nread))
 
 sock:wait('read')
 if sock.at_mark then
@@ -28,4 +28,4 @@ else
     print('received data:')
 end
 nread = sock:read_some(buf)
-print(buf:slice(1, nread))
+print(buf:first(nread))

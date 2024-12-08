@@ -17,7 +17,7 @@ local a, b = unix.stream.socket.pair()
 spawn(function()
     local buf = byte_span.new(1024)
     local nread = b:read_some(buf)
-    print(buf:slice(1, nread))
+    print(buf:first(nread))
 end):detach()
 
 local nwritten = stream.write_all(a, 'Hello World')
