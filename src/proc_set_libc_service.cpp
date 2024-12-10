@@ -495,10 +495,14 @@ static int my_open(
         lua_pop(L, 2);
         return on_lua_fail();
     case LUA_TNIL:
+        lua_pop(L, 2);
         break;
-    case LUA_TNUMBER:
-        errno = lua_tointeger(L, -1);
+    case LUA_TNUMBER: {
+        auto saved_errno = lua_tointeger(L, -1);
+        lua_pop(L, 2);
+        errno = saved_errno;
         break;
+    }
     }
     return res;
 }
