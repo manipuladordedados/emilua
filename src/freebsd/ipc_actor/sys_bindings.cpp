@@ -379,6 +379,25 @@ int posix_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "linkat",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int olddirfd = luaL_checkinteger(L, 1);
+                    const char* oldpath = luaL_checkstring(L, 2);
+                    int newdirfd = luaL_checkinteger(L, 3);
+                    const char* newpath = luaL_checkstring(L, 4);
+                    int flags = luaL_checkinteger(L, 5);
+                    int res = linkat(
+                        olddirfd, oldpath, newdirfd, newpath, flags);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "linkat");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "symlink",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, [](lua_State* L) -> int {

@@ -139,6 +139,7 @@ as the second result):
 * `mknod()`.
 * `makedev()`.
 * `link()`.
+* `linkat()`.
 * `symlink()`.
 * `chown()`.
 * `chmod()`.
