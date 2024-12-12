@@ -31,6 +31,7 @@
 ** `dup()` and `dup2()`.
 ** `close()` and `closefrom()`.
 ** `linkat()` and `AT_SYMLINK_FOLLOW`.
+** `bind_unix()`.
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.

@@ -92,6 +92,18 @@ Returns two values:
 1. `prctl()`/`procctl()` return.
 2. The errno value (or `0` on success).
 
+=== `bind_unix(fd: integer, path: string) -> integer, integer`
+
+Bind to an UNIX socket address.
+
+On pathname-based addresses, the null byte is automatically appennded to `path`
+so one shouldn't explicitly include it in `path`.
+
+Returns two values:
+
+1. `bind()` return.
+2. The errno value (or `0` on success).
+
 == Functions
 
 These functions live inside the global table `C`. `errno` (or `0` on success) is

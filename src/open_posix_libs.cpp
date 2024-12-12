@@ -7,6 +7,7 @@
 #include <boost/predef/os/linux.h>
 
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 #include <cstdlib>
 #include <cstring>
@@ -205,6 +206,46 @@ void open_posix_libs(lua_State* L)
         return 2;
     });
     lua_setglobal(L, "set_no_new_privs");
+
+    lua_pushcfunction(L, ([](lua_State* L) -> int {
+        int fd = luaL_checkinteger(L, 1);
+        std::size_t pathlen;
+        const char* path = luaL_checklstring(L, 2, &pathlen);
+
+        struct sockaddr_un addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+
+        socklen_t addrlen = pathlen;
+
+        // if address is a pathname (i.e. not an abstract socket address),
+        // include the null byte as well for the C layer
+        addrlen += (path[0] == '\0') ? 0 : 1;
+
+        int res, last_error;
+        if (addrlen > sizeof(addr.sun_path)) {
+            res = -1;
+            last_error = ENAMETOOLONG;
+        } else {
+            std::memcpy(addr.sun_path, path, addrlen);
+            addrlen += offsetof(struct sockaddr_un, sun_path);
+            res = bind(fd, reinterpret_cast<struct sockaddr*>(&addr), addrlen);
+            last_error = (res == -1) ? errno : 0;
+        }
+
+        if (last_error != 0) {
+            lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+            if (lua_toboolean(L, -1)) {
+                errno = last_error;
+                perror("<3>ipc_actor/init");
+                std::exit(1);
+            }
+        }
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, last_error);
+        return 2;
+    }));
+    lua_setglobal(L, "bind_unix");
 }
 
 } // namespace emilua
