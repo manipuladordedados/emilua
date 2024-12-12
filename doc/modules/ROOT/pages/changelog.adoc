@@ -40,6 +40,8 @@
 
 === Changed
 
+* If called with a directory argument, `/usr/bin/emilua` will execute the file
+  `init.lua` inside this directory.
 * `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in
   subprocess-based actors no longer work.
 * `SIGPIPE` is set to `SIG_IGN` at process startup. Many Boost.Asio objects

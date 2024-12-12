@@ -75,6 +75,7 @@ static std::array<bool, 7> lowfds {
 static int ipc_actor_service_sockfd = -1;
 #endif // BOOST_OS_UNIX
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
+static std::string filename_buffer;
 static std::string_view filename;
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 static int main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
@@ -436,6 +437,19 @@ opt:
             std::exit(2);
         }
         filename = *cur_arg;
+        fs::path as_path{widen_on_windows(filename)};
+        std::error_code ignored_ec;
+        if (fs::is_directory(as_path, ignored_ec)) {
+            // Alternatively, we could apply this transformation inside
+            // `make_master_vm()`. However if the user is using
+            // `modules_cache_registry` or `get_builtin_module()` the query
+            // wouldn't make sense inside `make_master_vm()`. Here's the most
+            // appropriate place to perform filesystem queries and apply such
+            // transformations.
+            as_path /= "init.lua";
+            filename_buffer = as_path.string();
+            filename = filename_buffer;
+        }
         goto opt;
     }
     "-" { goto opt_short; }
