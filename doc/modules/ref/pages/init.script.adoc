@@ -298,6 +298,7 @@ Mode bits for access permission:
 
 * `AT_FDCWD`.
 * `AT_EMPTY_PATH`.
+* `AT_SYMLINK_FOLLOW`.
 * `AT_SYMLINK_NOFOLLOW`.
 
 `mknod()` flags:

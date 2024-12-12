@@ -30,7 +30,7 @@
 ** `caph_cache_tzdata()` (FreeBSD).
 ** `dup()` and `dup2()`.
 ** `close()` and `closefrom()`.
-** `linkat()`.
+** `linkat()` and `AT_SYMLINK_FOLLOW`.
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.
