@@ -737,9 +737,10 @@ int main(int argc, char *argv[], char *envp[])
 
     {
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-        asio::io_context ioctx{main_ctx_concurrency_hint()};
+        auto main_ctx_concurrency_hint_ = main_ctx_concurrency_hint();
+        asio::io_context ioctx{main_ctx_concurrency_hint_};
         asio::make_service<properties_service>(
-            ioctx, main_ctx_concurrency_hint());
+            ioctx, main_ctx_concurrency_hint_);
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
         asio::io_context ioctx{1};
         asio::make_service<properties_service>(ioctx, 1);
