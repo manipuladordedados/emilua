@@ -4018,7 +4018,7 @@ static int unix_stream_listen(lua_State* L)
 
     auto& vm_ctx = get_vm_context(L);
     std::string_view ep = tostringview(L, 1);
-    mode_t mode, omask;
+    mode_t mode;
     bool has_mode;
 
     switch (lua_type(L, 2)) {
@@ -4029,12 +4029,8 @@ static int unix_stream_listen(lua_State* L)
         has_mode = false;
         break;
     case LUA_TNUMBER:
-        if (!vm_ctx.is_master()) {
-            push(L, std::errc::operation_not_permitted);
-            return lua_error(L);
-        }
-
         mode = lua_tointeger(L, 2);
+        mode &= 0777;
         has_mode = true;
         break;
     }
@@ -4054,8 +4050,10 @@ static int unix_stream_listen(lua_State* L)
     }
 
     if (has_mode) {
-        mode_t mask = (mode ^ 0777) & 0777;
-        omask = umask(mask);
+        if (fchmod(a->native_handle(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     if (ep.starts_with('@')) {
@@ -4065,9 +4063,6 @@ static int unix_stream_listen(lua_State* L)
     } else {
         a->bind(ep, ec);
     }
-
-    if (has_mode)
-        umask(omask);
 
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
@@ -6074,7 +6069,7 @@ static int unix_seqpacket_listen(lua_State* L)
 
     auto& vm_ctx = get_vm_context(L);
     std::string_view ep = tostringview(L, 1);
-    mode_t mode, omask;
+    mode_t mode;
     bool has_mode;
 
     switch (lua_type(L, 2)) {
@@ -6085,12 +6080,8 @@ static int unix_seqpacket_listen(lua_State* L)
         has_mode = false;
         break;
     case LUA_TNUMBER:
-        if (!vm_ctx.is_master()) {
-            push(L, std::errc::operation_not_permitted);
-            return lua_error(L);
-        }
-
         mode = lua_tointeger(L, 2);
+        mode &= 0777;
         has_mode = true;
         break;
     }
@@ -6111,8 +6102,10 @@ static int unix_seqpacket_listen(lua_State* L)
     }
 
     if (has_mode) {
-        mode_t mask = (mode ^ 0777) & 0777;
-        omask = umask(mask);
+        if (fchmod(a->native_handle(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     if (ep.starts_with('@')) {
@@ -6122,9 +6115,6 @@ static int unix_seqpacket_listen(lua_State* L)
     } else {
         a->bind(ep, ec);
     }
-
-    if (has_mode)
-        umask(omask);
 
     if (ec) {
         push(L, static_cast<std::error_code>(ec));

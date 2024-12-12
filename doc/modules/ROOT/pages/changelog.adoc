@@ -44,6 +44,8 @@
   `init.lua` inside this directory.
 * `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in
   subprocess-based actors no longer work.
+* `unix.listen()` uses `fchmod()` instead of `umask()` so it no longer needs to
+  be called from the master VM to change the socket permission mode bits.
 * `SIGPIPE` is set to `SIG_IGN` at process startup. Many Boost.Asio objects
   won't use `MSG_NOSIGNAL` on `write()`
   (e.g. `asio::posix::stream_descriptor`). It's not realistic to expect every
