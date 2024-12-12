@@ -83,9 +83,14 @@ Returns two values:
 1. `sendmsg()` return.
 2. The errno value (or `0` on success).
 
-=== `set_no_new_privs()`
+=== `set_no_new_privs() -> integer, integer`
 
 Set the calling thread's no_new_privs attribute to `true`.
+
+Returns two values:
+
+1. `prctl()`/`procctl()` return.
+2. The errno value (or `0` on success).
 
 == Functions
 
