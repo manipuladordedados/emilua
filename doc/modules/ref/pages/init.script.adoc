@@ -153,6 +153,8 @@ as the second result):
 * `mkdir()`.
 * `chdir()`.
 * `mkfifo()`.
+* `socket()`.
+* `listen()`.
 * `mknod()`.
 * `makedev()`.
 * `link()`.
@@ -317,6 +319,24 @@ Mode bits for access permission:
 * `AT_EMPTY_PATH`.
 * `AT_SYMLINK_FOLLOW`.
 * `AT_SYMLINK_NOFOLLOW`.
+
+`socket()` flags:
+
+* `AF_UNIX`.
+* `AF_LOCAL`.
+* `AF_INET`.
+* `AF_INET6`.
+* `AF_UNSPEC`.
+* `SOCK_STREAM`.
+* `SOCK_DGRAM`.
+* `SOCK_SEQPACKET`.
+* `IPPROTO_TCP`.
+* `IPPROTO_UDP`.
+* `IPPROTO_SCTP`.
+
+`listen()` flags:
+
+* `SOMAXCONN`.
 
 `mknod()` flags:
 

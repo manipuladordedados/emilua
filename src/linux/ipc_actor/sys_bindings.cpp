@@ -207,6 +207,25 @@ int posix_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "AT_SYMLINK_NOFOLLOW",
             EMILUA_DETAIL_INT_CONSTANT(AT_SYMLINK_NOFOLLOW))
+        // sockets() contants
+        EMILUA_GPERF_PAIR("AF_UNIX", EMILUA_DETAIL_INT_CONSTANT(AF_UNIX))
+        EMILUA_GPERF_PAIR("AF_LOCAL", EMILUA_DETAIL_INT_CONSTANT(AF_LOCAL))
+        EMILUA_GPERF_PAIR("AF_INET", EMILUA_DETAIL_INT_CONSTANT(AF_INET))
+        EMILUA_GPERF_PAIR("AF_INET6", EMILUA_DETAIL_INT_CONSTANT(AF_INET6))
+        EMILUA_GPERF_PAIR("AF_UNSPEC", EMILUA_DETAIL_INT_CONSTANT(AF_UNSPEC))
+        EMILUA_GPERF_PAIR(
+            "SOCK_STREAM", EMILUA_DETAIL_INT_CONSTANT(SOCK_STREAM))
+        EMILUA_GPERF_PAIR("SOCK_DGRAM", EMILUA_DETAIL_INT_CONSTANT(SOCK_DGRAM))
+        EMILUA_GPERF_PAIR(
+            "SOCK_SEQPACKET", EMILUA_DETAIL_INT_CONSTANT(SOCK_SEQPACKET))
+        EMILUA_GPERF_PAIR(
+            "IPPROTO_TCP", EMILUA_DETAIL_INT_CONSTANT(IPPROTO_TCP))
+        EMILUA_GPERF_PAIR(
+            "IPPROTO_UDP", EMILUA_DETAIL_INT_CONSTANT(IPPROTO_UDP))
+        EMILUA_GPERF_PAIR(
+            "IPPROTO_SCTP", EMILUA_DETAIL_INT_CONSTANT(IPPROTO_SCTP))
+        // listen() constants
+        EMILUA_GPERF_PAIR("SOMAXCONN", EMILUA_DETAIL_INT_CONSTANT(SOMAXCONN))
         // mknod() constants
         EMILUA_GPERF_PAIR("S_IFCHR", EMILUA_DETAIL_INT_CONSTANT(S_IFCHR))
         EMILUA_GPERF_PAIR("S_IFBLK", EMILUA_DETAIL_INT_CONSTANT(S_IFBLK))
@@ -715,6 +734,37 @@ int posix_mt_index(lua_State* L)
                     int res = mkfifo(path, mode);
                     int last_error = (res == -1) ? errno : 0;
                     CHECK_LAST_ERROR(L, last_error, "mkfifo");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "socket",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int domain = luaL_checkinteger(L, 1);
+                    int type = luaL_checkinteger(L, 2);
+                    int protocol = luaL_checkinteger(L, 3);
+                    int res = socket(domain, type, protocol);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "socket");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "listen",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    int fd = luaL_checkinteger(L, 1);
+                    int backlog = luaL_checkinteger(L, 2);
+                    int res = listen(fd, backlog);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "listen");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
