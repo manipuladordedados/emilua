@@ -46,7 +46,14 @@ extern "C" {
 #endif // BOOST_OS_BSD_FREE
 
 #ifndef TEMP_FAILURE_RETRY
-#define TEMP_FAILURE_RETRY(X) (X)
+#define TEMP_FAILURE_RETRY(X) \
+    (([&]() { \
+        auto ret = (X); \
+        while (ret == -1 && errno == EINTR) { \
+            ret = (X); \
+        } \
+        return ret; \
+    })())
 #endif // TEMP_FAILURE_RETRY
 
 namespace emilua::libc_service {
