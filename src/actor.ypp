@@ -229,12 +229,12 @@ struct send_native_modules_cache_op
             if (fd != -1)
                 close(fd);
         }
-#  if BOOST_OS_BSD_FREE
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
         for (const auto& fd : ld_directories) {
             if (fd != -1)
                 close(fd);
         }
-#  endif // BOOST_OS_BSD_FREE
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
         if (libc_service != -1)
             close(libc_service);
@@ -298,7 +298,7 @@ struct send_native_modules_cache_op
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(
                 CMSG_DATA(cmsg), &directories.begin()->second, sizeof(int));
-#  if BOOST_OS_BSD_FREE
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
         } else if (ld_directories.size() > 0) {
             request_type =
                 ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY;
@@ -310,7 +310,7 @@ struct send_native_modules_cache_op
             cmsg->cmsg_type = SCM_RIGHTS;
             cmsg->cmsg_len = CMSG_LEN(sizeof(int));
             std::memcpy(CMSG_DATA(cmsg), &ld_directories.back(), sizeof(int));
-#  endif // BOOST_OS_BSD_FREE
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 # else // EMILUA_CONFIG_ENABLE_PLUGINS
         if (false) {
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -377,11 +377,11 @@ struct send_native_modules_cache_op
             auto it = directories.begin();
             close(it->second);
             directories.erase(it);
-#  if BOOST_OS_BSD_FREE
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
         } else if (ld_directories.size() > 0) {
             close(ld_directories.back());
             ld_directories.pop_back();
-#  endif // BOOST_OS_BSD_FREE
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 # else // EMILUA_CONFIG_ENABLE_PLUGINS
         if (false) {
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
@@ -404,9 +404,9 @@ struct send_native_modules_cache_op
         std::string, int, TransparentStringHash, std::equal_to<>
     > files;
     std::unordered_map<fs::path, int> directories;
-#  if BOOST_OS_BSD_FREE
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
     std::vector<int> ld_directories;
-#  endif // BOOST_OS_BSD_FREE
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
     int libc_service = -1;
     asio::local::seq_packet_protocol::socket sock;
@@ -1955,7 +1955,7 @@ static int spawn_vm(lua_State* L)
 
             lua_getfield(L, -1, "ld_library_directories");
             switch (lua_type(L, -1)) {
-#if EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+#if EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
             default:
                 push(L, std::errc::invalid_argument,
                      "arg","subprocess/ld_library_directories");
@@ -2025,12 +2025,12 @@ static int spawn_vm(lua_State* L)
                     lua_pop(L, 3);
                 }
                 break;
-#else // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+#else // EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
             default:
                 push(L, std::errc::not_supported,
                      "arg", "subprocess/ld_library_directories");
                 return lua_error(L);
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_BSD_FREE
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
             case LUA_TNIL:
                 break;
             }

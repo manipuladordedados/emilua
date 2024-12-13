@@ -2159,9 +2159,10 @@ static int system_get_lowfd(lua_State* L)
 #if EMILUA_CONFIG_ENABLE_PLUGINS
 static int system_get_ld_library_directories(lua_State* L)
 {
-#if BOOST_OS_BSD_FREE
+#if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
     auto& vm_ctx = get_vm_context(L);
-
+#endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+#if BOOST_OS_BSD_FREE
     void* main_object = RTLD_SELF;
 #else // BOOST_OS_BSD_FREE
     void* main_object = dlopen(NULL, RTLD_LAZY | RTLD_NOLOAD);
@@ -2225,7 +2226,7 @@ static int system_get_ld_library_directories(lua_State* L)
 
         lua_rawseti(L, -2, i++);
     }
-#if BOOST_OS_BSD_FREE
+#if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
     for (const int fd : vm_ctx.appctx.ld_library_directories) {
         auto fdhandle = static_cast<file_descriptor_handle*>(
             lua_newuserdata(L, sizeof(file_descriptor_handle))
@@ -2240,7 +2241,7 @@ static int system_get_ld_library_directories(lua_State* L)
 
         lua_rawseti(L, -2, i++);
     }
-#endif // BOOST_OS_BSD_FREE
+#endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 
     return 1;
 }

@@ -1167,7 +1167,17 @@ if get_option('enable_tests')
         }
     endif
 
-    if host_machine.system() == 'freebsd' and get_option('enable_plugins')
+    have_rtld_set_var = meson.get_compiler('cpp').compiles('''
+        #include <link.h>
+
+        int main()
+        {
+            int result = rtld_set_var("LIBRARY_PATH_FDS", "10");
+            (void)result;
+        }
+    ''')
+
+    if have_rtld_set_var and get_option('enable_plugins')
         sample_lib_for_plugin = shared_library(
             'sample_lib_for_plugin',
             ['test/sample_lib_for_plugin.cpp'],

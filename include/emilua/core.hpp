@@ -432,9 +432,9 @@ public:
         native_modules_file_preload;
     std::vector<int> native_modules_dir_preload;
 
-#  if BOOST_OS_BSD_FREE
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
     std::vector<int> ld_library_directories;
-#  endif // BOOST_OS_BSD_FREE
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 # endif // BOOST_OS_UNIX
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_mutex modules_cache_registry_mtx;
