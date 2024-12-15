@@ -35,11 +35,18 @@ struct request
     enum
     {
         OPEN,
+        CONNECT_UNIX,
     };
 
     thread_id id;
     int function;
     int intargs[2];
+
+    // Redundant with intargs, but the goal here is to avoid errors (including
+    // wrong casts, mixed signedness comparisons, etc). Our goal here is not
+    // efficiency, but safety.
+    unsigned uintargs[1];
+
     std::array<char, /*a little less than a pageish=*/4096 - 512> buffer;
 };
 

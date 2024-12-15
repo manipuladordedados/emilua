@@ -17,6 +17,7 @@ bool has_libc_service = true;
 extern "C" {
 
 extern int __sys_open(const char *file, int oflag, ...);
+extern int __sys_connect(int, const struct sockaddr*, socklen_t);
 
 int open(const char *file, int oflag, ...)
 {
@@ -96,6 +97,16 @@ FILE* fopen(const char* pathname, const char* mode)
         errno = last_errno;
     }
     return ret;
+}
+
+int connect(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    if (emilua::ambient_authority.connect) {
+        return (*emilua::ambient_authority.connect)(
+            __sys_connect, s, name, namelen);
+    } else {
+        return __sys_connect(s, name, namelen);
+    }
 }
 
 } // extern "C"

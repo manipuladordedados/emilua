@@ -91,6 +91,10 @@ synchronise the file data and metadata to disk
 `mode: integer`::: Optional argument. Only present if `"create"` or
 `"temporary"` appear in `flags`.
 
+`connect_unix`::
+
+`path: filesystem.path`::: The UNIX socket path.
+
 === `descriptors(self) -> file_descriptor...`
 
 Extract and return the file descriptors received with the last requested call.
@@ -108,3 +112,4 @@ The last requested call.
 Possible values:
 
 * `"open"`
+* `"connect_unix"`

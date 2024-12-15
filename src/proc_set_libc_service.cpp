@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <forward_list>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <cstdarg>
 #include <cassert>
 #include <fcntl.h>
@@ -121,6 +122,19 @@ struct lua_filter
                 lua_pop(L, 2);
             }
         }
+
+        if (filters.contains(request::CONNECT_UNIX)) {
+            const auto& src = filters[request::CONNECT_UNIX];
+
+            lua_pushlightuserdata(L, &connect_unix_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
     }
 
     ~lua_filter()
@@ -132,10 +146,12 @@ struct lua_filter
 
     static std::map<int, std::string> filters;
     static char open_key;
+    static char connect_unix_key;
 };
 
 std::map<int, std::string> lua_filter::filters;
 char lua_filter::open_key;
+char lua_filter::connect_unix_key;
 
 struct lua_filter_ptr
 {
@@ -213,7 +229,15 @@ static inline request_ptr get_fresh_request_object()
     // sockfd. The other process already has control over the environment we're
     // running under. In other words, there's nothing we're "leaking" that the
     // other process couldn't already access (if it actually wanted to).
-    return request_ptr{pool_allocator<struct request>::allocate()};
+    auto request = request_ptr{pool_allocator<struct request>::allocate()};
+#if BOOST_OS_LINUX
+    request->id = gettid();
+#elif BOOST_OS_BSD_FREE
+    std::ignore = thr_self(&request->id);
+#else
+    request->id = reinterpret_cast<std::uintptr_t>(&cookie_for_thread_id);
+#endif
+    return request;
 }
 
 static inline lua_filter_ptr get_lua_filter_from_pool_or_create()
@@ -324,13 +348,6 @@ static int forward_open(
     fds.fill(-1);
 
     auto request = get_fresh_request_object();
-#if BOOST_OS_LINUX
-    request->id = gettid();
-#elif BOOST_OS_BSD_FREE
-    std::ignore = thr_self(&request->id);
-#else
-    request->id = reinterpret_cast<std::uintptr_t>(&cookie_for_thread_id);
-#endif
     request->function = request::OPEN;
 
     auto pathlen = std::strlen(path);
@@ -514,6 +531,225 @@ static int my_open(
     return res;
 }
 
+static int forward_connect_unix(
+    int (*real_connect)(int, const struct sockaddr*, socklen_t),
+    fds_type& fds, int s, std::string_view path)
+{
+    fds.fill(-1);
+
+    if (fcntl(s, F_GETFD) == -1 && errno == EBADF) {
+        return -1;
+    }
+
+    auto request = get_fresh_request_object();
+    request->function = request::CONNECT_UNIX;
+
+    if (
+        path.size() > request->buffer.size() ||
+        path.size() > sizeof(std::declval<struct sockaddr_un>().sun_path)
+    ) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    std::memcpy(request->buffer.data(), path.data(), path.size());
+    request->uintargs[0] = path.size();
+
+    struct msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+
+    struct iovec iov;
+    iov.iov_base = request.get();
+    iov.iov_len = sizeof(struct request);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    std::memcpy(CMSG_DATA(cmsg), &s, sizeof(int));
+
+    if (TEMP_FAILURE_RETRY(sendmsg(sockfd, &msg, MSG_NOSIGNAL)) == -1) {
+        struct sockaddr_un addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        std::memcpy(addr.sun_path, path.data(), path.size());
+
+        socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) +
+            path.size();
+
+        return real_connect(
+            s, reinterpret_cast<struct sockaddr*>(&addr), addrlen);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC: {
+        struct sockaddr_un addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        std::memcpy(addr.sun_path, path.data(), path.size());
+
+        socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) +
+            path.size();
+
+        return real_connect(
+            s, reinterpret_cast<struct sockaddr*>(&addr), addrlen);
+    }
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_connect(
+    int (*real_connect)(int, const struct sockaddr*, socklen_t),
+    int s, const struct sockaddr* name, socklen_t namelen)
+{
+    switch (name->sa_family) {
+    default:
+        return real_connect(s, name, namelen);
+    case AF_UNIX: {
+        if (namelen == sizeof(sa_family_t)) {
+            // unnamed
+            return real_connect(s, name, namelen);
+        }
+
+        auto usock = reinterpret_cast<const struct sockaddr_un*>(name);
+        auto plen = namelen - offsetof(struct sockaddr_un, sun_path);
+        if (usock->sun_path[0] != '\0' && usock->sun_path[plen - 1] != '\0') {
+            // For maximum portability, socklen_t should also count the
+            // terminating null byte. However there's real-world code omitting
+            // the terminating null byte from the count given by socklen_t.
+            ++plen;
+
+            if (plen > sizeof(usock->sun_path)) {
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+
+            if (usock->sun_path[plen - 1] != '\0') {
+                // we can't modify a read-only argument, so we just bail out of
+                // this slowly never-ending mess
+                errno = EINVAL;
+                return -1;
+            }
+        }
+        std::string_view addr{usock->sun_path, plen};
+
+        if (!lua_filter::filters.contains(request::CONNECT_UNIX)) {
+            fds_type fds;
+            BOOST_SCOPE_EXIT_ALL(&) {
+                for (int fd : fds) {
+                    if (fd != -1)
+                        std::ignore = close(fd);
+                }
+            };
+
+            return forward_connect_unix(real_connect, fds, s, addr);
+        }
+
+        auto lua_filter = get_lua_filter_from_pool_or_create();
+        BOOST_SCOPE_EXIT_ALL(&) {
+            add_lua_filter_to_pool(std::move(lua_filter));
+        };
+        auto L = lua_filter->L;
+        lua_pushlightuserdata(L, &lua_filter::connect_unix_key);
+        lua_rawget(L, LUA_REGISTRYINDEX);
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(real_connect));
+        lua_pushcclosure(L, [](lua_State* L) -> int {
+            auto real_connect = reinterpret_cast<
+                int (*)(int, const struct sockaddr*, socklen_t)
+            >(lua_touserdata(L, lua_upvalueindex(1)));
+            int fd = luaL_checkinteger(L, 1);
+
+            std::string_view addr;
+            {
+                std::size_t pathlen;
+                const char* path = luaL_checklstring(L, 2, &pathlen);
+                if (path[0] == '\0') {
+                    addr = std::string_view{path, pathlen};
+                } else {
+                    // if address is a pathname (i.e. not an abstract socket
+                    // address), include the null byte as well for the C layer
+                    addr = std::string_view{path, pathlen + 1};
+                }
+            }
+
+            fds_type fds;
+            int res = forward_connect_unix(real_connect, fds, fd, addr);
+            int connect_errno = (res == -1) ? errno : 0;
+
+            int ret = 2;
+            lua_pushinteger(L, res);
+            lua_pushinteger(L, connect_errno);
+
+            for (int fd : fds) {
+                if (fd == -1)
+                    break;
+
+                lua_pushinteger(L, fd);
+                ++ret;
+            }
+
+            return ret;
+        }, 1);
+        lua_pushinteger(L, s);
+        if (addr[0] == '\0') {
+            lua_pushlstring(L, addr.data(), addr.size());
+        } else {
+            // if address is a pathname (i.e. not an abstract socket address),
+            // don't include the null byte for the Lua layer
+            lua_pushlstring(L, addr.data(), addr.size() - 1);
+        }
+
+        auto on_lua_fail = [&]() -> int {
+            fds_type fds;
+            BOOST_SCOPE_EXIT_ALL(&) {
+                for (int fd : fds) {
+                    if (fd != -1)
+                        std::ignore = close(fd);
+                }
+            };
+
+            return forward_connect_unix(real_connect, fds, s, addr);
+        };
+
+        if (lua_pcall(L, /*nargs=*/3, /*nresults=*/2, /*errfunc=*/0) != 0) {
+            lua_pop(L, 1);
+            return on_lua_fail();
+        }
+
+        if (lua_type(L, -2) != LUA_TNUMBER) {
+            lua_pop(L, 2);
+            return on_lua_fail();
+        }
+        int res = lua_tointeger(L, -2);
+        switch (lua_type(L, -1)) {
+        default:
+            lua_pop(L, 2);
+            return on_lua_fail();
+        case LUA_TNIL:
+            lua_pop(L, 2);
+            break;
+        case LUA_TNUMBER: {
+            auto saved_errno = lua_tointeger(L, -1);
+            lua_pop(L, 2);
+            errno = saved_errno;
+            break;
+        }
+        }
+        return res;
+    }
+    }
+}
+
 } // extern "C"
 
 void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
@@ -523,6 +759,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     emilua::libc_service::sockfd = sockfd;
     lua_filter::filters = std::move(lua_chunk_filters);
     ambient_authority.open = my_open;
+    ambient_authority.connect = my_connect;
 }
 
 } // namespace emilua::libc_service

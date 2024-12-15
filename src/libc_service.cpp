@@ -9,6 +9,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
 
+#include <boost/hana/functional/overload_linearly.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/scope_exit.hpp>
 
@@ -41,6 +42,11 @@ struct open_request
     mode_t mode;
 };
 
+struct connect_unix_request
+{
+    std::string path;
+};
+
 struct master
 {
     master(asio::io_context& ioctx)
@@ -60,7 +66,11 @@ struct master
 
     asio::local::seq_packet_protocol::socket socket;
     bool read_in_progress = false;
-    std::variant<std::monostate, open_request> last_request;
+    std::variant<
+        std::monostate,
+        open_request,
+        connect_unix_request
+    > last_request;
     std::array<int, EMILUA_LIBC_SERVICE_MAXIMUM_FDS_PER_MESSAGE> last_fds;
     std::shared_ptr<reply> reply_buffer;
 };
@@ -215,6 +225,32 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
 
             master.last_request.emplace<open_request>(
                 static_cast<std::string>(path), oflag, mode);
+            break;
+        }
+        case request::CONNECT_UNIX: {
+            unsigned sz = request.uintargs[0];
+            if (
+                // should have at least the terminating null byte plus an extra
+                // byte (otherwise we'd be dealing with an unnamed socket)
+                sz < 2 ||
+
+                sz > request.buffer.size() ||
+                sz > sizeof(std::declval<struct sockaddr_un>().sun_path) ||
+                fds.size() < 1
+            ) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+
+            std::string_view path(request.buffer.data(), sz);
+            if (path.find('\0') == path.npos) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            if (path[0] != '\0') {
+                path.remove_suffix(1);
+            }
+            master.last_request.emplace<connect_unix_request>(
+                static_cast<std::string>(path));
+            break;
         }
         }
 
@@ -430,9 +466,9 @@ static int master_send(lua_State* L)
     }
 
     mstr->reply_buffer->action = reply::USE_REPLY_RESULT;
-    std::errc e = std::visit(hana::overload(
+    std::errc e = std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
-        [&](const open_request&) {
+        [&](const auto&) {
             mstr->reply_buffer->result = luaL_checkinteger(L, 2);
             switch (lua_type(L, 3)) {
             default:
@@ -546,9 +582,9 @@ static int master_send_with_fds(lua_State* L)
     auto op = std::make_shared<send_with_fds_op>(
         vm_ctx, std::move(cancel_slot), *mstr);
 
-    std::errc e = std::visit(hana::overload(
+    std::errc e = std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
-        [&op,L](const open_request&) {
+        [&op,L](const auto&) {
             op->reply.result = luaL_checkinteger(L, 2);
             switch (lua_type(L, 4)) {
             default:
@@ -814,6 +850,15 @@ static int master_arguments(lua_State* L)
             } else {
                 return 2;
             }
+        },
+        [&](const connect_unix_request& r) {
+            auto p = static_cast<fs::path*>(
+                lua_newuserdata(L, sizeof(fs::path)));
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            setmetatable(L, -2);
+            new (p) fs::path{};
+            *p = fs::path{r.path, fs::path::native_format};
+            return 1;
         }
     ), mstr->last_request);
 }
@@ -842,7 +887,22 @@ static int master_descriptors(lua_State* L)
             push(L, std::errc::no_message);
             return lua_error(L);
         },
-        [&](const open_request& r) { return einval(L); }
+        [&](const open_request& r) { return einval(L); },
+        [&](const connect_unix_request& r) {
+            if (mstr->last_fds[0] == -1) {
+                lua_pushnil(L);
+                return 1;
+            } else {
+                auto fdhandle = static_cast<file_descriptor_handle*>(
+                    lua_newuserdata(L, sizeof(file_descriptor_handle))
+                );
+                rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                setmetatable(L, -2);
+                *fdhandle = mstr->last_fds[0];
+                mstr->last_fds[0] = -1;
+                return 1;
+            }
+        }
     ), mstr->last_request);
 }
 
@@ -856,6 +916,10 @@ inline int master_function_(lua_State* L)
         },
         [&](const open_request&) {
             lua_pushliteral(L, "open");
+            return 1;
+        },
+        [&](const connect_unix_request&) {
+            lua_pushliteral(L, "connect_unix");
             return 1;
         }
     ), mstr->last_request);
@@ -937,6 +1001,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PARAM(int action)
         EMILUA_GPERF_DEFAULT_VALUE(-1)
         EMILUA_GPERF_PAIR("open", libc_service::request::OPEN)
+        EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
     EMILUA_GPERF_END(strkey);
 
     if (key == -1) {

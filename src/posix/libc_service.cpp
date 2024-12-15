@@ -44,4 +44,18 @@ int open(const char *file, int oflag, ...)
     }
 }
 
+int connect(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    auto real_connect = reinterpret_cast<
+        int (*)(int, const struct sockaddr*, socklen_t)
+    >(dlsym(RTLD_NEXT, "connect"));
+
+    if (emilua::ambient_authority.connect) {
+        return (*emilua::ambient_authority.connect)(
+            real_connect, s, name, namelen);
+    } else {
+        return real_connect(s, name, namelen);
+    }
+}
+
 } // extern "C"

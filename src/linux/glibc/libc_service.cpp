@@ -20,6 +20,7 @@ extern "C" {
 
 extern int __open(const char *file, int oflag, ...);
 extern int __open64(const char *file, int oflag, ...);
+extern int __connect(int, const struct sockaddr*, socklen_t);
 
 int open(const char *file, int oflag, ...)
 {
@@ -105,6 +106,16 @@ FILE* fopen64(const char* pathname, const char* mode)
         errno = last_errno;
     }
     return ret;
+}
+
+int connect(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    if (emilua::ambient_authority.connect) {
+        return (*emilua::ambient_authority.connect)(
+            __connect, s, name, namelen);
+    } else {
+        return __connect(s, name, namelen);
+    }
 }
 
 } // extern "C"

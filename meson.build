@@ -1020,7 +1020,7 @@ if get_option('enable_tests')
             ],
             'libc_service' : [
                 'libc_service_cat',
-            ],
+            ] + (get_option('enable_io_uring') ? [] : ['libc_service_connect']),
         }
 
         test(
