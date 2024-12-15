@@ -95,6 +95,12 @@ synchronise the file data and metadata to disk
 
 `path: filesystem.path`::: The UNIX socket path.
 
+`connect_inet`::
+
+`ipv4_addr: ip.address`::: The IPv4 address.
+
+`port: integer`::: The port.
+
 === `descriptors(self) -> file_descriptor...`
 
 Extract and return the file descriptors received with the last requested call.
@@ -113,3 +119,4 @@ Possible values:
 
 * `"open"`
 * `"connect_unix"`
+* `"connect_inet"`

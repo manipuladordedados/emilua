@@ -36,6 +36,7 @@ struct request
     {
         OPEN,
         CONNECT_UNIX,
+        CONNECT_INET,
     };
 
     thread_id id;

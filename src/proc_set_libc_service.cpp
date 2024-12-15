@@ -20,6 +20,7 @@
 // }}}
 
 // Not too intrusive/opinionated header-only libaries are okay too. {{{
+#include <boost/endian/conversion.hpp>
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/scope_exit.hpp>
 // }}}
@@ -27,6 +28,7 @@
 #include <condition_variable>
 #include <unordered_map>
 #include <forward_list>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <cstdarg>
@@ -135,6 +137,19 @@ struct lua_filter
                 lua_pop(L, 2);
             }
         }
+
+        if (filters.contains(request::CONNECT_INET)) {
+            const auto& src = filters[request::CONNECT_INET];
+
+            lua_pushlightuserdata(L, &connect_inet_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
     }
 
     ~lua_filter()
@@ -147,11 +162,13 @@ struct lua_filter
     static std::map<int, std::string> filters;
     static char open_key;
     static char connect_unix_key;
+    static char connect_inet_key;
 };
 
 std::map<int, std::string> lua_filter::filters;
 char lua_filter::open_key;
 char lua_filter::connect_unix_key;
+char lua_filter::connect_inet_key;
 
 struct lua_filter_ptr
 {
@@ -608,6 +625,60 @@ static int forward_connect_unix(
     }
 }
 
+static int forward_connect_inet(
+    int (*real_connect)(int, const struct sockaddr*, socklen_t),
+    fds_type& fds, int s, const struct sockaddr_in* addr)
+{
+    fds.fill(-1);
+
+    if (fcntl(s, F_GETFD) == -1 && errno == EBADF) {
+        return -1;
+    }
+
+    auto request = get_fresh_request_object();
+    request->function = request::CONNECT_INET;
+
+    std::memcpy(request->buffer.data(), addr, sizeof(struct sockaddr_in));
+
+    struct msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+
+    struct iovec iov;
+    iov.iov_base = request.get();
+    iov.iov_len = sizeof(struct request);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    std::memcpy(CMSG_DATA(cmsg), &s, sizeof(int));
+
+    if (TEMP_FAILURE_RETRY(sendmsg(sockfd, &msg, MSG_NOSIGNAL)) == -1) {
+        return real_connect(
+            s, reinterpret_cast<const struct sockaddr*>(addr),
+            sizeof(struct sockaddr_in));
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_connect(
+            s, reinterpret_cast<const struct sockaddr*>(addr),
+            sizeof(struct sockaddr_in));
+    default:
+        __builtin_unreachable();
+    }
+}
+
 static int my_connect(
     int (*real_connect)(int, const struct sockaddr*, socklen_t),
     int s, const struct sockaddr* name, socklen_t namelen)
@@ -722,6 +793,131 @@ static int my_connect(
         };
 
         if (lua_pcall(L, /*nargs=*/3, /*nresults=*/2, /*errfunc=*/0) != 0) {
+            lua_pop(L, 1);
+            return on_lua_fail();
+        }
+
+        if (lua_type(L, -2) != LUA_TNUMBER) {
+            lua_pop(L, 2);
+            return on_lua_fail();
+        }
+        int res = lua_tointeger(L, -2);
+        switch (lua_type(L, -1)) {
+        default:
+            lua_pop(L, 2);
+            return on_lua_fail();
+        case LUA_TNIL:
+            lua_pop(L, 2);
+            break;
+        case LUA_TNUMBER: {
+            auto saved_errno = lua_tointeger(L, -1);
+            lua_pop(L, 2);
+            errno = saved_errno;
+            break;
+        }
+        }
+        return res;
+    }
+    case AF_INET: {
+        auto isock = reinterpret_cast<const struct sockaddr_in*>(name);
+
+        if (!lua_filter::filters.contains(request::CONNECT_INET)) {
+            fds_type fds;
+            BOOST_SCOPE_EXIT_ALL(&) {
+                for (int fd : fds) {
+                    if (fd != -1)
+                        std::ignore = close(fd);
+                }
+            };
+
+            return forward_connect_inet(real_connect, fds, s, isock);
+        }
+
+        auto lua_filter = get_lua_filter_from_pool_or_create();
+        BOOST_SCOPE_EXIT_ALL(&) {
+            add_lua_filter_to_pool(std::move(lua_filter));
+        };
+        auto L = lua_filter->L;
+        lua_pushlightuserdata(L, &lua_filter::connect_inet_key);
+        lua_rawget(L, LUA_REGISTRYINDEX);
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(real_connect));
+        lua_pushcclosure(L, [](lua_State* L) -> int {
+            auto real_connect = reinterpret_cast<
+                int (*)(int, const struct sockaddr*, socklen_t)
+            >(lua_touserdata(L, lua_upvalueindex(1)));
+            int fd = luaL_checkinteger(L, 1);
+            luaL_checktype(L, 2, LUA_TTABLE);
+
+            struct sockaddr_in addr;
+            std::memset(&addr, 0, sizeof(addr));
+            addr.sin_family = AF_INET;
+
+            for (int i = 1 ; i <= 4 ; ++i) {
+                lua_rawgeti(L, 2, i);
+                std::uint8_t byte = luaL_checkinteger(L, -1);
+                lua_pop(L, 1);
+                addr.sin_addr.s_addr <<= 8;
+                addr.sin_addr.s_addr |= byte;
+            }
+            boost::endian::native_to_big_inplace(addr.sin_addr.s_addr);
+
+            addr.sin_port = luaL_checkinteger(L, 3);
+            boost::endian::native_to_big_inplace(addr.sin_port);
+
+            fds_type fds;
+            int res = forward_connect_inet(real_connect, fds, fd, &addr);
+            int connect_errno = (res == -1) ? errno : 0;
+
+            int ret = 2;
+            lua_pushinteger(L, res);
+            lua_pushinteger(L, connect_errno);
+
+            for (int fd : fds) {
+                if (fd == -1)
+                    break;
+
+                lua_pushinteger(L, fd);
+                ++ret;
+            }
+
+            return ret;
+        }, 1);
+        lua_pushinteger(L, s);
+
+        {
+            lua_createtable(L, /*narr=*/4, /*nrec=*/0);
+
+            std::uint32_t iaddr = isock->sin_addr.s_addr;
+            boost::endian::big_to_native_inplace(iaddr);
+
+            lua_pushinteger(L, (iaddr >> 24) & 0xFF);
+            lua_rawseti(L, -2, 1);
+
+            lua_pushinteger(L, (iaddr >> 16) & 0xFF);
+            lua_rawseti(L, -2, 2);
+
+            lua_pushinteger(L, (iaddr >> 8) & 0xFF);
+            lua_rawseti(L, -2, 3);
+
+            lua_pushinteger(L, iaddr & 0xFF);
+            lua_rawseti(L, -2, 4);
+        }
+
+        lua_pushinteger(L, boost::endian::big_to_native(isock->sin_port));
+
+        auto on_lua_fail = [&]() -> int {
+            fds_type fds;
+            BOOST_SCOPE_EXIT_ALL(&) {
+                for (int fd : fds) {
+                    if (fd != -1)
+                        std::ignore = close(fd);
+                }
+            };
+
+            return forward_connect_inet(real_connect, fds, s, isock);
+        };
+
+        if (lua_pcall(L, /*nargs=*/4, /*nresults=*/2, /*errfunc=*/0) != 0) {
             lua_pop(L, 1);
             return on_lua_fail();
         }

@@ -8,9 +8,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/detail/core.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
+#include <emilua/ip.hpp>
 
 #include <boost/hana/functional/overload_linearly.hpp>
 #include <boost/container/small_vector.hpp>
+#include <boost/endian/conversion.hpp>
 #include <boost/scope_exit.hpp>
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
@@ -18,8 +20,8 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/local/connect_pair.hpp>
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-namespace fs = std::filesystem;
 
+namespace fs = std::filesystem;
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua::libc_service {
@@ -47,6 +49,12 @@ struct connect_unix_request
     std::string path;
 };
 
+struct connect_inet_request
+{
+    asio::ip::address_v4 addr;
+    std::uint16_t port;
+};
+
 struct master
 {
     master(asio::io_context& ioctx)
@@ -69,7 +77,8 @@ struct master
     std::variant<
         std::monostate,
         open_request,
-        connect_unix_request
+        connect_unix_request,
+        connect_inet_request
     > last_request;
     std::array<int, EMILUA_LIBC_SERVICE_MAXIMUM_FDS_PER_MESSAGE> last_fds;
     std::shared_ptr<reply> reply_buffer;
@@ -250,6 +259,20 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
             }
             master.last_request.emplace<connect_unix_request>(
                 static_cast<std::string>(path));
+            break;
+        }
+        case request::CONNECT_INET: {
+            if (fds.size() < 1) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+
+            struct sockaddr_in addr;
+            std::memcpy(
+                &addr, request.buffer.data(), sizeof(struct sockaddr_in));
+            boost::endian::big_to_native_inplace(addr.sin_addr.s_addr);
+            boost::endian::big_to_native_inplace(addr.sin_port);
+            master.last_request.emplace<connect_inet_request>(
+                asio::ip::address_v4{addr.sin_addr.s_addr}, addr.sin_port);
             break;
         }
         }
@@ -859,6 +882,18 @@ static int master_arguments(lua_State* L)
             new (p) fs::path{};
             *p = fs::path{r.path, fs::path::native_format};
             return 1;
+        },
+        [&](const connect_inet_request& r) {
+            auto addr = static_cast<asio::ip::address*>(
+                lua_newuserdata(L, sizeof(asio::ip::address))
+            );
+            rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
+            setmetatable(L, -2);
+            new (addr) asio::ip::address{r.addr};
+
+            lua_pushinteger(L, r.port);
+
+            return 2;
         }
     ), mstr->last_request);
 }
@@ -902,6 +937,21 @@ static int master_descriptors(lua_State* L)
                 mstr->last_fds[0] = -1;
                 return 1;
             }
+        },
+        [&](const connect_inet_request& r) {
+            if (mstr->last_fds[0] == -1) {
+                lua_pushnil(L);
+                return 1;
+            } else {
+                auto fdhandle = static_cast<file_descriptor_handle*>(
+                    lua_newuserdata(L, sizeof(file_descriptor_handle))
+                );
+                rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                setmetatable(L, -2);
+                *fdhandle = mstr->last_fds[0];
+                mstr->last_fds[0] = -1;
+                return 1;
+            }
         }
     ), mstr->last_request);
 }
@@ -920,6 +970,10 @@ inline int master_function_(lua_State* L)
         },
         [&](const connect_unix_request&) {
             lua_pushliteral(L, "connect_unix");
+            return 1;
+        },
+        [&](const connect_inet_request&) {
+            lua_pushliteral(L, "connect_inet");
             return 1;
         }
     ), mstr->last_request);
@@ -1002,6 +1056,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_DEFAULT_VALUE(-1)
         EMILUA_GPERF_PAIR("open", libc_service::request::OPEN)
         EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
+        EMILUA_GPERF_PAIR("connect_inet", libc_service::request::CONNECT_INET)
     EMILUA_GPERF_END(strkey);
 
     if (key == -1) {
