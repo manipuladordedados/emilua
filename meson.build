@@ -1024,6 +1024,7 @@ if get_option('enable_tests')
             (get_option('enable_io_uring') ? [] : [
                 'libc_service_connect',
                 'libc_service_connect2',
+                'libc_service_connect3',
             ]),
         }
 

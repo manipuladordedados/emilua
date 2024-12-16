@@ -101,6 +101,12 @@ synchronise the file data and metadata to disk
 
 `port: integer`::: The port.
 
+`connect_inet6`::
+
+`ipv6_addr: ip.address`::: The IPv6 address.
+
+`port: integer`::: The port.
+
 === `descriptors(self) -> file_descriptor...`
 
 Extract and return the file descriptors received with the last requested call.
@@ -120,3 +126,4 @@ Possible values:
 * `"open"`
 * `"connect_unix"`
 * `"connect_inet"`
+* `"connect_inet6"`

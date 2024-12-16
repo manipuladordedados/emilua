@@ -55,6 +55,12 @@ struct connect_inet_request
     std::uint16_t port;
 };
 
+struct connect_inet6_request
+{
+    asio::ip::address_v6 addr;
+    std::uint16_t port;
+};
+
 struct master
 {
     master(asio::io_context& ioctx)
@@ -78,7 +84,8 @@ struct master
         std::monostate,
         open_request,
         connect_unix_request,
-        connect_inet_request
+        connect_inet_request,
+        connect_inet6_request
     > last_request;
     std::array<int, EMILUA_LIBC_SERVICE_MAXIMUM_FDS_PER_MESSAGE> last_fds;
     std::shared_ptr<reply> reply_buffer;
@@ -273,6 +280,22 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
             boost::endian::big_to_native_inplace(addr.sin_port);
             master.last_request.emplace<connect_inet_request>(
                 asio::ip::address_v4{addr.sin_addr.s_addr}, addr.sin_port);
+            break;
+        }
+        case request::CONNECT_INET6: {
+            if (fds.size() < 1) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+
+            struct sockaddr_in6 addr;
+            std::memcpy(
+                &addr, request.buffer.data(), sizeof(struct sockaddr_in6));
+            asio::ip::address_v6::bytes_type bytes;
+            std::memcpy(bytes.data(), &addr.sin6_addr.s6_addr[0], bytes.size());
+            boost::endian::big_to_native_inplace(addr.sin6_port);
+            master.last_request.emplace<connect_inet6_request>(
+                asio::ip::address_v6{bytes, addr.sin6_scope_id},
+                addr.sin6_port);
             break;
         }
         }
@@ -894,6 +917,18 @@ static int master_arguments(lua_State* L)
             lua_pushinteger(L, r.port);
 
             return 2;
+        },
+        [&](const connect_inet6_request& r) {
+            auto addr = static_cast<asio::ip::address*>(
+                lua_newuserdata(L, sizeof(asio::ip::address))
+            );
+            rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
+            setmetatable(L, -2);
+            new (addr) asio::ip::address{r.addr};
+
+            lua_pushinteger(L, r.port);
+
+            return 2;
         }
     ), mstr->last_request);
 }
@@ -952,6 +987,21 @@ static int master_descriptors(lua_State* L)
                 mstr->last_fds[0] = -1;
                 return 1;
             }
+        },
+        [&](const connect_inet6_request& r) {
+            if (mstr->last_fds[0] == -1) {
+                lua_pushnil(L);
+                return 1;
+            } else {
+                auto fdhandle = static_cast<file_descriptor_handle*>(
+                    lua_newuserdata(L, sizeof(file_descriptor_handle))
+                );
+                rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                setmetatable(L, -2);
+                *fdhandle = mstr->last_fds[0];
+                mstr->last_fds[0] = -1;
+                return 1;
+            }
         }
     ), mstr->last_request);
 }
@@ -974,6 +1024,10 @@ inline int master_function_(lua_State* L)
         },
         [&](const connect_inet_request&) {
             lua_pushliteral(L, "connect_inet");
+            return 1;
+        },
+        [&](const connect_inet6_request&) {
+            lua_pushliteral(L, "connect_inet6");
             return 1;
         }
     ), mstr->last_request);
@@ -1057,6 +1111,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PAIR("open", libc_service::request::OPEN)
         EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
         EMILUA_GPERF_PAIR("connect_inet", libc_service::request::CONNECT_INET)
+        EMILUA_GPERF_PAIR("connect_inet6", libc_service::request::CONNECT_INET6)
     EMILUA_GPERF_END(strkey);
 
     if (key == -1) {
