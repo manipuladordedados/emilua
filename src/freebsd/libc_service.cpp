@@ -18,6 +18,7 @@ extern "C" {
 
 extern int __sys_open(const char *file, int oflag, ...);
 extern int __sys_connect(int, const struct sockaddr*, socklen_t);
+extern int __sys_bind(int, const struct sockaddr*, socklen_t);
 
 int open(const char *file, int oflag, ...)
 {
@@ -106,6 +107,15 @@ int connect(int s, const struct sockaddr* name, socklen_t namelen)
             __sys_connect, s, name, namelen);
     } else {
         return __sys_connect(s, name, namelen);
+    }
+}
+
+int bind(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    if (emilua::ambient_authority.bind) {
+        return (*emilua::ambient_authority.bind)(__sys_bind, s, name, namelen);
+    } else {
+        return __sys_bind(s, name, namelen);
     }
 }
 

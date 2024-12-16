@@ -1025,6 +1025,9 @@ if get_option('enable_tests')
                 'libc_service_connect',
                 'libc_service_connect2',
                 'libc_service_connect3',
+                'libc_service_bind',
+                'libc_service_bind2',
+                'libc_service_bind3',
             ]),
         }
 

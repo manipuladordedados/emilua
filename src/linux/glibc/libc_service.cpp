@@ -6,6 +6,7 @@
 #undef open
 
 #include <emilua/ambient_authority.hpp>
+#include <sys/syscall.h>
 #include <string_view>
 #include <unistd.h>
 #include <cstdarg>
@@ -115,6 +116,21 @@ int connect(int s, const struct sockaddr* name, socklen_t namelen)
             __connect, s, name, namelen);
     } else {
         return __connect(s, name, namelen);
+    }
+}
+
+int bind(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    static constexpr auto real_bind = [](
+        int s, const struct sockaddr* name, socklen_t namelen
+    ) -> int {
+        return syscall(SYS_bind, s, name, namelen);
+    };
+
+    if (emilua::ambient_authority.bind) {
+        return (*emilua::ambient_authority.bind)(real_bind, s, name, namelen);
+    } else {
+        return real_bind(s, name, namelen);
     }
 }
 

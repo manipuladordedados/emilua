@@ -20,6 +20,9 @@ struct ambient_authority
     int (*connect)(
         int (*)(int, const struct sockaddr*, socklen_t),
         int, const struct sockaddr*, socklen_t);
+    int (*bind)(
+        int (*)(int, const struct sockaddr*, socklen_t),
+        int, const struct sockaddr*, socklen_t);
 };
 
 extern struct ambient_authority ambient_authority;

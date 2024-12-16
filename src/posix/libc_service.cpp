@@ -58,4 +58,17 @@ int connect(int s, const struct sockaddr* name, socklen_t namelen)
     }
 }
 
+int bind(int s, const struct sockaddr* name, socklen_t namelen)
+{
+    auto real_bind = reinterpret_cast<
+        int (*)(int, const struct sockaddr*, socklen_t)
+    >(dlsym(RTLD_NEXT, "bind"));
+
+    if (emilua::ambient_authority.bind) {
+        return (*emilua::ambient_authority.bind)(real_bind, s, name, namelen);
+    } else {
+        return real_bind(s, name, namelen);
+    }
+}
+
 } // extern "C"

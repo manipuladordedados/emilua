@@ -107,6 +107,22 @@ synchronise the file data and metadata to disk
 
 `port: integer`::: The port.
 
+`bind_unix`::
+
+`path: filesystem.path`::: The UNIX socket path.
+
+`bind_inet`::
+
+`ipv4_addr: ip.address`::: The IPv4 address.
+
+`port: integer`::: The port.
+
+`bind_inet6`::
+
+`ipv6_addr: ip.address`::: The IPv6 address.
+
+`port: integer`::: The port.
+
 === `descriptors(self) -> file_descriptor...`
 
 Extract and return the file descriptors received with the last requested call.
@@ -127,3 +143,6 @@ Possible values:
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`
+* `"bind_unix"`
+* `"bind_inet"`
+* `"bind_inet6"`

@@ -38,6 +38,9 @@ struct request
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,
+        BIND_UNIX,
+        BIND_INET,
+        BIND_INET6,
     };
 
     thread_id id;
