@@ -71,4 +71,20 @@ int bind(int s, const struct sockaddr* name, socklen_t namelen)
     }
 }
 
+int getaddrinfo(
+    const char* node, const char* service, const struct addrinfo* hints,
+    struct addrinfo** res)
+{
+    auto real_getaddrinfo = reinterpret_cast<int (*)(
+        const char*, const char*, const struct addrinfo*,struct addrinfo**
+    )>(dlsym(RTLD_NEXT, "getaddrinfo"));
+
+    if (emilua::ambient_authority.getaddrinfo) {
+        return (*emilua::ambient_authority.getaddrinfo)(
+            real_getaddrinfo, node, service, hints, res);
+    } else {
+        return real_getaddrinfo(node, service, hints, res);
+    }
+}
+
 } // extern "C"

@@ -43,9 +43,79 @@ Data about the call is stored in the object's properties.
 
 Send the result for the currently arbitrated libc call.
 
+|===
+|Function |`result`
+
+|open |integer
+|connect_unix |integer
+|connect_inet |integer
+|connect_inet6 |integer
+|bind_unix |integer
+|bind_inet |integer
+|bind_inet6 |integer
+
+|getaddrinfo
+a|
+
+On error, it should be one of the strings below:
+
+* `"again"`
+* `"badflags"`
+* `"fail"`
+* `"family"`
+* `"memory"`
+* `"noname"`
+* `"service"`
+* `"socktype"`
+* `"system"`
+
+On success, it should be an array with the following members (in the same
+order):
+
+`ip: ip.address`:: The address the query resolved to.
+
+`service: integer\|nil`:: The service port the query resolved to.
+
+|===
+
 === `send_with_fds(self, result: value, fds: file_descriptor[], errno: integer|generic_error|system_error = 0)`
 
 Send the result for the currently arbitrated libc call.
+
+|===
+|Function |`result`
+
+|open |integer
+|connect_unix |integer
+|connect_inet |integer
+|connect_inet6 |integer
+|bind_unix |integer
+|bind_inet |integer
+|bind_inet6 |integer
+
+|getaddrinfo
+a|
+
+On error, it should be one of the strings below:
+
+* `"again"`
+* `"badflags"`
+* `"fail"`
+* `"family"`
+* `"memory"`
+* `"noname"`
+* `"service"`
+* `"socktype"`
+* `"system"`
+
+On success, it should be an array with the following members (in the same
+order):
+
+`ip: ip.address`:: The address the query resolved to.
+
+`service: integer\|nil`:: The service port the query resolved to.
+
+|===
 
 === `use_slave_credentials(self)`
 
@@ -123,6 +193,15 @@ synchronise the file data and metadata to disk
 
 `port: integer`::: The port.
 
+`getaddrinfo`::
+
+`node: string`::: An Internet host such as `host.example`.
+
+`service: string`::: An Internet service such as `http`.
+
+`protocol: "tcp"|"udp"|nil`::: An Internet protocol. Only really useful if
+you're resolving the `service` as well.
+
 === `descriptors(self) -> file_descriptor...`
 
 Extract and return the file descriptors received with the last requested call.
@@ -146,3 +225,4 @@ Possible values:
 * `"bind_unix"`
 * `"bind_inet"`
 * `"bind_inet6"`
+* `"getaddrinfo"`

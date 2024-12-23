@@ -41,6 +41,7 @@ struct request
         BIND_UNIX,
         BIND_INET,
         BIND_INET6,
+        GETADDRINFO,
     };
 
     thread_id id;
@@ -50,7 +51,7 @@ struct request
     // Redundant with intargs, but the goal here is to avoid errors (including
     // wrong casts, mixed signedness comparisons, etc). Our goal here is not
     // efficiency, but safety.
-    unsigned uintargs[1];
+    unsigned uintargs[2];
 
     std::array<char, /*a little less than a pageish=*/4096 - 512> buffer;
 };
@@ -67,6 +68,9 @@ struct reply
     int action;
     std::int64_t result;
     int error_code; //< errno
+
+    int intargs[3];
+    std::array<char, 16> buffer;
 };
 
 void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters);

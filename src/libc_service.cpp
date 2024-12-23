@@ -14,6 +14,7 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <boost/container/small_vector.hpp>
 #include <boost/endian/conversion.hpp>
 #include <boost/scope_exit.hpp>
+#include <span>
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/local/connect_pair.hpp>
@@ -78,6 +79,13 @@ struct bind_inet6_request
     std::uint16_t port;
 };
 
+struct getaddrinfo_request
+{
+    std::string node;
+    std::string service;
+    int protocol;
+};
+
 struct master
 {
     master(asio::io_context& ioctx)
@@ -105,7 +113,8 @@ struct master
         connect_inet6_request,
         bind_unix_request,
         bind_inet_request,
-        bind_inet6_request
+        bind_inet6_request,
+        getaddrinfo_request
     > last_request;
     std::array<int, EMILUA_LIBC_SERVICE_MAXIMUM_FDS_PER_MESSAGE> last_fds;
     std::shared_ptr<reply> reply_buffer;
@@ -373,6 +382,42 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
                 addr.sin6_port);
             break;
         }
+        case request::GETADDRINFO: {
+            int protocol;
+            switch (request.intargs[0]) {
+            default:
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            case 0:
+                protocol = 0;
+                break;
+            case IPPROTO_TCP:
+                protocol = IPPROTO_TCP;
+                break;
+            case IPPROTO_UDP:
+                protocol = IPPROTO_UDP;
+                break;
+            }
+
+            std::span<char> buffer = request.buffer;
+
+            if (request.uintargs[0] > buffer.size()) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            std::string_view node{buffer.data(), request.uintargs[0]};
+            buffer = buffer.last(buffer.size() - request.uintargs[0]);
+
+            if (request.uintargs[1] > buffer.size()) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            std::string_view service{buffer.data(), request.uintargs[1]};
+            buffer = buffer.last(buffer.size() - request.uintargs[1]);
+
+            master.last_request.emplace<getaddrinfo_request>(
+                static_cast<std::string>(node),
+                static_cast<std::string>(service),
+                protocol);
+            break;
+        }
         }
 
         for (int fd : master.last_fds) { assert(fd == -1); }
@@ -589,6 +634,115 @@ static int master_send(lua_State* L)
     mstr->reply_buffer->action = reply::USE_REPLY_RESULT;
     std::errc e = std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
+        [&](const getaddrinfo_request&) {
+            switch (lua_type(L, 2)) {
+            default:
+                return std::errc::invalid_argument;
+            case LUA_TSTRING: {
+                auto strkey = tostringview(L, 2);
+                auto key = EMILUA_GPERF_BEGIN(strkey)
+                    EMILUA_GPERF_PARAM(int action)
+                    EMILUA_GPERF_DEFAULT_VALUE(0)
+                    EMILUA_GPERF_PAIR("again", EAI_AGAIN)
+                    EMILUA_GPERF_PAIR("badflags", EAI_BADFLAGS)
+                    EMILUA_GPERF_PAIR("fail", EAI_FAIL)
+                    EMILUA_GPERF_PAIR("family", EAI_FAMILY)
+                    EMILUA_GPERF_PAIR("memory", EAI_MEMORY)
+                    EMILUA_GPERF_PAIR("noname", EAI_NONAME)
+                    EMILUA_GPERF_PAIR("service", EAI_SERVICE)
+                    EMILUA_GPERF_PAIR("socktype", EAI_SOCKTYPE)
+                    EMILUA_GPERF_PAIR("system", EAI_SYSTEM)
+                EMILUA_GPERF_END(strkey);
+                if (key == 0) {
+                    return std::errc::invalid_argument;
+                }
+                mstr->reply_buffer->result = key;
+                break;
+            }
+            case LUA_TTABLE: {
+                mstr->reply_buffer->result = 0;
+
+                lua_rawgeti(L, 2, 1);
+                auto a = static_cast<asio::ip::address*>(lua_touserdata(L, -1));
+                if (!a || !lua_getmetatable(L, -1)) {
+                    return std::errc::invalid_argument;
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
+                if (!lua_rawequal(L, -1, -2)) {
+                    return std::errc::invalid_argument;
+                }
+                if (a->is_v4()) {
+                    auto bytes = a->to_v4().to_bytes();
+                    std::memcpy(
+                        mstr->reply_buffer->buffer.data(), bytes.data(),
+                        bytes.size());
+                    mstr->reply_buffer->intargs[0] = AF_INET;
+                } else {
+                    assert(a->is_v6());
+                    auto as_v6 = a->to_v6();
+                    auto bytes = as_v6.to_bytes();
+                    std::memcpy(
+                        mstr->reply_buffer->buffer.data(), bytes.data(),
+                        bytes.size());
+                    mstr->reply_buffer->intargs[0] = AF_INET6;
+                    mstr->reply_buffer->intargs[2] = as_v6.scope_id();
+                }
+
+                lua_rawgeti(L, 2, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    mstr->reply_buffer->intargs[1] = 0;
+                    break;
+                case LUA_TNUMBER:
+                    mstr->reply_buffer->intargs[1] = lua_tointeger(L, -1);
+                    break;
+                }
+                break;
+            }
+            }
+
+            switch (lua_type(L, 3)) {
+            default:
+                return std::errc::invalid_argument;
+            case LUA_TNIL:
+                mstr->reply_buffer->error_code = 0;
+                break;
+            case LUA_TNUMBER:
+                mstr->reply_buffer->error_code = lua_tointeger(L, 3);
+                break;
+            case LUA_TTABLE: {
+                if (!lua_getmetatable(L, 3))
+                    return std::errc::invalid_argument;
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &emilua::detail::error_code_mt_key);
+                if (!lua_rawequal(L, -1, -2))
+                    return std::errc::invalid_argument;
+                lua_pushliteral(L, "category");
+                lua_rawget(L, 3);
+                auto cat = static_cast<const std::error_category**>(
+                    lua_touserdata(L, -1));
+                if (!lua_getmetatable(L, -1))
+                    return std::errc::invalid_argument;
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &emilua::detail::error_category_mt_key);
+                if (!lua_rawequal(L, -1, -2))
+                    return std::errc::invalid_argument;
+                if (*cat != &std::generic_category() &&
+                    *cat != &std::system_category()) {
+                    return std::errc::invalid_argument;
+                }
+                lua_pushliteral(L, "code");
+                lua_rawget(L, 3);
+                if (lua_type(L, -1) != LUA_TNUMBER)
+                    return std::errc::invalid_argument;
+                mstr->reply_buffer->error_code = lua_tointeger(L, -1);
+                break;
+            }
+            }
+            return std::errc{};
+        },
         [&](const auto&) {
             mstr->reply_buffer->result = luaL_checkinteger(L, 2);
             switch (lua_type(L, 3)) {
@@ -705,6 +859,115 @@ static int master_send_with_fds(lua_State* L)
 
     std::errc e = std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
+        [&](const getaddrinfo_request&) {
+            switch (lua_type(L, 2)) {
+            default:
+                return std::errc::invalid_argument;
+            case LUA_TSTRING: {
+                auto strkey = tostringview(L, 2);
+                auto key = EMILUA_GPERF_BEGIN(strkey)
+                    EMILUA_GPERF_PARAM(int action)
+                    EMILUA_GPERF_DEFAULT_VALUE(0)
+                    EMILUA_GPERF_PAIR("again", EAI_AGAIN)
+                    EMILUA_GPERF_PAIR("badflags", EAI_BADFLAGS)
+                    EMILUA_GPERF_PAIR("fail", EAI_FAIL)
+                    EMILUA_GPERF_PAIR("family", EAI_FAMILY)
+                    EMILUA_GPERF_PAIR("memory", EAI_MEMORY)
+                    EMILUA_GPERF_PAIR("noname", EAI_NONAME)
+                    EMILUA_GPERF_PAIR("service", EAI_SERVICE)
+                    EMILUA_GPERF_PAIR("socktype", EAI_SOCKTYPE)
+                    EMILUA_GPERF_PAIR("system", EAI_SYSTEM)
+                EMILUA_GPERF_END(strkey);
+                if (key == 0) {
+                    return std::errc::invalid_argument;
+                }
+                mstr->reply_buffer->result = key;
+                break;
+            }
+            case LUA_TTABLE: {
+                mstr->reply_buffer->result = 0;
+
+                lua_rawgeti(L, 2, 1);
+                auto a = static_cast<asio::ip::address*>(lua_touserdata(L, -1));
+                if (!a || !lua_getmetatable(L, -1)) {
+                    return std::errc::invalid_argument;
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
+                if (!lua_rawequal(L, -1, -2)) {
+                    return std::errc::invalid_argument;
+                }
+                if (a->is_v4()) {
+                    auto bytes = a->to_v4().to_bytes();
+                    std::memcpy(
+                        mstr->reply_buffer->buffer.data(), bytes.data(),
+                        bytes.size());
+                    mstr->reply_buffer->intargs[0] = AF_INET;
+                } else {
+                    assert(a->is_v6());
+                    auto as_v6 = a->to_v6();
+                    auto bytes = as_v6.to_bytes();
+                    std::memcpy(
+                        mstr->reply_buffer->buffer.data(), bytes.data(),
+                        bytes.size());
+                    mstr->reply_buffer->intargs[0] = AF_INET6;
+                    mstr->reply_buffer->intargs[2] = as_v6.scope_id();
+                }
+
+                lua_rawgeti(L, 2, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    mstr->reply_buffer->intargs[1] = 0;
+                    break;
+                case LUA_TNUMBER:
+                    mstr->reply_buffer->intargs[1] = lua_tointeger(L, -1);
+                    break;
+                }
+                break;
+            }
+            }
+
+            switch (lua_type(L, 3)) {
+            default:
+                return std::errc::invalid_argument;
+            case LUA_TNIL:
+                mstr->reply_buffer->error_code = 0;
+                break;
+            case LUA_TNUMBER:
+                mstr->reply_buffer->error_code = lua_tointeger(L, 3);
+                break;
+            case LUA_TTABLE: {
+                if (!lua_getmetatable(L, 3))
+                    return std::errc::invalid_argument;
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &emilua::detail::error_code_mt_key);
+                if (!lua_rawequal(L, -1, -2))
+                    return std::errc::invalid_argument;
+                lua_pushliteral(L, "category");
+                lua_rawget(L, 3);
+                auto cat = static_cast<const std::error_category**>(
+                    lua_touserdata(L, -1));
+                if (!lua_getmetatable(L, -1))
+                    return std::errc::invalid_argument;
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &emilua::detail::error_category_mt_key);
+                if (!lua_rawequal(L, -1, -2))
+                    return std::errc::invalid_argument;
+                if (*cat != &std::generic_category() &&
+                    *cat != &std::system_category()) {
+                    return std::errc::invalid_argument;
+                }
+                lua_pushliteral(L, "code");
+                lua_rawget(L, 3);
+                if (lua_type(L, -1) != LUA_TNUMBER)
+                    return std::errc::invalid_argument;
+                mstr->reply_buffer->error_code = lua_tointeger(L, -1);
+                break;
+            }
+            }
+            return std::errc{};
+        },
         [&op,L](const auto&) {
             op->reply.result = luaL_checkinteger(L, 2);
             switch (lua_type(L, 4)) {
@@ -1037,6 +1300,24 @@ static int master_arguments(lua_State* L)
             lua_pushinteger(L, r.port);
 
             return 2;
+        },
+        [&](const getaddrinfo_request& r) {
+            push(L, r.node);
+            push(L, r.service);
+            switch (r.protocol) {
+            case 0:
+                lua_pushnil(L);
+                break;
+            case IPPROTO_TCP:
+                lua_pushliteral(L, "tcp");
+                break;
+            case IPPROTO_UDP:
+                lua_pushliteral(L, "udp");
+                break;
+            default:
+                assert(false);
+            }
+            return 3;
         }
     ), mstr->last_request);
 }
@@ -1155,7 +1436,8 @@ static int master_descriptors(lua_State* L)
                 mstr->last_fds[0] = -1;
                 return 1;
             }
-        }
+        },
+        [&](const getaddrinfo_request& r) { return einval(L); }
     ), mstr->last_request);
 }
 
@@ -1193,6 +1475,10 @@ inline int master_function_(lua_State* L)
         },
         [&](const bind_inet6_request&) {
             lua_pushliteral(L, "bind_inet6");
+            return 1;
+        },
+        [&](const getaddrinfo_request&) {
+            lua_pushliteral(L, "getaddrinfo");
             return 1;
         }
     ), mstr->last_request);
@@ -1280,6 +1566,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PAIR("bind_unix", libc_service::request::BIND_UNIX)
         EMILUA_GPERF_PAIR("bind_inet", libc_service::request::BIND_INET)
         EMILUA_GPERF_PAIR("bind_inet6", libc_service::request::BIND_INET6)
+        EMILUA_GPERF_PAIR("getaddrinfo", libc_service::request::GETADDRINFO)
     EMILUA_GPERF_END(strkey);
 
     if (key == -1) {

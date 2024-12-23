@@ -30,12 +30,15 @@
 #include <forward_list>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <charconv>
 #include <sys/un.h>
 #include <cstdarg>
 #include <cassert>
 #include <fcntl.h>
 #include <memory>
 #include <mutex>
+#include <span>
 
 extern "C" {
 #include <lauxlib.h>
@@ -202,6 +205,19 @@ struct lua_filter
                 lua_pop(L, 2);
             }
         }
+
+        if (filters.contains(request::GETADDRINFO)) {
+            const auto& src = filters[request::GETADDRINFO];
+
+            lua_pushlightuserdata(L, &getaddrinfo_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
     }
 
     ~lua_filter()
@@ -219,6 +235,7 @@ struct lua_filter
     static char bind_unix_key;
     static char bind_inet_key;
     static char bind_inet6_key;
+    static char getaddrinfo_key;
 };
 
 std::map<int, std::string> lua_filter::filters;
@@ -229,6 +246,7 @@ char lua_filter::connect_inet6_key;
 char lua_filter::bind_unix_key;
 char lua_filter::bind_inet_key;
 char lua_filter::bind_inet6_key;
+char lua_filter::getaddrinfo_key;
 
 struct lua_filter_ptr
 {
@@ -1737,6 +1755,531 @@ static int my_bind(
     }
     }
 }
+static int forward_getaddrinfo(
+    int (*real_getaddrinfo)(
+        const char*, const char*, const struct addrinfo*, struct addrinfo**),
+    fds_type& fds, const char* node, const char* service,
+    const struct addrinfo* hints, struct addrinfo** res)
+{
+    fds.fill(-1);
+
+    auto request = get_fresh_request_object();
+    request->function = request::GETADDRINFO;
+
+    if (!hints) {
+        request->intargs[0] = 0;
+    } else {
+        switch (hints->ai_family) {
+        default:
+            request->intargs[0] = 0;
+            break;
+        case AF_UNSPEC:
+        case AF_INET:
+        case AF_INET6:
+            switch (hints->ai_socktype) {
+            default:
+                request->intargs[0] = 0;
+                break;
+            case SOCK_STREAM:
+                request->intargs[0] = IPPROTO_TCP;
+                break;
+            case SOCK_DGRAM:
+                request->intargs[0] = IPPROTO_UDP;
+                break;
+            }
+        }
+    }
+
+    {
+        std::span<char> buffer = request->buffer;
+
+        std::string_view nodev{node};
+        if (nodev.size() > buffer.size()) {
+            return EAI_MEMORY;
+        }
+        std::memcpy(buffer.data(), nodev.data(), nodev.size());
+        buffer = buffer.last(buffer.size() - nodev.size());
+        request->uintargs[0] = nodev.size();
+
+        std::string_view servicev{service};
+        if (servicev.size() > buffer.size()) {
+            return EAI_MEMORY;
+        }
+        std::memcpy(buffer.data(), servicev.data(), servicev.size());
+        buffer = buffer.last(buffer.size() - servicev.size());
+        request->uintargs[1] = servicev.size();
+    }
+
+    if (
+        TEMP_FAILURE_RETRY(
+            write(sockfd, request.get(), sizeof(struct request))) == -1
+    ) {
+        return real_getaddrinfo(node, service, hints, res);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        switch (reply->result) {
+        default:
+            return reply->result;
+        case 0: {
+            // sin6_scope_id size (we don't accept interface names here so it's
+            // safe to ignore IFNAMSIZ)
+            static constexpr auto scope_id_strsz =
+                std::numeric_limits<std::uint32_t>::digits10;
+
+            char node2[
+                // already takes the terminating null byte into account
+                INET6_ADDRSTRLEN +
+
+                // the % sign for the scope id delimiter
+                1 +
+
+                scope_id_strsz];
+
+            switch (reply->intargs[0]) {
+            case AF_INET: {
+                std::uint32_t s_addr;
+                std::memcpy(&s_addr, reply->buffer.data(), sizeof(s_addr));
+                if (!inet_ntop(AF_INET, &s_addr, node2, sizeof(node2))) {
+                    return real_getaddrinfo(node, service, hints, res);
+                }
+                break;
+            }
+            case AF_INET6: {
+                if (!inet_ntop(
+                    AF_INET6, reply->buffer.data(), node2, sizeof(node2)
+                )) {
+                    return real_getaddrinfo(node, service, hints, res);
+                }
+                std::uint32_t scope_id = reply->intargs[2];
+                if (scope_id != 0) {
+                    auto iter = std::strchr(node2, '\0');
+                    assert(*iter == '\0');
+                    *iter++ = '%';
+                    auto cvtres = std::to_chars(
+                        iter, node2 + scope_id_strsz, scope_id);
+                    assert(cvtres.ec == std::errc{});
+                    *cvtres.ptr = '\0';
+                }
+                break;
+            }
+            default:
+                assert(false);
+            }
+
+            char service2[std::numeric_limits<in_port_t>::digits10 + 1];
+            {
+                in_port_t port = reply->intargs[1];
+                auto cvtres = std::to_chars(
+                    service2, service2 + sizeof(service2) - 1, port);
+                assert(cvtres.ec == std::errc{});
+                *cvtres.ptr = '\0';
+            }
+
+            struct addrinfo hints2;
+            std::memset(&hints2, 0, sizeof(struct addrinfo));
+            hints2.ai_family = reply->intargs[0];
+            hints2.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+
+            return real_getaddrinfo(node2, service2, &hints2, res);
+        }
+        }
+        break;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_getaddrinfo(node, service, hints, res);
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_getaddrinfo(
+    int (*real_getaddrinfo)(
+        const char*, const char*, const struct addrinfo*, struct addrinfo**),
+    const char* node, const char* service, const struct addrinfo* hints,
+    struct addrinfo** res)
+{
+    if (!lua_filter::filters.contains(request::GETADDRINFO)) {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_getaddrinfo(
+            real_getaddrinfo, fds, node, service, hints, res);
+    }
+
+    int protocol;
+    if (!hints) {
+        protocol = 0;
+    } else {
+        switch (hints->ai_family) {
+        default:
+            protocol = 0;
+            break;
+        case AF_UNSPEC:
+        case AF_INET:
+        case AF_INET6:
+            switch (hints->ai_socktype) {
+            default:
+                protocol = 0;
+                break;
+            case SOCK_STREAM:
+                protocol = IPPROTO_TCP;
+                break;
+            case SOCK_DGRAM:
+                protocol = IPPROTO_UDP;
+                break;
+            }
+        }
+    }
+
+    auto lua_filter = get_lua_filter_from_pool_or_create();
+    BOOST_SCOPE_EXIT_ALL(&) { add_lua_filter_to_pool(std::move(lua_filter)); };
+    auto L = lua_filter->L;
+    lua_pushlightuserdata(L, &lua_filter::getaddrinfo_key);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(real_getaddrinfo));
+    lua_pushcclosure(L, [](lua_State* L) -> int {
+        lua_settop(L, 3);
+
+        auto real_getaddrinfo = reinterpret_cast<int (*)(
+            const char*, const char*, const struct addrinfo*, struct addrinfo**
+        )>(lua_touserdata(L, lua_upvalueindex(1)));
+        const char* node = luaL_checkstring(L, 1);
+        const char* service = luaL_checkstring(L, 2);
+        int protocol;
+        switch (lua_type(L, 3)) {
+        default:
+            return luaL_error(L, "invalid argument for protocol");
+        case LUA_TNIL:
+            protocol = 0;
+            break;
+        case LUA_TSTRING: {
+            std::size_t len;
+            const char* str = luaL_checklstring(L, 3, &len);
+            std::string_view strv{str, len};
+
+            if (strv == "tcp") {
+                protocol = IPPROTO_TCP;
+            } else if (strv == "udp") {
+                protocol = IPPROTO_UDP;
+            } else {
+                return luaL_error(L, "invalid argument for protocol");
+            }
+            break;
+        }
+        }
+
+        fds_type fds;
+
+        struct addrinfo hints;
+        std::memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        switch (protocol) {
+        case 0:
+            break;
+        case IPPROTO_TCP:
+            hints.ai_socktype = SOCK_STREAM;
+            break;
+        case IPPROTO_UDP:
+            hints.ai_socktype = SOCK_DGRAM;
+            break;
+        default:
+            assert(false);
+        }
+        hints.ai_protocol = protocol;
+
+        struct addrinfo* res = NULL;
+        int res2 = forward_getaddrinfo(
+            real_getaddrinfo, fds, node, service, &hints, &res);
+        int getaddrinfo_errno = (res2 == EAI_SYSTEM) ? errno : 0;
+
+        if (res2 != 0) {
+            switch (res2) {
+            default:
+                lua_pushinteger(L, res2);
+                break;
+            case EAI_AGAIN:
+                lua_pushliteral(L, "again");
+                break;
+            case EAI_BADFLAGS:
+                lua_pushliteral(L, "badflags");
+                break;
+            case EAI_FAIL:
+                lua_pushliteral(L, "fail");
+                break;
+            case EAI_FAMILY:
+                lua_pushliteral(L, "family");
+                break;
+            case EAI_MEMORY:
+                lua_pushliteral(L, "memory");
+                break;
+            case EAI_NONAME:
+                lua_pushliteral(L, "noname");
+                break;
+            case EAI_SERVICE:
+                lua_pushliteral(L, "service");
+                break;
+            case EAI_SOCKTYPE:
+                lua_pushliteral(L, "socktype");
+                break;
+            case EAI_SYSTEM:
+                lua_pushliteral(L, "system");
+                break;
+            }
+            lua_pushinteger(L, getaddrinfo_errno);
+            return 2;
+        }
+
+        if (!res)
+            return 0;
+
+        BOOST_SCOPE_EXIT_ALL(&) { freeaddrinfo(res); };
+
+        if (res->ai_family != AF_INET && res->ai_family != AF_INET6) {
+            lua_pushliteral(L, "system");
+            lua_pushinteger(L, ENOTSUP);
+            return 2;
+        }
+
+        lua_pushnil(L);
+
+        in_port_t port;
+        if (res->ai_family == AF_INET) {
+            lua_createtable(L, /*narr=*/4, /*nrec=*/0);
+            auto isock = reinterpret_cast<struct sockaddr_in*>(res->ai_addr);
+            port = isock->sin_port;
+
+            char as_bytes[4];
+            std::memcpy(as_bytes, &isock->sin_addr, 4);
+            for (int i = 0 ; i != 4 ; ++i) {
+                lua_pushinteger(L, as_bytes[i]);
+                lua_rawseti(L, -2, i + 1);
+            }
+        } else if (res->ai_family == AF_INET6) {
+            lua_createtable(L, /*narr=*/17, /*nrec=*/0);
+            auto isock = reinterpret_cast<struct sockaddr_in6*>(res->ai_addr);
+            port = isock->sin6_port;
+
+            for (int i = 0 ; i != 16 ; ++i) {
+                lua_pushinteger(L, isock->sin6_addr.s6_addr[i]);
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            lua_pushinteger(L, isock->sin6_scope_id);
+            lua_rawseti(L, -2, 17);
+        } else {
+            lua_pushliteral(L, "system");
+            lua_pushinteger(L, ENOTSUP);
+            return 2;
+        }
+
+        boost::endian::big_to_native_inplace(port);
+        lua_pushinteger(L, port);
+
+        int ret = 3;
+
+        for (int fd : fds) {
+            if (fd == -1)
+                break;
+
+            lua_pushinteger(L, fd);
+            ++ret;
+        }
+
+        return ret;
+    }, 1);
+    lua_pushstring(L, node);
+    lua_pushstring(L, service);
+    switch (protocol) {
+    case 0:
+        lua_pushnil(L);
+        break;
+    case IPPROTO_TCP:
+        lua_pushliteral(L, "tcp");
+        break;
+    case IPPROTO_UDP:
+        lua_pushliteral(L, "udp");
+        break;
+    default:
+        assert(false);
+    }
+
+    auto on_lua_fail = [&]() -> int {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_getaddrinfo(
+            real_getaddrinfo, fds, node, service, hints, res);
+    };
+
+    if (lua_pcall(L, /*nargs=*/4, /*nresults=*/3, /*errfunc=*/0) != 0) {
+        lua_pop(L, 1);
+        return on_lua_fail();
+    }
+    BOOST_SCOPE_EXIT_ALL(&) { lua_pop(L, 3); };
+
+    switch (lua_type(L, -3)) {
+    default:
+        return on_lua_fail();
+    case LUA_TNIL: {
+        if (lua_isnil(L, -2) && lua_isnil(L, -1)) {
+            *res = NULL;
+            return 0;
+        }
+
+        struct addrinfo hints2;
+        std::memset(&hints2, 0, sizeof(struct addrinfo));
+        hints2.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+
+        // sin6_scope_id size (we don't accept interface names here so it's safe
+        // to ignore IFNAMSIZ)
+        static constexpr auto scope_id_strsz =
+            std::numeric_limits<std::uint32_t>::digits10;
+        char node2[
+            // already takes the terminating null byte into account
+            INET6_ADDRSTRLEN +
+
+            // the % sign for the scope id delimiter
+            1 +
+
+            scope_id_strsz];
+
+        switch (lua_type(L, -2)) {
+        default:
+            return on_lua_fail();
+        case LUA_TTABLE:
+            break;
+        }
+        switch (lua_objlen(L, -2)) {
+        default:
+            return on_lua_fail();
+        case 4: {
+            hints2.ai_family = AF_INET;
+            char* node2it = node2;
+
+            for (int i = 1 ; i <= 4 ; ++i) {
+                lua_rawgeti(L, -2, i);
+                if (lua_type(L, -1) != LUA_TNUMBER) {
+                    lua_pop(L, 1);
+                    return on_lua_fail();
+                }
+                std::uint8_t byte = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+
+                auto cvtres = std::to_chars(
+                    node2it, node2 + sizeof(node2) - 1, byte);
+                assert(cvtres.ec == std::errc{});
+                node2it = cvtres.ptr;
+                *node2it++ = '.';
+            }
+            *(node2it - 1) = '\0';
+            break;
+        }
+        case 17: {
+            hints2.ai_family = AF_INET6;
+            struct in6_addr sin6_addr;
+
+            for (int i = 1 ; i <= 16 ; ++i) {
+                lua_rawgeti(L, -2, i);
+                if (lua_type(L, -1) != LUA_TNUMBER) {
+                    lua_pop(L, 1);
+                    return on_lua_fail();
+                }
+                std::uint8_t byte = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+                sin6_addr.s6_addr[i - 1] = byte;
+            }
+            std::ignore = inet_ntop(AF_INET6, &sin6_addr, node2, sizeof(node2));
+
+            lua_rawgeti(L, -2, 17);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                lua_pop(L, 1);
+                return on_lua_fail();
+            }
+            std::uint32_t scope_id = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            if (scope_id != 0) {
+                auto iter = std::strchr(node2, '\0');
+                assert(*iter == '\0');
+                *iter++ = '%';
+                auto cvtres = std::to_chars(
+                    iter, node2 + scope_id_strsz, scope_id);
+                assert(cvtres.ec == std::errc{});
+                *cvtres.ptr = '\0';
+            }
+            break;
+        }
+        }
+
+        char service2[std::numeric_limits<in_port_t>::digits10 + 1];
+
+        switch (lua_type(L, -1)) {
+        default:
+            return on_lua_fail();
+        case LUA_TNUMBER:
+            in_port_t port = lua_tonumber(L, -1);
+            auto cvtres = std::to_chars(
+                service2, service2 + sizeof(service2) - 1, port);
+            assert(cvtres.ec == std::errc{});
+            *cvtres.ptr = '\0';
+            break;
+        }
+
+        return real_getaddrinfo(node2, service2, &hints2, res);
+    }
+    case LUA_TNUMBER:
+        return lua_tointeger(L, -3);
+    case LUA_TSTRING: {
+        std::string_view value;
+        {
+            std::size_t len;
+            const char* str = lua_tolstring(L, -3, &len);
+            value = std::string_view{str, len};
+        }
+        if (value == "again") {
+            return EAI_AGAIN;
+        } else if (value == "badflags") {
+            return EAI_BADFLAGS;
+        } else if (value == "fail") {
+            return EAI_FAIL;
+        } else if (value == "family") {
+            return EAI_FAMILY;
+        } else if (value == "memory") {
+            return EAI_MEMORY;
+        } else if (value == "noname") {
+            return EAI_NONAME;
+        } else if (value == "service") {
+            return EAI_SERVICE;
+        } else if (value == "socktype") {
+            return EAI_SOCKTYPE;
+        } else if (value == "system") {
+            switch (lua_type(L, -2)) {
+            default:
+                return on_lua_fail();
+            case LUA_TNUMBER:
+                errno = lua_tointeger(L, -2);
+                return EAI_SYSTEM;
+            }
+        } else {
+            return on_lua_fail();
+        }
+        break;
+    }
+    }
+}
 
 } // extern "C"
 
@@ -1749,6 +2292,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     ambient_authority.open = my_open;
     ambient_authority.connect = my_connect;
     ambient_authority.bind = my_bind;
+    ambient_authority.getaddrinfo = my_getaddrinfo;
 }
 
 } // namespace emilua::libc_service

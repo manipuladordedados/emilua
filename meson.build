@@ -1020,6 +1020,10 @@ if get_option('enable_tests')
             ],
             'libc_service' : [
                 'libc_service_cat',
+                'libc_service_getaddrinfo',
+                'libc_service_getaddrinfo2',
+                'libc_service_getaddrinfo3',
+                'libc_service_getaddrinfo4',
             ] +
             (get_option('enable_io_uring') ? [] : [
                 'libc_service_connect',

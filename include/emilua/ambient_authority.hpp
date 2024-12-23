@@ -7,6 +7,7 @@
 
 #if BOOST_OS_UNIX
 # include <sys/socket.h>
+# include <netdb.h>
 #endif // BOOST_OS_UNIX
 
 namespace emilua {
@@ -23,6 +24,11 @@ struct ambient_authority
     int (*bind)(
         int (*)(int, const struct sockaddr*, socklen_t),
         int, const struct sockaddr*, socklen_t);
+    int (*getaddrinfo)(
+        int (*)(
+            const char*, const char*, const struct addrinfo*,
+            struct addrinfo**),
+        const char*, const char*, const struct addrinfo*, struct addrinfo**);
 };
 
 extern struct ambient_authority ambient_authority;

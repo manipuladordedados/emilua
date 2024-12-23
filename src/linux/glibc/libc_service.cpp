@@ -10,6 +10,7 @@
 #include <string_view>
 #include <unistd.h>
 #include <cstdarg>
+#include <cstring>
 #include <cerrno>
 #include <cstdio>
 
@@ -133,6 +134,43 @@ int bind(int s, const struct sockaddr* name, socklen_t namelen)
         return real_bind(s, name, namelen);
     }
 }
+
+static int emilua_getaddrinfo(
+    const char* node, const char* service, const struct addrinfo* hints,
+    struct addrinfo** res)
+{
+    static constexpr auto real_getaddrinfo = [](
+        const char* node, const char* service, const struct addrinfo* hints,
+        struct addrinfo** res
+    ) -> int {
+        struct gaicb cb;
+        std::memset(&cb, 0, sizeof(struct gaicb));
+        cb.ar_name = node;
+        cb.ar_service = service;
+        cb.ar_request = hints;
+        cb.ar_result = NULL;
+        struct gaicb* cbs = &cb;
+        auto ret = getaddrinfo_a(GAI_WAIT, &cbs, 1, NULL);
+        *res = cb.ar_result;
+        return ret;
+    };
+
+    if (emilua::ambient_authority.getaddrinfo) {
+        return (*emilua::ambient_authority.getaddrinfo)(
+            real_getaddrinfo, node, service, hints, res);
+    } else {
+        return real_getaddrinfo(node, service, hints, res);
+    }
+}
+
+// glibc's getaddrinfo() is not weak, so we cannot override it when linking
+// against static glibc. Defining our own symbol as a weak alias allows builds
+// against static glibc to succeed (for such case, our definition won't be
+// used).
+[[gnu::weak, gnu::alias("emilua_getaddrinfo")]]
+int getaddrinfo(
+    const char* node, const char* service, const struct addrinfo* hints,
+    struct addrinfo** res);
 
 } // extern "C"
 
