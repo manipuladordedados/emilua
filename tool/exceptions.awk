@@ -1,10 +1,10 @@
 BEGIN {
-  exceptions["../src/ip.cpp"] = 1
-  exceptions["../src/main.ypp"] = 2
-  exceptions["../src/tls.cpp"] = 5
-  exceptions["../src/regex.cpp"] = 5
-  exceptions["../src/stream.cpp"] = 2
-  exceptions["../src/core.cpp"] = 1
-  exceptions["../src/file.cpp"] = 1
-  exceptions["../bytecode/ip_dial.lua"] = 1
+  exceptions["../src/ip.cpp"]
+  exceptions["../src/main.ypp"]
+  exceptions["../src/tls.cpp"]
+  exceptions["../src/regex.cpp"]
+  exceptions["../src/stream.cpp"]
+  exceptions["../src/core.cpp"]
+  exceptions["../src/file.cpp"]
+  exceptions["../bytecode/ip_dial.lua"]
 }
