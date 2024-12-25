@@ -612,27 +612,13 @@ static int master_receive(lua_State* L)
     return lua_yield(L, 0);
 }
 
-static int master_send(lua_State* L)
+template<int ERRNOARGIDX>
+static std::errc fill_reply_buffer(
+    lua_State* L, reply& reply_buffer,
+    const decltype((std::declval<master>().last_request))& last_request
+   )
 {
-    lua_settop(L, 3);
-
-    auto vm_ctx = get_vm_context(L).shared_from_this();
-    auto current_fiber = vm_ctx->current_fiber();
-    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
-
-    auto mstr = static_cast<master*>(lua_touserdata(L, 1));
-    if (!mstr || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &master_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    mstr->reply_buffer->action = reply::USE_REPLY_RESULT;
-    std::errc e = std::visit(hana::overload_linearly(
+    return std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
         [&](const getaddrinfo_request&) {
             switch (lua_type(L, 2)) {
@@ -656,11 +642,11 @@ static int master_send(lua_State* L)
                 if (key == 0) {
                     return std::errc::invalid_argument;
                 }
-                mstr->reply_buffer->result = key;
+                reply_buffer.result = key;
                 break;
             }
             case LUA_TTABLE: {
-                mstr->reply_buffer->result = 0;
+                reply_buffer.result = 0;
 
                 lua_rawgeti(L, 2, 1);
                 auto a = static_cast<asio::ip::address*>(lua_touserdata(L, -1));
@@ -674,18 +660,16 @@ static int master_send(lua_State* L)
                 if (a->is_v4()) {
                     auto bytes = a->to_v4().to_bytes();
                     std::memcpy(
-                        mstr->reply_buffer->buffer.data(), bytes.data(),
-                        bytes.size());
-                    mstr->reply_buffer->intargs[0] = AF_INET;
+                        reply_buffer.buffer.data(), bytes.data(), bytes.size());
+                    reply_buffer.intargs[0] = AF_INET;
                 } else {
                     assert(a->is_v6());
                     auto as_v6 = a->to_v6();
                     auto bytes = as_v6.to_bytes();
                     std::memcpy(
-                        mstr->reply_buffer->buffer.data(), bytes.data(),
-                        bytes.size());
-                    mstr->reply_buffer->intargs[0] = AF_INET6;
-                    mstr->reply_buffer->intargs[2] = as_v6.scope_id();
+                        reply_buffer.buffer.data(), bytes.data(), bytes.size());
+                    reply_buffer.intargs[0] = AF_INET6;
+                    reply_buffer.intargs[2] = as_v6.scope_id();
                 }
 
                 lua_rawgeti(L, 2, 2);
@@ -693,34 +677,34 @@ static int master_send(lua_State* L)
                 default:
                     return std::errc::invalid_argument;
                 case LUA_TNIL:
-                    mstr->reply_buffer->intargs[1] = 0;
+                    reply_buffer.intargs[1] = 0;
                     break;
                 case LUA_TNUMBER:
-                    mstr->reply_buffer->intargs[1] = lua_tointeger(L, -1);
+                    reply_buffer.intargs[1] = lua_tointeger(L, -1);
                     break;
                 }
                 break;
             }
             }
 
-            switch (lua_type(L, 3)) {
+            switch (lua_type(L, ERRNOARGIDX)) {
             default:
                 return std::errc::invalid_argument;
             case LUA_TNIL:
-                mstr->reply_buffer->error_code = 0;
+                reply_buffer.error_code = 0;
                 break;
             case LUA_TNUMBER:
-                mstr->reply_buffer->error_code = lua_tointeger(L, 3);
+                reply_buffer.error_code = lua_tointeger(L, ERRNOARGIDX);
                 break;
             case LUA_TTABLE: {
-                if (!lua_getmetatable(L, 3))
+                if (!lua_getmetatable(L, ERRNOARGIDX))
                     return std::errc::invalid_argument;
                 rawgetp(L, LUA_REGISTRYINDEX,
                         &emilua::detail::error_code_mt_key);
                 if (!lua_rawequal(L, -1, -2))
                     return std::errc::invalid_argument;
                 lua_pushliteral(L, "category");
-                lua_rawget(L, 3);
+                lua_rawget(L, ERRNOARGIDX);
                 auto cat = static_cast<const std::error_category**>(
                     lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1))
@@ -734,35 +718,35 @@ static int master_send(lua_State* L)
                     return std::errc::invalid_argument;
                 }
                 lua_pushliteral(L, "code");
-                lua_rawget(L, 3);
+                lua_rawget(L, ERRNOARGIDX);
                 if (lua_type(L, -1) != LUA_TNUMBER)
                     return std::errc::invalid_argument;
-                mstr->reply_buffer->error_code = lua_tointeger(L, -1);
+                reply_buffer.error_code = lua_tointeger(L, -1);
                 break;
             }
             }
             return std::errc{};
         },
         [&](const auto&) {
-            mstr->reply_buffer->result = luaL_checkinteger(L, 2);
-            switch (lua_type(L, 3)) {
+            reply_buffer.result = luaL_checkinteger(L, 2);
+            switch (lua_type(L, ERRNOARGIDX)) {
             default:
                 return std::errc::invalid_argument;
             case LUA_TNIL:
-                mstr->reply_buffer->error_code = 0;
+                reply_buffer.error_code = 0;
                 break;
             case LUA_TNUMBER:
-                mstr->reply_buffer->error_code = lua_tointeger(L, 3);
+                reply_buffer.error_code = lua_tointeger(L, ERRNOARGIDX);
                 break;
             case LUA_TTABLE: {
-                if (!lua_getmetatable(L, 3))
+                if (!lua_getmetatable(L, ERRNOARGIDX))
                     return std::errc::invalid_argument;
                 rawgetp(L, LUA_REGISTRYINDEX,
                         &emilua::detail::error_code_mt_key);
                 if (!lua_rawequal(L, -1, -2))
                     return std::errc::invalid_argument;
                 lua_pushliteral(L, "category");
-                lua_rawget(L, 3);
+                lua_rawget(L, ERRNOARGIDX);
                 auto cat = static_cast<const std::error_category**>(
                     lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1))
@@ -776,16 +760,40 @@ static int master_send(lua_State* L)
                     return std::errc::invalid_argument;
                 }
                 lua_pushliteral(L, "code");
-                lua_rawget(L, 3);
+                lua_rawget(L, ERRNOARGIDX);
                 if (lua_type(L, -1) != LUA_TNUMBER)
                     return std::errc::invalid_argument;
-                mstr->reply_buffer->error_code = lua_tointeger(L, -1);
+                reply_buffer.error_code = lua_tointeger(L, -1);
                 break;
             }
             }
             return std::errc{};
         }
-    ), mstr->last_request);
+    ), last_request);
+}
+
+static int master_send(lua_State* L)
+{
+    lua_settop(L, 3);
+
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
+
+    auto mstr = static_cast<master*>(lua_touserdata(L, 1));
+    if (!mstr || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &master_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    mstr->reply_buffer->action = reply::USE_REPLY_RESULT;
+    std::errc e = fill_reply_buffer</*ERRNOARGIDX=*/3>(
+        L, *mstr->reply_buffer, mstr->last_request);
     if (e != std::errc{}) {
         push(L, e);
         return lua_error(L);
@@ -857,160 +865,8 @@ static int master_send_with_fds(lua_State* L)
     auto op = std::make_shared<send_with_fds_op>(
         vm_ctx, std::move(cancel_slot), *mstr);
 
-    std::errc e = std::visit(hana::overload_linearly(
-        [](std::monostate) { return std::errc::invalid_argument; },
-        [&](const getaddrinfo_request&) {
-            switch (lua_type(L, 2)) {
-            default:
-                return std::errc::invalid_argument;
-            case LUA_TSTRING: {
-                auto strkey = tostringview(L, 2);
-                auto key = EMILUA_GPERF_BEGIN(strkey)
-                    EMILUA_GPERF_PARAM(int action)
-                    EMILUA_GPERF_DEFAULT_VALUE(0)
-                    EMILUA_GPERF_PAIR("again", EAI_AGAIN)
-                    EMILUA_GPERF_PAIR("badflags", EAI_BADFLAGS)
-                    EMILUA_GPERF_PAIR("fail", EAI_FAIL)
-                    EMILUA_GPERF_PAIR("family", EAI_FAMILY)
-                    EMILUA_GPERF_PAIR("memory", EAI_MEMORY)
-                    EMILUA_GPERF_PAIR("noname", EAI_NONAME)
-                    EMILUA_GPERF_PAIR("service", EAI_SERVICE)
-                    EMILUA_GPERF_PAIR("socktype", EAI_SOCKTYPE)
-                    EMILUA_GPERF_PAIR("system", EAI_SYSTEM)
-                EMILUA_GPERF_END(strkey);
-                if (key == 0) {
-                    return std::errc::invalid_argument;
-                }
-                mstr->reply_buffer->result = key;
-                break;
-            }
-            case LUA_TTABLE: {
-                mstr->reply_buffer->result = 0;
-
-                lua_rawgeti(L, 2, 1);
-                auto a = static_cast<asio::ip::address*>(lua_touserdata(L, -1));
-                if (!a || !lua_getmetatable(L, -1)) {
-                    return std::errc::invalid_argument;
-                }
-                rawgetp(L, LUA_REGISTRYINDEX, &ip_address_mt_key);
-                if (!lua_rawequal(L, -1, -2)) {
-                    return std::errc::invalid_argument;
-                }
-                if (a->is_v4()) {
-                    auto bytes = a->to_v4().to_bytes();
-                    std::memcpy(
-                        mstr->reply_buffer->buffer.data(), bytes.data(),
-                        bytes.size());
-                    mstr->reply_buffer->intargs[0] = AF_INET;
-                } else {
-                    assert(a->is_v6());
-                    auto as_v6 = a->to_v6();
-                    auto bytes = as_v6.to_bytes();
-                    std::memcpy(
-                        mstr->reply_buffer->buffer.data(), bytes.data(),
-                        bytes.size());
-                    mstr->reply_buffer->intargs[0] = AF_INET6;
-                    mstr->reply_buffer->intargs[2] = as_v6.scope_id();
-                }
-
-                lua_rawgeti(L, 2, 2);
-                switch (lua_type(L, -1)) {
-                default:
-                    return std::errc::invalid_argument;
-                case LUA_TNIL:
-                    mstr->reply_buffer->intargs[1] = 0;
-                    break;
-                case LUA_TNUMBER:
-                    mstr->reply_buffer->intargs[1] = lua_tointeger(L, -1);
-                    break;
-                }
-                break;
-            }
-            }
-
-            switch (lua_type(L, 3)) {
-            default:
-                return std::errc::invalid_argument;
-            case LUA_TNIL:
-                mstr->reply_buffer->error_code = 0;
-                break;
-            case LUA_TNUMBER:
-                mstr->reply_buffer->error_code = lua_tointeger(L, 3);
-                break;
-            case LUA_TTABLE: {
-                if (!lua_getmetatable(L, 3))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_code_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                lua_pushliteral(L, "category");
-                lua_rawget(L, 3);
-                auto cat = static_cast<const std::error_category**>(
-                    lua_touserdata(L, -1));
-                if (!lua_getmetatable(L, -1))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_category_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                if (*cat != &std::generic_category() &&
-                    *cat != &std::system_category()) {
-                    return std::errc::invalid_argument;
-                }
-                lua_pushliteral(L, "code");
-                lua_rawget(L, 3);
-                if (lua_type(L, -1) != LUA_TNUMBER)
-                    return std::errc::invalid_argument;
-                mstr->reply_buffer->error_code = lua_tointeger(L, -1);
-                break;
-            }
-            }
-            return std::errc{};
-        },
-        [&op,L](const auto&) {
-            op->reply.result = luaL_checkinteger(L, 2);
-            switch (lua_type(L, 4)) {
-            default:
-                return std::errc::invalid_argument;
-            case LUA_TNIL:
-                op->reply.error_code = 0;
-                break;
-            case LUA_TNUMBER:
-                op->reply.error_code = lua_tointeger(L, 4);
-                break;
-            case LUA_TTABLE: {
-                if (!lua_getmetatable(L, 4))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_code_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                lua_pushliteral(L, "category");
-                lua_rawget(L, 4);
-                auto cat = static_cast<const std::error_category**>(
-                    lua_touserdata(L, -1));
-                if (!lua_getmetatable(L, -1))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_category_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                if (*cat != &std::generic_category() &&
-                    *cat != &std::system_category()) {
-                    return std::errc::invalid_argument;
-                }
-                lua_pushliteral(L, "code");
-                lua_rawget(L, 4);
-                if (lua_type(L, -1) != LUA_TNUMBER)
-                    return std::errc::invalid_argument;
-                op->reply.error_code = lua_tointeger(L, -1);
-                break;
-            }
-            }
-            return std::errc{};
-        }
-    ), mstr->last_request);
+    std::errc e = fill_reply_buffer</*ERRNOARGIDX=*/4>(
+        L, op->reply, mstr->last_request);
     if (e != std::errc{}) {
         push(L, e);
         return lua_error(L);
