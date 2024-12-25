@@ -645,6 +645,11 @@ static std::errc fill_reply_buffer(
                 reply_buffer.result = key;
                 break;
             }
+            case LUA_TNIL: {
+                reply_buffer.result = 0;
+                reply_buffer.intargs[0] = AF_UNSPEC;
+                break;
+            }
             case LUA_TTABLE: {
                 reply_buffer.result = 0;
 

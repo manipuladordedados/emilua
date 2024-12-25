@@ -1841,6 +1841,16 @@ static int forward_getaddrinfo(
                 scope_id_strsz];
 
             switch (reply->intargs[0]) {
+            case AF_UNSPEC: {
+                struct addrinfo hints2;
+                std::memset(&hints2, 0, sizeof(struct addrinfo));
+                hints2.ai_family = AF_UNSPEC;
+                hints2.ai_flags = AI_NUMERICSERV;
+
+                // ".invalid" resolves to an empty list
+                return real_getaddrinfo("a.invalid", "0", &hints2, res);
+                break;
+            }
             case AF_INET: {
                 std::uint32_t s_addr;
                 std::memcpy(&s_addr, reply->buffer.data(), sizeof(s_addr));

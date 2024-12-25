@@ -76,6 +76,9 @@ order):
 
 `service: integer\|nil`:: The service port the query resolved to.
 
+Alternatively, if the call should succeed with a reply of 0 elements (a valid
+scenario for DNS and `getaddrinfo()`), the the value `nil` can be used instead.
+
 |===
 
 === `send_with_fds(self, result: value, fds: file_descriptor[], errno: integer|generic_error|system_error = 0)`
@@ -114,6 +117,9 @@ order):
 `ip: ip.address`:: The address the query resolved to.
 
 `service: integer\|nil`:: The service port the query resolved to.
+
+Alternatively, if the call should succeed with a reply of 0 elements (a valid
+scenario for DNS and `getaddrinfo()`), the the value `nil` can be used instead.
 
 |===
 
