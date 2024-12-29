@@ -402,7 +402,7 @@ libemilua_dep = declare_dependency(
 
 libemilua_main = library(
     'emilua-main',
-    re2c_gen.process('src/lib_main.ypp'),
+    ['src/lib_main.cpp'],
     dependencies : [
         thread_dep,
         boost,
@@ -494,7 +494,7 @@ endif
 
 emilua_bin = executable(
     'emilua',
-    ['src/main.cpp'],
+    re2c_gen.process('src/main.ypp'),
     dependencies : [
         # libc_service must be linked first to override glibc functions
         libemilua_libc_service_dep,

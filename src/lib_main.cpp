@@ -55,34 +55,12 @@ namespace asio = boost::asio;
 
 namespace emilua::main {
 
-static constexpr auto help_text = FMT_STRING(
-    "Emilua: Execution engine for luaJIT\n"
-    "Usage: {} [OPTIONS] [file]\n"
-    "\n"
-    "Positionals:\n"
-    "  file TEXT                   Script filename\n"
-    "\n"
-    "Options:\n"
-    "  -h,--help                   Print this help message and exit\n"
-    "  --main-context-concurrency-hint INT\n"
-    "                              Concurrency hint for the main execution engine context\n"
-    "  --test Run tests\n"
-    "  --version                   Output version information and exit\n");
-
 #if BOOST_OS_UNIX
 static std::array<bool, 7> lowfds {
     false, false, false, false, false, false, false };
 static int ipc_actor_service_sockfd = -1;
 #endif // BOOST_OS_UNIX
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
-static std::string filename_buffer;
-static std::string_view filename;
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-static int main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-static int main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-static ContextType main_context_type = ContextType::main;
 
 // Useful to run an Emilua program inside Docker w/o any sort of mini-init
 // supervisor. Also useful if you want to use Emilua to create your own init
@@ -365,195 +343,6 @@ void parse_args(int argc, char *argv[], app_context& appctx)
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-void parse_emilua_bin_args(int argc, char *argv[], app_context& appctx)
-{
-#define NEXT_ARG(OPTION, LABEL) do {                           \
-        if (YYCURSOR = *++cur_arg ; YYCURSOR != nullptr) {     \
-            goto LABEL;                                        \
-        } else {                                               \
-            try {                                              \
-                boost::nowide::cerr <<                         \
-                    "missing value for option `" OPTION "`\n"; \
-            } catch (const std::ios_base::failure&) {}         \
-            std::exit(2);                                      \
-        }                                                      \
-    } while(0)
-
-#define ERRARG(OPTION)                                                     \
-    do {                                                                   \
-        try {                                                              \
-            fmt::print(                                                    \
-                boost::nowide::cerr,                                       \
-                FMT_STRING(                                                \
-                    "value `{}` not supported for option `" OPTION "`\n"), \
-                *cur_arg);                                                 \
-        } catch (const std::ios_base::failure&) {}                         \
-        std::exit(2);                                                      \
-    } while(0)
-
-    /*!re2c
-    re2c:define:YYCTYPE = char;
-    re2c:yyfill:enable = 0;
-    re2c:indent:string = "    ";
-
-    end = "\x00";
-    filename = [^\x00-][^\x00]*;
-    */
-    char* YYCURSOR;
-    char* YYMARKER;
-    char** cur_arg = argv;
-opt:
-    YYCURSOR = *++cur_arg;
-    if (YYCURSOR == nullptr) goto end;
-    %{
-    * {
-        try {
-            fmt::print(boost::nowide::cerr, FMT_STRING("bad option: `{}`\n"),
-                       *cur_arg);
-        } catch (const std::ios_base::failure&) {}
-        std::exit(2);
-    }
-    "--" {end} {
-        appctx.app_args.reserve(2 + ((argv + argc) - (cur_arg + 1)));
-        appctx.app_args.emplace_back(argv[0]);
-        appctx.app_args.emplace_back(filename);
-        while (*++cur_arg) {
-            appctx.app_args.emplace_back(*cur_arg);
-        }
-        goto end;
-    }
-    "-" {end} {
-        try {
-            boost::nowide::cerr << "stdin not supported as input file\n";
-        } catch (const std::ios_base::failure&) {}
-        std::exit(2);
-    }
-    {filename} {end} {
-        if (filename.size() > 0) {
-            try {
-                boost::nowide::cerr <<
-                    "emilua doesn't support more than one input file\n";
-            } catch (const std::ios_base::failure&) {}
-            std::exit(2);
-        }
-        filename = *cur_arg;
-        fs::path as_path{widen_on_windows(filename)};
-        std::error_code ignored_ec;
-        if (fs::is_directory(as_path, ignored_ec)) {
-            // Alternatively, we could apply this transformation inside
-            // `make_master_vm()`. However if the user is using
-            // `modules_cache_registry` or `get_builtin_module()` the query
-            // wouldn't make sense inside `make_master_vm()`. Here's the most
-            // appropriate place to perform filesystem queries and apply such
-            // transformations.
-            as_path /= "init.lua";
-            filename_buffer = as_path.string();
-            filename = filename_buffer;
-        }
-        goto opt;
-    }
-    "-" { goto opt_short; }
-    "--" { goto opt_long; }
-    %}
-
-opt_short:
-    %{
-    * {
-        try {
-            fmt::print(boost::nowide::cerr, FMT_STRING("bad short option: {}\n"),
-                       *cur_arg);
-        } catch (const std::ios_base::failure&) {}
-        std::exit(2);
-    }
-    {end} { goto opt; }
-    "h" {
-        try {
-            fmt::print(boost::nowide::cout, help_text, *argv);
-        } catch (const std::ios_base::failure&) {}
-        std::exit(0);
-    }
-    %}
-
-opt_long:
-    %{
-    * {
-        try {
-            fmt::print(boost::nowide::cerr, FMT_STRING("bad long option: {}\n"),
-                       *cur_arg);
-        } catch (const std::ios_base::failure&) {}
-        std::exit(2);
-    }
-    "help" {end} {
-        try {
-            fmt::print(boost::nowide::cout, help_text, *argv);
-        } catch (const std::ios_base::failure&) {}
-        std::exit(0);
-    }
-    "version" {end} {
-        try {
-            boost::nowide::cout << "Emilua " EMILUA_CONFIG_VERSION_STRING <<
-                std::endl << LUAJIT_VERSION << std::endl <<
-                "Boost " << (BOOST_VERSION / 100000) << '.' <<
-                (BOOST_VERSION / 100 % 1000) << '.' << (BOOST_VERSION % 100) <<
-                std::endl <<
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-                "ASIO " << (ASIO_VERSION / 100000) << '.' <<
-                (ASIO_VERSION / 100 % 1000) << '.' << (ASIO_VERSION % 100) <<
-                std::endl <<
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-                std::flush;
-        } catch (const std::ios_base::failure&) {}
-        std::exit(0);
-    }
-    "main-context-concurrency-hint=" {
-        *cur_arg = YYCURSOR;
-        goto opt_main_context_concurrency_hint;
-    }
-    "main-context-concurrency-hint" {end} {
-        NEXT_ARG("--main-context-concurrency-hint",
-                 opt_main_context_concurrency_hint);
-    }
-    "test" {end} {
-        main_context_type = ContextType::test;
-        goto opt;
-    }
-    %}
-
-opt_main_context_concurrency_hint:
-    %{
-    * { ERRARG("--main-context-concurrency-hint"); }
-    "1" {end} {
-        main_ctx_concurrency_hint_ = 1;
-        goto opt;
-    }
-    "safe" {end} {
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        goto opt;
-    }
-    %}
-end:
-
-    if (filename.size() == 0) {
-        try {
-            boost::nowide::cerr << "missing filename\n";
-        } catch (const std::ios_base::failure&) {}
-        std::exit(2);
-    }
-
-    if (appctx.app_args.size() == 0) {
-        appctx.app_args.reserve(2);
-        appctx.app_args.emplace_back(argv[0]);
-        appctx.app_args.emplace_back(filename);
-    }
-}
-
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-[[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void fill_emilua_path(app_context& appctx)
 {
     if (
@@ -613,23 +402,18 @@ void destroy_native_modules()
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 int main_ctx_concurrency_hint()
 {
-    return main_ctx_concurrency_hint_;
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+    return ASIO_CONCURRENCY_HINT_SAFE;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+    return BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
-{
-    auto vm_ctx = make_vm(ioctx, appctx, main_context_type,
-                          widen_on_windows(filename));
-    appctx.master_vm = vm_ctx;
-    vm_ctx->strand().post([vm_ctx]() {
-        vm_ctx->fiber_resume(
-            vm_ctx->L(),
-            hana::make_set(vm_context::options::skip_clear_interrupter));
-    }, std::allocator<void>{});
-}
+{}
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
