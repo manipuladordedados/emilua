@@ -508,6 +508,16 @@ emilua_bin = executable(
     install : true,
 )
 
+genmain_bin = executable(
+    'emilua-genmain' + meson.project_version().split('.')[0],
+    'tool/genmain.cpp',
+    dependencies : [ libemilua_dep, libemilua_main_dep ],
+    include_directories : include_directories(incdir),
+    implicit_include_directories : false,
+    install : true,
+    install_dir : get_option('libexecdir') / 'emilua',
+)
+
 install_subdir(
     'include/emilua',
     install_dir : get_option('includedir'),
@@ -575,11 +585,14 @@ pkgconfig.generate(
 
         'emilua_bin=${bindir}' / 'emilua',
         'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
+        'emilua_genmain=${libexecdir}' / 'emilua' / 'emilua-genmain' +
+            meson.project_version().split('.')[0],
     ],
     uninstalled_variables : pc_base_variables + [
         'pluginsdir=' + meson.project_build_root() / 'plugins',
         'emilua_bin=' + emilua_bin.full_path(),
         'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
+        'emilua_genmain=' + genmain_bin.full_path(),
     ],
     extra_cflags : pc_extra_cflags,
 )
