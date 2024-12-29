@@ -621,22 +621,14 @@ int main_ctx_concurrency_hint()
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {
-    try {
-        auto vm_ctx = make_vm(ioctx, appctx, main_context_type,
-                              widen_on_windows(filename));
-        appctx.master_vm = vm_ctx;
-        vm_ctx->strand().post([vm_ctx]() {
-            vm_ctx->fiber_resume(
-                vm_ctx->L(),
-                hana::make_set(vm_context::options::skip_clear_interrupter));
-        }, std::allocator<void>{});
-    } catch (std::exception& e) {
-        try {
-            boost::nowide::cerr << "Error starting the lua VM: " <<
-                e.what() << std::endl;
-        } catch (const std::ios_base::failure&) {}
-        std::exit(1);
-    }
+    auto vm_ctx = make_vm(ioctx, appctx, main_context_type,
+                          widen_on_windows(filename));
+    appctx.master_vm = vm_ctx;
+    vm_ctx->strand().post([vm_ctx]() {
+        vm_ctx->fiber_resume(
+            vm_ctx->L(),
+            hana::make_set(vm_context::options::skip_clear_interrupter));
+    }, std::allocator<void>{});
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -769,7 +761,15 @@ int main(int argc, char *argv[], char *envp[])
 # error Invalid thread support level
 #endif
 
-        make_master_vm(appctx, ioctx);
+        try {
+            make_master_vm(appctx, ioctx);
+        } catch (std::exception& e) {
+            try {
+                boost::nowide::cerr << "Error starting the lua VM: " <<
+                    e.what() << std::endl;
+            } catch (const std::ios_base::failure&) {}
+            return 1;
+        }
         run(ioctx);
     }
 
