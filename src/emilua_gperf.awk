@@ -14,11 +14,10 @@
 
 function gperf(context_index    , i, proc, input, out) {
     proc = GPERF_BIN " --language=C++ --enum --readonly-tables --struct-type " \
-        "--initializer-suffix=,{} --class-name=" symbol_prefix context_index
+        "--initializer-suffix=,{} --class-name=Perfect_Hash_" context_index
     input = sprintf( \
-        "struct word_type_%s%i { const char* name; %s; };\n%%%%\n",
-        symbol_prefix, context_index,
-        context[context_index, "param"])
+        "struct word_type_%i { const char* name; %s; };\n%%%%\n",
+        context_index, context[context_index, "param"])
 
     for (i in context[context_index, "pairs"]) {
         input = input i ", EMILUA_GPERF_DETAIL_VALUE" \
@@ -46,28 +45,28 @@ function gperf(context_index    , i, proc, input, out) {
     if (length(context[context_index, "ppguard"]) > 0) {
         output_header = output_header \
             "#if " context[context_index, "ppguard"] "\n" \
-            "namespace emilua::gperf::detail {\n" out \
-            "} // namespace emilua::gperf::detail\n" \
+            "namespace emilua::gperf::detail {\nnamespace {\n" out \
+            "} // namespace\n} // namespace emilua::gperf::detail\n" \
             "#endif // " context[context_index, "ppguard"] "\n"
     } else {
         output_header = output_header \
-            "namespace emilua::gperf::detail {\n" out \
-            "} // namespace emilua::gperf::detail\n"
+            "namespace emilua::gperf::detail {\nnamespace {\n" out \
+            "} // namespace\n} // namespace emilua::gperf::detail\n"
     }
 
     if (length(context[context_index, "default_value"]) > 0) {
         return sprintf( \
             " ::emilua::gperf::detail::value_or(::emilua::gperf::detail::" \
-            "%1$s%2$i::in_word_set((%3$s).data(), (%3$s).size()), %4$s)",
-            symbol_prefix, context_index,
-            context[context_index, "symbol"],
+            "Perfect_Hash_%1$i::" \
+            "in_word_set((%2$s).data(), (%2$s).size()), %3$s)",
+            context_index, context[context_index, "symbol"],
             context[context_index, "default_value"])
     } else {
         return sprintf( \
             " ::emilua::gperf::detail::make_optional(::emilua::gperf::" \
-            "detail::%1$s%2$i::in_word_set((%3$s).data(), (%3$s).size()))",
-            symbol_prefix, context_index,
-            context[context_index, "symbol"])
+            "detail::Perfect_Hash_%1$i::" \
+            "in_word_set((%2$s).data(), (%2$s).size()))",
+            context_index, context[context_index, "symbol"])
     }
 }
 
@@ -221,9 +220,6 @@ BEGIN {
 namespace emilua::gperf::detail { using std::size_t; using std::strcmp; }\n\
 \n"
     output_body = ""
-    symbol_prefix = FILENAME
-    gsub(/[^[:alpha:]_]+/, "_", symbol_prefix)
-    symbol_prefix = "gperf_" symbol_prefix "_"
     context["next"] = 1
     context["next_value"] = 1
     while (match($0, /EMILUA_GPERF_(BEGIN|DECLS_BEGIN)/)) {
