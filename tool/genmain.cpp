@@ -44,7 +44,12 @@ do
             'Usage:\n', '\n', 'genmain directory/containing/init.lua\n'))
         system.exit(1)
     end
-    input = fs.path.new(arguments[1])
+    input = fs.path.new(arguments[1]):lexically_normal()
+    if not fs.is_directory(input) then
+        stream.write_all(system.err, format(
+            '{:?} is not a directory\n', tostring(input)))
+        system.exit(1)
+    end
 end
 
 local source_tree = {}
