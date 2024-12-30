@@ -118,7 +118,7 @@ stream.write_all(system.out, byte_span.append(
     [[
     std::optional<std::string_view> get_builtin_module(const fs::path& p)
     {
-        auto k = p.string();
+        auto k = p.generic_string();
         auto v = Perfect_Hash::in_word_set(k.data(), k.size());
         if (!v) {
             return std::nullopt;
