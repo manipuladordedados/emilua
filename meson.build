@@ -461,35 +461,37 @@ else
         objects : libemilua_libc_service.extract_all_objects(),
     )
 
-    preload_libc_src = [
-        'src/open_posix_libs.cpp',
-        'src/preload_libc.cpp',
-    ]
+    if not ('-static' in get_option('cpp_link_args'))
+        preload_libc_src = [
+            'src/open_posix_libs.cpp',
+            'src/preload_libc.cpp',
+        ]
 
-    preload_libc_gperf_src = [
-        'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
-    ]
+        preload_libc_gperf_src = [
+            'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
+        ]
 
-    if host_machine.system() == 'linux'
-        preload_libc_gperf_src += 'src/linux/landlock.cpp'
+        if host_machine.system() == 'linux'
+            preload_libc_gperf_src += 'src/linux/landlock.cpp'
+        endif
+
+        libemilua_preload_libc = shared_library(
+            'emilua-preload-libc',
+            libc_service_src,
+            preload_libc_src,
+            gperf_gen.process(preload_libc_gperf_src),
+            dependencies : [
+                cereal,
+                libcap,
+                luajit,
+                boost,
+            ],
+            include_directories : include_directories(incdir),
+            implicit_include_directories : false,
+            version : meson.project_version(),
+            install : true,
+        )
     endif
-
-    libemilua_preload_libc = shared_library(
-        'emilua-preload-libc',
-        libc_service_src,
-        preload_libc_src,
-        gperf_gen.process(preload_libc_gperf_src),
-        dependencies : [
-            cereal,
-            libcap,
-            luajit,
-            boost,
-        ],
-        include_directories : include_directories(incdir),
-        implicit_include_directories : false,
-        version : meson.project_version(),
-        install : true,
-    )
 endif
 
 emilua_bin = executable(
@@ -615,19 +617,21 @@ if libc_service_src.length() != 0
         requires : ['emilua'],
     )
 
-    pkgconfig.generate(
-        filebase : 'emilua_preload_libc',
-        name : 'Emilua\'s LD_PRELOAD for ambient authority',
-        description : 'in sandboxed mode, we forward requests to process ' +
-            'outside the sandbox',
-        variables : [
-            'libpath=' + get_option('prefix') / get_option('libdir') / fs.name(
-                libemilua_preload_libc.full_path()),
-        ],
-        uninstalled_variables : [
-            'libpath=' + libemilua_preload_libc.full_path(),
-        ],
-    )
+    if not ('-static' in get_option('cpp_link_args'))
+        pkgconfig.generate(
+            filebase : 'emilua_preload_libc',
+            name : 'Emilua\'s LD_PRELOAD for ambient authority',
+            description : 'in sandboxed mode, we forward requests to process ' +
+                'outside the sandbox',
+            variables : [
+                'libpath=' + get_option('prefix') / get_option('libdir') /
+                    fs.name(libemilua_preload_libc.full_path()),
+            ],
+            uninstalled_variables : [
+                'libpath=' + libemilua_preload_libc.full_path(),
+            ],
+        )
+    endif
 endif
 
 if get_option('enable_tests')
@@ -676,8 +680,10 @@ if get_option('enable_tests')
         tests_env += ('APPVEYOR_FIXUP=' +
             meson.current_source_dir() / 'test' / 'force_windows.awk')
     else
-        tests_env += ('EMILUA_PRELOAD_LIBC_PATH=' +
-            libemilua_preload_libc.full_path())
+        if not ('-static' in get_option('cpp_link_args'))
+            tests_env += ('EMILUA_PRELOAD_LIBC_PATH=' +
+                libemilua_preload_libc.full_path())
+        endif
     endif
 
     tests = {
@@ -1032,12 +1038,14 @@ if get_option('enable_tests')
                 'spawn_with_pid_on_env',
             ],
             'libc_service' : [
-                'libc_service_cat',
                 'libc_service_getaddrinfo',
                 'libc_service_getaddrinfo2',
                 'libc_service_getaddrinfo3',
                 'libc_service_getaddrinfo4',
             ] +
+            (('-static' in get_option('cpp_link_args')) ? [] : [
+                'libc_service_cat',
+            ]) +
             (get_option('enable_io_uring') ? [] : [
                 'libc_service_connect',
                 'libc_service_connect2',
