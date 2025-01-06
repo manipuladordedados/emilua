@@ -418,7 +418,7 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-void run(asio::io_context& ioctx)
+void run(app_context& /*appctx*/, asio::io_context& ioctx)
 {
     ioctx.run();
 }
@@ -554,7 +554,7 @@ int main(int argc, char *argv[], char *envp[])
             } catch (const std::ios_base::failure&) {}
             return 1;
         }
-        run(ioctx);
+        run(appctx, ioctx);
     }
 
     {
