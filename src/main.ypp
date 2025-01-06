@@ -65,6 +65,13 @@ void parse_args(int argc, char *argv[], app_context& appctx)
         std::exit(2);                                                      \
     } while(0)
 
+    if (argc <= 0) {
+        try {
+            boost::nowide::cerr << "missing filename\n";
+        } catch (const std::ios_base::failure&) {}
+        std::exit(2);
+    }
+
     /*!re2c
     re2c:define:YYCTYPE = char;
     re2c:yyfill:enable = 0;

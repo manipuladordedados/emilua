@@ -331,8 +331,11 @@ void fill_forker_service_socket(app_context& appctx)
 void parse_args(int argc, char *argv[], app_context& appctx)
 {
     appctx.app_args.resize(2);
-    if (argc > 0)
-        appctx.app_args[0] = argv[0];
+
+    if (argc <= 0)
+        return;
+
+    appctx.app_args[0] = argv[0];
 
     char** cur_arg = argv;
     while (*++cur_arg) {
