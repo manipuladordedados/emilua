@@ -1371,30 +1371,21 @@ static int socket_handshake(lua_State* L)
         return lua_error(L);
     }
 
-    lua_pushvalue(L, 1);
-    lua_pushcclosure(
-        L,
-        [](lua_State* L) -> int {
-            auto s = static_cast<TlsSocket*>(
-                lua_touserdata(L, lua_upvalueindex(1)));
-            asio_error_code ignored_ec;
-            s->next_layer().cancel(ignored_ec);
-            return 0;
-        },
-        1);
-    set_interrupter(L, *vm_ctx);
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
-    s->async_handshake(HANDSHAKE, asio::bind_executor(
-        vm_ctx->strand_using_defer(),
-        [vm_ctx,current_fiber](const asio_error_code& ec) {
-            auto opt_args = vm_context::options::arguments;
-            vm_ctx->fiber_resume(
-                current_fiber,
-                hana::make_set(
-                    vm_context::options::auto_detect_interrupt,
-                    hana::make_pair(opt_args, hana::make_tuple(ec))));
-        }
-    ));
+    s->async_handshake(
+        HANDSHAKE,
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
+            vm_ctx->strand_using_defer(),
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
+                auto opt_args = vm_context::options::arguments;
+                vm_ctx->fiber_resume(
+                    current_fiber,
+                    hana::make_set(
+                        vm_context::options::auto_detect_interrupt,
+                        hana::make_pair(opt_args, hana::make_tuple(ec))));
+            }
+        )));
 
     return lua_yield(L, 0);
 }
@@ -1429,22 +1420,11 @@ static int tls_socket_read_some(lua_State* L)
         return lua_error(L);
     }
 
-    lua_pushvalue(L, 1);
-    lua_pushcclosure(
-        L,
-        [](lua_State* L) -> int {
-            auto s = static_cast<TlsSocket*>(
-                lua_touserdata(L, lua_upvalueindex(1)));
-            asio_error_code ignored_ec;
-            s->next_layer().cancel(ignored_ec);
-            return 0;
-        },
-        1);
-    set_interrupter(L, *vm_ctx);
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
     s->async_read_some(
         asio::buffer(bs->data.get(), bs->size),
-        asio::bind_executor(
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
                 const asio_error_code& ec, std::size_t bytes_transferred
@@ -1458,7 +1438,7 @@ static int tls_socket_read_some(lua_State* L)
                             vm_context::options::arguments,
                             hana::make_tuple(ec, bytes_transferred))));
             }
-        )
+        ))
     );
 
     return lua_yield(L, 0);
@@ -1494,22 +1474,11 @@ static int tls_socket_write_some(lua_State* L)
         return lua_error(L);
     }
 
-    lua_pushvalue(L, 1);
-    lua_pushcclosure(
-        L,
-        [](lua_State* L) -> int {
-            auto s = static_cast<TlsSocket*>(
-                lua_touserdata(L, lua_upvalueindex(1)));
-            asio_error_code ignored_ec;
-            s->next_layer().cancel(ignored_ec);
-            return 0;
-        },
-        1);
-    set_interrupter(L, *vm_ctx);
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
 
     s->async_write_some(
         asio::buffer(bs->data.get(), bs->size),
-        asio::bind_executor(
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
             vm_ctx->strand_using_defer(),
             [vm_ctx,current_fiber,buf=bs->data](
                 const asio_error_code& ec, std::size_t bytes_transferred
@@ -1523,7 +1492,7 @@ static int tls_socket_write_some(lua_State* L)
                             vm_context::options::arguments,
                             hana::make_tuple(ec, bytes_transferred))));
             }
-        )
+        ))
     );
 
     return lua_yield(L, 0);
