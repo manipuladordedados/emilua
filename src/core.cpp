@@ -401,6 +401,9 @@ void vm_context::fiber_epilogue(int resume_result)
             }
 
             if (resume_result == LUA_ERRRUN) {
+                if (is_main && is_master()) {
+                    appctx.exit_code = 1;
+                }
                 try {
                     lua_rawgeti(current_fiber_, -2, FiberDataIndex::STACKTRACE);
                     lua_pushvalue(current_fiber_, -5);
