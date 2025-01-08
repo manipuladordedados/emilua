@@ -129,6 +129,13 @@ else
     ssl = dependency('openssl', version : '>=1.1.1')
 endif
 
+cpp_link_args_without_static = []
+foreach e : get_option('cpp_link_args')
+    if e not in ['-static']
+        cpp_link_args_without_static += e
+    endif
+endforeach
+
 bytecode_gen = generator(
     executable(
         'luabcxxd',
@@ -480,6 +487,9 @@ else
             libc_service_src,
             preload_libc_src,
             gperf_gen.process(preload_libc_gperf_src),
+            override_options : {
+                'cpp_link_args' : cpp_link_args_without_static,
+            },
             dependencies : [
                 cereal,
                 libcap,
