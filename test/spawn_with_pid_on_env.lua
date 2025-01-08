@@ -10,13 +10,13 @@ spawn(function()
     po:close()
 end):detach()
 
+local p_env = system.environment
+p_env.LISTEN_PID = '\0pid'
+p_env.LISTEN_FDS = '1'
 system.spawn{
     program = fs.path.new(system.arguments[1]),
     arguments = { 'emilua', 'spawn_with_pid_on_env_getlowfd.lua' },
-    environment = {
-        LISTEN_PID = '\0pid',
-        LISTEN_FDS = '1'
-    },
+    environment = p_env,
     stdout = 'share',
     stderr = 'share',
     extra_fds = {
