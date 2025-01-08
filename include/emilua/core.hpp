@@ -274,6 +274,18 @@ public:
     remap_post_to_defer(const remap_post_to_defer&) = default;
     remap_post_to_defer(remap_post_to_defer&&) = default;
 
+    // ASIO_EXECUTION_EXECUTOR unconditionally requires this
+    // member-function. Even asio::io_context::strand will fail the test so I
+    // think it's a bug in ASIO_EXECUTION_EXECUTOR. The purpose here is just to
+    // implement the concept so we can use remap_post_to_defer from
+    // asio::any_completion_executor.
+    template<class Function>
+    void execute(Function&& f) const
+    {
+        throw std::system_error{std::make_error_code(
+            std::errc::function_not_supported)};
+    }
+
     explicit remap_post_to_defer(const Executor& ex)
         : Executor(ex)
     {}
