@@ -74,3 +74,89 @@ default.
 Whether the proxified function forwards the request to the real libc depends on
 ``libc_service.master``'s reply. If the Lua chunk never calls the proxified
 function, then the proxified function never even runs.
+
+== Available Lua filters
+
+This section lists the Lua filters you can implement to run when an interposed
+libc function is called.
+
+=== `open(real_open: function, path: string, flags: integer[, mode: integer]) -> integer[, integer]`
+
+Returns:
+
+* The value for ``open()``'s return.
+* Optional: The value for `errno`.
+
+=== `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
+
+Returns:
+
+* The value for ``connect()``'s return.
+* Optional: The value for `errno`.
+
+=== `connect_inet(real_connect: function, fd: integer, ipv4_addr: integer[], port: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``connect()``'s return.
+* Optional: The value for `errno`.
+
+=== `connect_inet6(real_connect: function, fd: integer, ipv6_addr: integer[], port: integer, scope_id: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``connect()``'s return.
+* Optional: The value for `errno`.
+
+=== `bind_unix(real_bind: function, fd: integer, path: string) -> integer[, integer]`
+
+Returns:
+
+* The value for ``bind()``'s return.
+* Optional: The value for `errno`.
+
+=== `bind_inet(real_bind: function, fd: integer, ipv4_addr: integer[], port: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``bind()``'s return.
+* Optional: The value for `errno`.
+
+=== `bind_inet6(real_bind: function, fd: integer, ipv6_addr: integer[], port: integer, scope_id: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``bind()``'s return.
+* Optional: The value for `errno`.
+
+=== `getaddrinfo(real_getaddrinfo: function, node: string, service: string, protocol: "tcp"|"udp"|nil) -> ...`
+
+To indicate failure, this function should return one of strings below or some
+equivalent integer code:
+
+* `"again"`
+* `"badflags"`
+* `"fail"`
+* `"family"`
+* `"memory"`
+* `"noname"`
+* `"service"`
+* `"socktype"`
+* `"system"`
+
+If `"system"` is returned, another integer value for `errno` should follow.
+
+To indicate success without any resolved address, the function should return
+just `nil`.
+
+To indicate success with a resolved address, the function should return the
+following values:
+
+`nil`:: It's here just to disambiguate against other cases.
+
+`ip_addr: integer[]`::
+
+On IPv6 addresses, it should include an extra integer at the end for the scope
+ID.
+
+`port: integer`:: The port.
