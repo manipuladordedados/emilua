@@ -44,6 +44,8 @@ include::pages/filesystem.copy_symlink.adoc[]
 
 include::pages/filesystem.create_directory.adoc[]
 
+include::pages/filesystem.open.adoc[]
+
 include::pages/filesystem.mkdir.adoc[]
 
 include::pages/filesystem.create_hardlink.adoc[]

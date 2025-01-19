@@ -41,6 +41,7 @@
 *** xref:ref:filesystem.copy_file.adoc[copy_file]
 *** xref:ref:filesystem.copy_symlink.adoc[copy_symlink]
 *** xref:ref:filesystem.create_directory.adoc[create_directory]
+*** xref:ref:filesystem.open.adoc[open]
 *** xref:ref:filesystem.mkdir.adoc[mkdir]
 *** xref:ref:filesystem.create_hardlink.adoc[create_hardlink]
 *** xref:ref:filesystem.create_symlink.adoc[create_symlink]

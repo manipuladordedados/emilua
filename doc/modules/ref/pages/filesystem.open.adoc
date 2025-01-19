@@ -1,0 +1,54 @@
+= filesystem.open
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.open(path: fs.path, flags: string[][, mode: integer]) -> file_descriptor
+----
+
+== Description
+
+Open the file using the specified path.
+
+`flags` may contain:
+
+`"append"`:: Open the file in append mode.
+
+`"create"`:: Create the file if it does not exist.
+
+`"exclusive"`:: Ensure a new file is created. Must be combined with create.
+
+`"read_only"`:: Open the file for reading.
+
+`"read_write"`:: Open the file for reading and writing.
+
+`"sync_all_on_write"`:: Open the file so that write operations automatically
+synchronise the file data and metadata to disk
+(`FILE_FLAG_WRITE_THROUGH`/`O_SYNC`).
+
+`"truncate"`:: Open the file with any existing contents truncated.
+
+`"write_only"`:: Open the file for writing.
+
+`"directory"`:: Fail if `path` resolves to a non-directory file.
+
+`"no_follow"`:: Fail if `path` resolves to a symbolic link.
+
+`"path"`:: Get a stable reference to an inode without actually opening the
+contents.
+
+NOTE: *Not* available on Windows.
+
+== See also
+
+* xref:file.stream.adoc[file.stream(3em)]
