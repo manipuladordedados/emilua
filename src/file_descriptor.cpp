@@ -3,6 +3,8 @@
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file_descriptor.hpp>
+#include <emilua/ambient_authority.hpp>
+#include <emilua/filesystem.hpp>
 
 #include <charconv>
 
@@ -38,6 +40,8 @@ char file_descriptor_mt_key;
 
 EMILUA_GPERF_DECLS_BEGIN(file_descriptor)
 EMILUA_GPERF_NAMESPACE(emilua)
+
+namespace fs = std::filesystem;
 
 static char closed_file_descriptor_mt_key;
 
@@ -322,6 +326,145 @@ static int file_descriptor_kcmp(lua_State* L)
     return 1;
 }
 #endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
+
+#if BOOST_OS_UNIX
+static int file_descriptor_openat(lua_State* L)
+{
+    lua_settop(L, 4);
+
+    auto handle1 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle1 || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle1 == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    auto path = static_cast<fs::path*>(lua_touserdata(L, 2));
+    if (!path || !lua_getmetatable(L, 2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    open_how how;
+    std::memset(&how, 0, sizeof(how));
+    for (int i = 1 ;; ++i) {
+        lua_rawgeti(L, 3, i);
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        case LUA_TNIL:
+            lua_pop(L, 1);
+            goto end_for;
+        case LUA_TSTRING:
+            break;
+        }
+
+        auto s = tostringview(L);
+        lua_pop(L, 1);
+        auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PARAM(int action)
+            EMILUA_GPERF_PAIR("append", O_APPEND)
+            EMILUA_GPERF_PAIR("create", O_CREAT)
+            EMILUA_GPERF_PAIR("exclusive", O_EXCL)
+            EMILUA_GPERF_PAIR("read_only", O_RDONLY)
+            EMILUA_GPERF_PAIR("read_write", O_RDWR)
+            EMILUA_GPERF_PAIR("sync_all_on_write", O_SYNC)
+            EMILUA_GPERF_PAIR("truncate", O_TRUNC)
+            EMILUA_GPERF_PAIR("write_only", O_WRONLY)
+            EMILUA_GPERF_PAIR("directory", O_DIRECTORY)
+            EMILUA_GPERF_PAIR("no_follow", O_NOFOLLOW)
+            EMILUA_GPERF_PAIR("path", O_PATH)
+        EMILUA_GPERF_END(s);
+        if (f) {
+            how.flags |= *f;
+        } else {
+            auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PARAM(std::uint64_t action)
+                EMILUA_GPERF_PAIR("resolve_beneath", open_how::resolve_beneath)
+                EMILUA_GPERF_PAIR("resolve_in_root", open_how::resolve_in_root)
+                EMILUA_GPERF_PAIR(
+                    "resolve_no_magiclinks", open_how::resolve_no_magiclinks)
+                EMILUA_GPERF_PAIR(
+                    "resolve_no_symlinks", open_how::resolve_no_symlinks)
+                EMILUA_GPERF_PAIR("resolve_no_xdev", open_how::resolve_no_xdev)
+                EMILUA_GPERF_PAIR("resolve_cached", open_how::resolve_cached)
+            EMILUA_GPERF_END(s);
+            if (f) {
+                how.resolve |= *f;
+            } else {
+                push(L, std::errc::invalid_argument, "arg", 3);
+                return lua_error(L);
+            }
+        }
+    }
+ end_for:
+
+    switch (lua_type(L, 4)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 4);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TNUMBER:
+        how.mode = lua_tointeger(L, 4);
+        break;
+    }
+
+    int res;
+    if (how.resolve == 0) {
+        if (
+            ((how.flags & O_CREAT) == O_CREAT) ||
+#ifdef O_TMPFILE
+            ((how.flags & O_TMPFILE) == O_TMPFILE) ||
+#endif // defined(O_TMPFILE)
+            false
+        ) {
+            res = openat(*handle1, path->c_str(), how.flags, how.mode);
+        } else {
+            res = openat(*handle1, path->c_str(), how.flags);
+        }
+    } else {
+        res = openat2(*handle1, path->c_str(), &how);
+    }
+    if (res == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    int rawfd = res;
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (rawfd != INVALID_FILE_DESCRIPTOR) {
+            int res = close(rawfd);
+            boost::ignore_unused(res);
+        }
+    };
+
+    auto handle2 = static_cast<file_descriptor_handle*>(
+        lua_newuserdata(L, sizeof(file_descriptor_handle))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    setmetatable(L, -2);
+
+    *handle2 = rawfd;
+    rawfd = INVALID_FILE_DESCRIPTOR;
+    return 1;
+}
+#endif // BOOST_OS_UNIX
 
 inline int file_descriptor_non_blocking_get(lua_State* L)
 {
@@ -842,6 +985,16 @@ static int file_descriptor_mt_index(lua_State* L)
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "openat",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, file_descriptor_openat);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(

@@ -47,6 +47,7 @@ Send the result for the currently arbitrated libc call.
 |Function |`result`
 
 |open |integer
+|openat |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -89,6 +90,7 @@ Send the result for the currently arbitrated libc call.
 |Function |`result`
 
 |open |integer
+|openat |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -167,6 +169,57 @@ synchronise the file data and metadata to disk
 `mode: integer`::: Optional argument. Only present if `"create"` or
 `"temporary"` appear in `flags`.
 
+`openat`::
+
+`path: filesystem.path`::: The file path.
+
+`flags: string[]`::: The open flags.
++
+`flags` may contain:
+
+`"append"`:::: Open the file in append mode.
+
+`"create"`:::: Create the file if it does not exist.
+
+`"directory"`:::: If pathname is not a directory, cause the open to fail.
+
+`"exclusive"`:::: Ensure a new file is created. Must be combined with create.
+
+`"read_only"`:::: Open the file for reading.
+
+`"read_write"`:::: Open the file for reading and writing.
+
+`"sync_all_on_write"`:::: Open the file so that write operations automatically
+synchronise the file data and metadata to disk
+(`FILE_FLAG_WRITE_THROUGH`/`O_SYNC`).
+
+`"temporary"`:::: Create an unnamed temporary regular file.
+
+`"truncate"`:::: Open the file with any existing contents truncated.
+
+`"write_only"`:::: Open the file for writing.
+
+`"resolve_beneath"`:::: Path resolution must not cross the fd directory.
+
+`"resolve_in_root"`:::: Treat the directory referred to by dirfd as the root
+directory while resolving pathname. Absolute symbolic links are interpreted
+relative to dirfd.
+
+`"resolve_no_magiclinks"`:::: Disallow all magic-link resolution during path
+resolution.
+
+`"resolve_no_symlinks"`:::: Disallow resolution of symbolic links during path
+resolution.
+
+`"resolve_no_xdev"`:::: Disallow traversal of mount points during path
+resolution (including all bind mounts).
+
+`"resolve_cached"`:::: Make the open operation fail unless all path components
+are already present in the kernel's lookup cache.
+
+`mode: integer`::: Optional argument. Only present if `"create"` or
+`"temporary"` appear in `flags`.
+
 `connect_unix`::
 
 `path: filesystem.path`::: The UNIX socket path.
@@ -225,6 +278,7 @@ The last requested call.
 Possible values:
 
 * `"open"`
+* `"openat"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

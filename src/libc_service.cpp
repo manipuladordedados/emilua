@@ -3,12 +3,14 @@
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/proc_set_libc_service.hpp>
+#include <emilua/ambient_authority.hpp>
 #include <emilua/file_descriptor.hpp>
 #include <emilua/libc_service.hpp>
 #include <emilua/detail/core.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/ip.hpp>
+
 
 #include <boost/hana/functional/overload_linearly.hpp>
 #include <boost/container/small_vector.hpp>
@@ -43,6 +45,12 @@ struct open_request
     std::string path;
     int oflag;
     mode_t mode;
+};
+
+struct openat_request
+{
+    std::string path;
+    open_how how;
 };
 
 struct connect_unix_request
@@ -108,6 +116,7 @@ struct master
     std::variant<
         std::monostate,
         open_request,
+        openat_request,
         connect_unix_request,
         connect_inet_request,
         connect_inet6_request,
@@ -270,6 +279,32 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
 
             master.last_request.emplace<open_request>(
                 static_cast<std::string>(path), oflag, mode);
+            break;
+        }
+        case request::OPENAT: {
+            if (fds.size() < 1) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+
+            std::string_view path{request.buffer.data(), request.buffer.size()};
+            {
+                auto idx = path.find('\0');
+                if (idx == path.npos)
+                    return close_socket_and_resume_fiber_with_ebadmsg();
+
+                path = path.substr(0, idx);
+            }
+
+            open_how how;
+            how.flags = request.uintargs[0];
+            how.mode = static_cast<int>(fs::perms::mask) & request.intargs[0];
+            how.resolve = request.uintargs[1];
+            if ((how.resolve & ~open_how::resolve_mask) != 0) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+
+            master.last_request.emplace<openat_request>(
+                static_cast<std::string>(path), how);
             break;
         }
         case request::CONNECT_UNIX: {
@@ -1096,6 +1131,131 @@ static int master_arguments(lua_State* L)
                 return 2;
             }
         },
+        [&](const openat_request& r) {
+            auto p = static_cast<fs::path*>(
+                lua_newuserdata(L, sizeof(fs::path)));
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            setmetatable(L, -2);
+            new (p) fs::path{};
+            *p = fs::path{r.path, fs::path::native_format};
+
+            lua_newtable(L);
+            {
+                int i = 1;
+
+                if ((r.how.flags & O_APPEND) == O_APPEND) {
+                    lua_pushliteral(L, "append");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_CREAT) == O_CREAT) {
+                    lua_pushliteral(L, "create");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_EXCL) == O_EXCL) {
+                    lua_pushliteral(L, "exclusive");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_RDWR) == O_RDWR) {
+                    lua_pushliteral(L, "read_write");
+                    lua_rawseti(L, -2, i++);
+                } else if ((r.how.flags & O_WRONLY) == O_WRONLY) {
+                    lua_pushliteral(L, "write_only");
+                    lua_rawseti(L, -2, i++);
+                } else if ((r.how.flags & O_RDONLY) == O_RDONLY) {
+                    lua_pushliteral(L, "read_only");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_SYNC) == O_SYNC) {
+                    lua_pushliteral(L, "sync_all_on_write");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_TRUNC) == O_TRUNC) {
+                    lua_pushliteral(L, "truncate");
+                    lua_rawseti(L, -2, i++);
+                }
+
+#ifdef O_TMPFILE
+                if ((r.how.flags & O_TMPFILE) == O_TMPFILE) {
+                    lua_pushliteral(L, "temporary");
+                    lua_rawseti(L, -2, i++);
+                } else if ((r.how.flags & O_DIRECTORY) == O_DIRECTORY) {
+                    lua_pushliteral(L, "directory");
+                    lua_rawseti(L, -2, i++);
+                }
+#else // defined(O_TMPFILE)
+                if ((r.how.flags & O_DIRECTORY) == O_DIRECTORY) {
+                    lua_pushliteral(L, "directory");
+                    lua_rawseti(L, -2, i++);
+                }
+#endif // defined(O_TMPFILE)
+
+                if (
+                    (r.how.resolve & open_how::resolve_beneath) ==
+                    open_how::resolve_beneath
+                ) {
+                    lua_pushliteral(L, "resolve_beneath");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if (
+                    (r.how.resolve & open_how::resolve_in_root) ==
+                    open_how::resolve_in_root
+                ) {
+                    lua_pushliteral(L, "resolve_in_root");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if (
+                    (r.how.resolve & open_how::resolve_no_magiclinks) ==
+                    open_how::resolve_no_magiclinks
+                ) {
+                    lua_pushliteral(L, "resolve_no_magiclinks");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if (
+                    (r.how.resolve & open_how::resolve_no_symlinks) ==
+                    open_how::resolve_no_symlinks
+                ) {
+                    lua_pushliteral(L, "resolve_no_symlinks");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if (
+                    (r.how.resolve & open_how::resolve_no_xdev) ==
+                    open_how::resolve_no_xdev
+                ) {
+                    lua_pushliteral(L, "resolve_no_xdev");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if (
+                    (r.how.resolve & open_how::resolve_cached) ==
+                    open_how::resolve_cached
+                ) {
+                    lua_pushliteral(L, "resolve_cached");
+                    lua_rawseti(L, -2, i++);
+                }
+            }
+
+            if (
+                ((r.how.flags & O_CREAT) == O_CREAT) ||
+#ifdef O_TMPFILE
+                ((r.how.flags & O_TMPFILE) == O_TMPFILE) ||
+#endif // defined(O_TMPFILE)
+                false
+            ) {
+                lua_pushinteger(L, r.how.mode);
+                return 3;
+            } else {
+                return 2;
+            }
+        },
         [&](const connect_unix_request& r) {
             auto p = static_cast<fs::path*>(
                 lua_newuserdata(L, sizeof(fs::path)));
@@ -1208,6 +1368,21 @@ static int master_descriptors(lua_State* L)
             return lua_error(L);
         },
         [&](const open_request& r) { return einval(L); },
+        [&](const openat_request& r) {
+            if (mstr->last_fds[0] == -1) {
+                lua_pushnil(L);
+                return 1;
+            } else {
+                auto fdhandle = static_cast<file_descriptor_handle*>(
+                    lua_newuserdata(L, sizeof(file_descriptor_handle))
+                );
+                rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                setmetatable(L, -2);
+                *fdhandle = mstr->last_fds[0];
+                mstr->last_fds[0] = -1;
+                return 1;
+            }
+        },
         [&](const connect_unix_request& r) {
             if (mstr->last_fds[0] == -1) {
                 lua_pushnil(L);
@@ -1312,6 +1487,10 @@ inline int master_function_(lua_State* L)
         },
         [&](const open_request&) {
             lua_pushliteral(L, "open");
+            return 1;
+        },
+        [&](const openat_request&) {
+            lua_pushliteral(L, "openat");
             return 1;
         },
         [&](const connect_unix_request&) {
@@ -1421,6 +1600,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PARAM(int action)
         EMILUA_GPERF_DEFAULT_VALUE(-1)
         EMILUA_GPERF_PAIR("open", libc_service::request::OPEN)
+        EMILUA_GPERF_PAIR("openat", libc_service::request::OPENAT)
         EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
         EMILUA_GPERF_PAIR("connect_inet", libc_service::request::CONNECT_INET)
         EMILUA_GPERF_PAIR("connect_inet6", libc_service::request::CONNECT_INET6)

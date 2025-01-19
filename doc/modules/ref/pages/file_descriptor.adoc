@@ -31,6 +31,54 @@ Creates a new file descriptor that refers to the same open file description.
 
 See kcmp(2) and `KCMP_FILE`.
 
+=== `openat(self, path: filesystem.path, flags: string[][, mode: integer]) -> file_descriptor`
+
+`flags` may contain:
+
+`"append"`:: Open the file in append mode.
+
+`"create"`:: Create the file if it does not exist.
+
+`"exclusive"`:: Ensure a new file is created. Must be combined with create.
+
+`"read_only"`:: Open the file for reading.
+
+`"read_write"`:: Open the file for reading and writing.
+
+`"sync_all_on_write"`:: Open the file so that write operations automatically
+synchronise the file data and metadata to disk (`O_SYNC`).
+
+`"truncate"`:: Open the file with any existing contents truncated.
+
+`"write_only"`:: Open the file for writing.
+
+`"directory"`:: Fail if `path` resolves to a non-directory file.
+
+`"no_follow"`:: Fail if `path` resolves to a symbolic link.
+
+`"path"`:: Get a stable reference to an inode without actually opening the
+contents.
+
+`"resolve_beneath"`:: Path resolution must not cross the fd directory.
+
+`"resolve_in_root"`:: Treat the directory referred to by dirfd as the root
+directory while resolving pathname. Absolute symbolic links are interpreted
+relative to dirfd.
+
+`"resolve_no_magiclinks"`:: Disallow all magic-link resolution during path
+resolution.
+
+`"resolve_no_symlinks"`:: Disallow resolution of symbolic links during path
+resolution.
+
+`"resolve_no_xdev"`:: Disallow traversal of mount points during path resolution
+(including all bind mounts).
+
+`"resolve_cached"`:: Make the open operation fail unless all path components are
+already present in the kernel's lookup cache.
+
+See openat(3).
+
 === `cap_get(self) -> system.linux_capabilities`
 
 See cap_get_fd(3).

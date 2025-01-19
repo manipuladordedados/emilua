@@ -128,6 +128,19 @@ struct lua_filter
             }
         }
 
+        if (filters.contains(request::OPENAT)) {
+            const auto& src = filters[request::OPENAT];
+
+            lua_pushlightuserdata(L, &openat_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
+
         if (filters.contains(request::CONNECT_UNIX)) {
             const auto& src = filters[request::CONNECT_UNIX];
 
@@ -229,6 +242,7 @@ struct lua_filter
 
     static std::map<int, std::string> filters;
     static char open_key;
+    static char openat_key;
     static char connect_unix_key;
     static char connect_inet_key;
     static char connect_inet6_key;
@@ -240,6 +254,7 @@ struct lua_filter
 
 std::map<int, std::string> lua_filter::filters;
 char lua_filter::open_key;
+char lua_filter::openat_key;
 char lua_filter::connect_unix_key;
 char lua_filter::connect_inet_key;
 char lua_filter::connect_inet6_key;
@@ -600,6 +615,264 @@ static int my_open(
     if (lua_pcall(
         L, /*nargs=*/has_mode ? 4 : 3, /*nresults=*/2, /*errfunc=*/0) != 0
     ) {
+        lua_pop(L, 1);
+        return on_lua_fail();
+    }
+
+    if (lua_type(L, -2) != LUA_TNUMBER) {
+        lua_pop(L, 2);
+        return on_lua_fail();
+    }
+    int res = lua_tointeger(L, -2);
+    switch (lua_type(L, -1)) {
+    default:
+        lua_pop(L, 2);
+        return on_lua_fail();
+    case LUA_TNIL:
+        lua_pop(L, 2);
+        break;
+    case LUA_TNUMBER: {
+        auto saved_errno = lua_tointeger(L, -1);
+        lua_pop(L, 2);
+        errno = saved_errno;
+        break;
+    }
+    }
+    return res;
+}
+
+static int forward_openat2(
+    int (*real_openat2)(int, const char*, open_how*),
+    fds_type& fds, int dirfd, const char* path, open_how* how)
+{
+    fds.fill(-1);
+
+    if (fcntl(dirfd, F_GETFD) == -1 && errno == EBADF) {
+        return -1;
+    }
+
+    auto request = get_fresh_request_object();
+    request->function = request::OPENAT;
+
+    auto pathlen = std::strlen(path);
+    if (request->buffer.size() < pathlen + 1) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    std::memcpy(request->buffer.data(), path, pathlen + 1);
+
+    request->intargs[0] = how->mode;
+    request->uintargs[0] = how->flags;
+    request->uintargs[1] = how->resolve;
+
+    struct msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+
+    struct iovec iov;
+    iov.iov_base = request.get();
+    iov.iov_len = sizeof(struct request);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    std::memcpy(CMSG_DATA(cmsg), &dirfd, sizeof(int));
+
+    if (TEMP_FAILURE_RETRY(sendmsg(sockfd, &msg, MSG_NOSIGNAL)) == -1) {
+        return real_openat2(dirfd, path, how);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_openat2(dirfd, path, how);
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_openat2(
+    int (*real_openat2)(int, const char*, open_how*),
+    int dirfd, const char* path, open_how* how)
+{
+    if (!lua_filter::filters.contains(request::OPENAT)) {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_openat2(real_openat2, fds, dirfd, path, how);
+    }
+
+    auto lua_filter = get_lua_filter_from_pool_or_create();
+    BOOST_SCOPE_EXIT_ALL(&) { add_lua_filter_to_pool(std::move(lua_filter)); };
+    auto L = lua_filter->L;
+    lua_pushlightuserdata(L, &lua_filter::openat_key);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(real_openat2));
+    lua_pushcclosure(L, [](lua_State* L) -> int {
+        auto real_openat2 = reinterpret_cast<
+            int (*)(int, const char*, open_how*)
+        >(lua_touserdata(L, lua_upvalueindex(1)));
+        int dirfd = luaL_checkinteger(L, 1);
+        const char* path = luaL_checkstring(L, 2);
+        open_how how;
+        std::memset(&how, 0, sizeof(how));
+        how.flags = luaL_checkinteger(L, 3);
+        how.mode = luaL_checkinteger(L, 4);
+        luaL_checktype(L, 5, LUA_TTABLE);
+
+        for (int i = 1 ;; ++i) {
+            lua_rawgeti(L, 5, i);
+            switch (lua_type(L, -1)) {
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                goto end_for;
+            case LUA_TSTRING:
+                break;
+            default:
+                return luaL_error(L, "invalid argument for resolve");
+            }
+
+            std::string_view strv;
+            {
+                std::size_t len;
+                const char* str = lua_tolstring(L, -1, &len);
+                strv = std::string_view{str, len};
+            }
+            if (strv == "beneath") {
+                how.resolve |= open_how::resolve_beneath;
+            } else if (strv == "in_root") {
+                how.resolve |= open_how::resolve_in_root;
+            } else if (strv == "no_magiclinks") {
+                how.resolve |= open_how::resolve_no_magiclinks;
+            } else if (strv == "no_symlinks") {
+                how.resolve |= open_how::resolve_no_symlinks;
+            } else if (strv == "no_xdev") {
+                how.resolve |= open_how::resolve_no_xdev;
+            } else if (strv == "cached") {
+                how.resolve |= open_how::resolve_cached;
+            } else {
+                return luaL_error(L, "invalid argument for resolve");
+            }
+            lua_pop(L, 1);
+        }
+        end_for:
+
+        fds_type fds;
+        int res = forward_openat2(real_openat2, fds, dirfd, path, &how);
+        int openat2_errno = (res == -1) ? errno : 0;
+
+        int ret = 2;
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, openat2_errno);
+
+        for (int fd : fds) {
+            if (fd == -1)
+                break;
+
+            lua_pushinteger(L, fd);
+            ++ret;
+        }
+
+        return ret;
+    }, 1);
+    lua_pushinteger(L, dirfd);
+    lua_pushstring(L, path);
+    lua_pushinteger(L, how->flags);
+    lua_pushinteger(L, how->mode);
+    lua_newtable(L);
+    {
+        auto resolve = how->resolve;
+        int i = 1;
+
+        if (
+            (resolve & open_how::resolve_beneath) == open_how::resolve_beneath
+        ) {
+            resolve &= ~open_how::resolve_beneath;
+            lua_pushliteral(L, "beneath");
+            lua_rawseti(L, -2, i++);
+        }
+
+        if (
+            (resolve & open_how::resolve_in_root) == open_how::resolve_in_root
+        ) {
+            resolve &= ~open_how::resolve_in_root;
+            lua_pushliteral(L, "in_root");
+            lua_rawseti(L, -2, i++);
+        }
+
+        if (
+            (resolve & open_how::resolve_no_magiclinks) ==
+            open_how::resolve_no_magiclinks
+        ) {
+            resolve &= ~open_how::resolve_no_magiclinks;
+            lua_pushliteral(L, "no_magiclinks");
+            lua_rawseti(L, -2, i++);
+        }
+
+        if (
+            (resolve & open_how::resolve_no_symlinks) ==
+            open_how::resolve_no_symlinks
+        ) {
+            resolve &= ~open_how::resolve_no_symlinks;
+            lua_pushliteral(L, "no_symlinks");
+            lua_rawseti(L, -2, i++);
+        }
+
+        if (
+            (resolve & open_how::resolve_no_xdev) == open_how::resolve_no_xdev
+        ) {
+            resolve &= ~open_how::resolve_no_xdev;
+            lua_pushliteral(L, "no_xdev");
+            lua_rawseti(L, -2, i++);
+        }
+
+        if (
+            (resolve & open_how::resolve_cached) == open_how::resolve_cached
+        ) {
+            resolve &= ~open_how::resolve_cached;
+            lua_pushliteral(L, "cached");
+            lua_rawseti(L, -2, i++);
+        }
+
+        // For now it'll never enter here. However once glibc adds its own
+        // wrapper for openat2() -- and Emilua start interposing it -- flags
+        // known to Emilua could become out-of-sync with calls to openat2() done
+        // by 3rd party code. Better to add this unused error cheking now than
+        // risking forgetting to add it when needed later.
+        if (resolve != 0) {
+            lua_settop(L, 0);
+            errno = ENOTSUP;
+            return -1;
+        }
+    }
+
+    auto on_lua_fail = [&]() -> int {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_openat2(real_openat2, fds, dirfd, path, how);
+    };
+
+    if (lua_pcall(L, /*nargs=*/6, /*nresults=*/2, /*errfunc=*/0) != 0) {
         lua_pop(L, 1);
         return on_lua_fail();
     }
@@ -2303,6 +2576,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     ambient_authority.connect = my_connect;
     ambient_authority.bind = my_bind;
     ambient_authority.getaddrinfo = my_getaddrinfo;
+    ambient_authority.openat2 = my_openat2;
 }
 
 } // namespace emilua::libc_service

@@ -35,6 +35,7 @@ struct request
     enum
     {
         OPEN,
+        OPENAT,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

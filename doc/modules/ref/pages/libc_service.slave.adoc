@@ -87,6 +87,36 @@ Returns:
 * The value for ``open()``'s return.
 * Optional: The value for `errno`.
 
+=== `openat(real_openat: function, dirfd: integer, path: string, flags: integer, mode: integer, resolve: string[]) -> integer[, integer]`
+
+`mode` will be `0` on unused.
+
+`resolve` will be translated to whatever the current system uses under the hood
+(e.g. `openat2()` on Linux). Unsupported values won't be silently ignored. If
+some flag is unsupported, the function will return with an error. It may
+contain:
+
+`"beneath"`:: Path resolution must not cross the fd directory.
+
+`"in_root"`:: Treat the directory referred to by dirfd as the root directory
+while resolving pathname. Absolute symbolic links are interpreted relative to
+dirfd.
+
+`"no_magiclinks"`:: Disallow all magic-link resolution during path resolution.
+
+`"no_symlinks"`:: Disallow resolution of symbolic links during path resolution.
+
+`"no_xdev"`:: Disallow traversal of mount points during path resolution
+(including all bind mounts).
+
+`"cached"`:: Make the open operation fail unless all path components are already
+present in the kernel's lookup cache.
+
+Returns:
+
+* The value for ``openat()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

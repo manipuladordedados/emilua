@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <cstdarg>
 #include <cstring>
+#include <dlfcn.h>
 #include <cerrno>
 #include <cstdio>
 
@@ -65,6 +66,74 @@ int open64(const char *file, int oflag, ...)
         return (*emilua::ambient_authority.open)(__open64, file, oflag);
     } else {
         return __open64(file, oflag);
+    }
+}
+
+// Glibc only provides the alias __openat for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __openat(int dirfd, const char *file, int oflag, ...)
+{
+    auto real_openat = reinterpret_cast<int (*)(
+        int dirfd, const char *file, int oflag, ...
+    )>(dlsym(RTLD_NEXT, "openat"));
+
+    if (((oflag & O_CREAT) == O_CREAT) || ((oflag & O_TMPFILE) == O_TMPFILE)) {
+        std::va_list args;
+        va_start(args, oflag);
+        mode_t mode = va_arg(args, mode_t);
+        va_end(args);
+        return real_openat(dirfd, file, oflag, mode);
+    } else {
+        return real_openat(dirfd, file, oflag);
+    }
+}
+
+static int real_openat2(int dirfd, const char* pathname, emilua::open_how* how)
+{
+    if (how->resolve == 0) {
+        if (
+            ((how->flags & O_CREAT) == O_CREAT) ||
+            ((how->flags & O_TMPFILE) == O_TMPFILE)
+        ) {
+            return __openat(dirfd, pathname, how->flags, how->mode);
+        } else {
+            return __openat(dirfd, pathname, how->flags);
+        }
+    } else {
+        return syscall(SYS_openat2, dirfd, pathname, how, sizeof(open_how));
+    }
+}
+
+int openat(int dirfd, const char *file, int oflag, ...)
+{
+    if (((oflag & O_CREAT) == O_CREAT) || ((oflag & O_TMPFILE) == O_TMPFILE)) {
+        std::va_list args;
+        va_start(args, oflag);
+        mode_t mode = va_arg(args, mode_t);
+        va_end(args);
+        if (emilua::ambient_authority.openat2) {
+            emilua::open_how how;
+            std::memset(&how, 0, sizeof(how));
+            how.flags = oflag;
+            how.mode = mode;
+            return (*emilua::ambient_authority.openat2)(
+                real_openat2, dirfd, file, &how);
+        } else {
+            return __openat(dirfd, file, oflag, mode);
+        }
+    }
+
+    if (emilua::ambient_authority.openat2) {
+        emilua::open_how how;
+        std::memset(&how, 0, sizeof(how));
+        how.flags = oflag;
+        return (*emilua::ambient_authority.openat2)(
+            real_openat2, dirfd, file, &how);
+    } else {
+        return __openat(dirfd, file, oflag);
     }
 }
 
@@ -218,6 +287,16 @@ FILE* fopen(const char* pathname, const char* mode)
         errno = last_errno;
     }
     return ret;
+}
+
+int openat2(int dirfd, const char* file, open_how* how)
+{
+    if (emilua::ambient_authority.openat2) {
+        return (*emilua::ambient_authority.openat2)(
+            real_openat2, dirfd, file, how);
+    } else {
+        return real_openat2(dirfd, file, how);
+    }
 }
 
 } // namespace emilua
