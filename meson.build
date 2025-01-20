@@ -578,6 +578,52 @@ if get_option('use_wolfssl')
     endif
 endif
 
+errno_sed = custom_target(
+    'errnos.awk',
+    build_by_default : true,
+    command : [
+        executable(
+            'errno_sed',
+            'tool/errno_sed.cpp',
+            implicit_include_directories : false,
+        ),
+    ],
+    capture : true,
+    output : 'errnos.awk',
+    install : true,
+    install_dir : get_option('libexecdir') / 'emilua',
+    install_mode : 'rwxr-xr-x',
+    install_tag : 'devel',
+)
+
+normalize_path_bin = executable(
+    'normalize_path',
+    'tool/normalize_path.cpp',
+    dependencies : [
+        boost,
+        asio,
+        luajit,
+    ],
+    implicit_include_directories : false,
+    install : true,
+    install_dir : get_option('libexecdir') / 'emilua',
+    install_tag : 'devel',
+)
+
+install_data(
+    'test' / 'run_test.sh',
+    install_dir : get_option('libexecdir') / 'emilua',
+    install_mode : 'rwxr-xr-x',
+    install_tag : 'devel',
+)
+
+install_data(
+    'test' / 'run_test.awk',
+    install_dir : get_option('libexecdir') / 'emilua',
+    install_mode : 'rwxr-xr-x',
+    install_tag : 'devel',
+)
+
 pkgconfig.generate(
     libemilua,
     filebase : 'emilua',
@@ -597,6 +643,10 @@ pkgconfig.generate(
         'emilua_bin=${bindir}' / 'emilua',
         'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
         'emiluabcxxd=${libexecdir}' / 'emilua' / 'luabcxxd',
+        'emilua_errnos_awk=${libexecdir}' / 'emilua' / 'errnos.awk',
+        'emilua_normalize_path=${libexecdir}' / 'emilua' / 'normalize_path',
+        'emilua_run_test_sh=${libexecdir}' / 'emilua' / 'run_test.sh',
+        'emilua_run_test_awk=${libexecdir}' / 'emilua' / 'run_test.awk',
         'emilua_genmain=${libexecdir}' / 'emilua' / 'emilua-genmain' +
             meson.project_version().split('.')[0],
         'emilua_genmods=${libexecdir}' / 'emilua' / 'emilua-genmods' +
@@ -607,6 +657,10 @@ pkgconfig.generate(
         'emilua_bin=' + emilua_bin.full_path(),
         'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
         'emiluabcxxd=' + emiluabcxxd.full_path(),
+        'emilua_errnos_awk=' + errno_sed.full_path(),
+        'emilua_normalize_path=' + normalize_path_bin.full_path(),
+        'emilua_run_test_sh=${srcdir}' / 'test' / 'run_test.sh',
+        'emilua_run_test_awk=${srcdir}' / 'test' / 'run_test.awk',
         'emilua_genmain=' + genmain_bin.full_path(),
         'emilua_genmods=' + genmods_bin.full_path(),
     ],
@@ -649,31 +703,6 @@ if libc_service_src.length() != 0
 endif
 
 if get_option('enable_tests')
-    normalize_path_bin = executable(
-        'normalize_path',
-        'tool/normalize_path.cpp',
-        dependencies : [
-            boost,
-            asio,
-            luajit,
-        ],
-        implicit_include_directories : false,
-    )
-
-    errno_sed = custom_target(
-        'errnos.awk',
-        build_by_default : true,
-        command : [
-            executable(
-                'errno_sed',
-                'tool/errno_sed.cpp',
-                implicit_include_directories : false,
-            ),
-        ],
-        capture : true,
-        output : 'errnos.awk',
-    )
-
     tests_env = [
         # Test must override this env so non-colored terminal output will be
         # auto-detected (this is, in itself, another test)
