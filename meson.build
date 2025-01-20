@@ -39,7 +39,6 @@ boost = dependency(
 fmt = dependency('fmt', version : '>=8.0')
 serd = dependency('serd-0')
 sord = dependency('sord-0')
-trial_protocol = dependency('trial-protocol')
 cereal = dependency('cereal')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
@@ -244,7 +243,6 @@ src = [
     'src/time.cpp',
     'src/condition_variable.cpp',
     'src/core.cpp',
-    'src/json.cpp',
     'src/pipe.cpp',
     'src/tls.cpp',
     'src/ip.cpp',
@@ -304,9 +302,6 @@ bytecode_src = [
     'bytecode/write_all_at.lua',
     'bytecode/write_at_least_at.lua',
 
-    # json
-    'bytecode/json_encode.lua',
-
     # ip
     'bytecode/ip_connect.lua',
     'bytecode/ip_dial.lua',
@@ -360,7 +355,6 @@ libemilua = library(
         fmt,
         serd,
         sord,
-        trial_protocol,
         cereal,
         ssl,
         curses,
@@ -856,22 +850,6 @@ if get_option('enable_tests')
             'actor28',
             'actor30',
             'actor31',
-        ],
-        'json' : [
-            'json1',
-            'json2',
-            'json3',
-            'json4',
-            'json5',
-            'json6',
-            'json7',
-            'json8',
-            'json9',
-            'json10',
-            'json11',
-            'json12',
-            'json13',
-            'json14',
         ],
         'byte_span' : [
             # new(), __len(), capacity

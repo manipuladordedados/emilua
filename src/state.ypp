@@ -43,7 +43,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/regex.hpp>
 #include <emilua/state.hpp>
 #include <emilua/time.hpp>
-#include <emilua/json.hpp>
 #include <emilua/pipe.hpp>
 #include <emilua/tls.hpp>
 #include <emilua/ip.hpp>
@@ -1560,15 +1559,6 @@ static int require(lua_State* L)
                     return 2;
                 })
             EMILUA_GPERF_PAIR(
-                "json",
-                [](std::shared_lock<std::shared_mutex>&,
-                   std::shared_ptr<vm_context>, ContextType, std::string_view,
-                   lua_State* L) -> int {
-                    lua_pushboolean(L, 1);
-                    rawgetp(L, LUA_REGISTRYINDEX, &json_key);
-                    return 2;
-                })
-            EMILUA_GPERF_PAIR(
                 "time",
                 [](std::shared_lock<std::shared_mutex>&,
                    std::shared_ptr<vm_context>, ContextType, std::string_view,
@@ -2112,7 +2102,6 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
     init_future(L);
     init_time(L);
     init_filesystem(L);
-    init_json_module(L);
     init_ip(L);
     init_tls(L);
     init_system(L);

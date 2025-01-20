@@ -13,7 +13,6 @@
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
 #include <emilua/fiber.hpp>
-#include <emilua/json.hpp>
 
 #include <boost/hana/functional/overload.hpp>
 
@@ -764,7 +763,7 @@ static int chan_send(lua_State* L)
             inbox_t::value_object_type::iterator obj_it;
             if (cur_node.is_array()) {
                 if (current_array_idx == array_key_max) {
-                    push(L, json_errc::array_too_long);
+                    push(L, std::errc::value_too_large);
                     return lua_error(L);
                 }
 
@@ -919,7 +918,7 @@ static int chan_send(lua_State* L)
                     lua_rawget(L, visited_idx - 1);
                     if (lua_type(L, -1) == LUA_TBOOLEAN) {
                         assert(lua_toboolean(L, -1) == 1);
-                        push(L, json_errc::cycle_exists);
+                        push(L, std::errc::too_many_symbolic_link_levels);
                         return lua_error(L);
                     }
                     assert(lua_type(L, -1) == LUA_TNIL);
@@ -931,7 +930,7 @@ static int chan_send(lua_State* L)
                 }
 
                 if (dom_stack.size() == array_key_max) {
-                    push(L, json_errc::too_many_levels);
+                    push(L, std::errc::value_too_large);
                     return lua_error(L);
                 }
 

@@ -148,10 +148,6 @@ include::pages/ip.tcp.socket.adoc[]
 
 include::pages/ip.udp.socket.adoc[]
 
-include::pages/json.adoc[]
-
-include::pages/json.writer.adoc[]
-
 include::pages/mutex.adoc[]
 
 include::pages/recursive_mutex.adoc[]

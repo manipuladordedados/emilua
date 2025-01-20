@@ -22,7 +22,6 @@ Features:
   (no new thread is created), but the option to create a new one is also
   available.]). You can even spawn isolated actors into new Linux namespaces,
   Landlock & seccomp rules, etc.
-* Native JSON module.
 * Cross-platform (should run anywhere Boost.Asio also runs).
 
 == Install

@@ -9,8 +9,6 @@ local inbox = require 'inbox'
 local unix = require 'unix'
 
 if _CONTEXT ~= 'main' then
-    local json = require 'json'
-
     local host = inbox:receive()
     local NITER = inbox:receive()
     local utf8_converter = unix.seqpacket.socket.new(inbox:receive())
@@ -36,7 +34,7 @@ if _CONTEXT ~= 'main' then
                     value[k] = 'actor_address'
                 end
             end
-            return json.encode(value)
+            return 'table' --< TODO: serialization
         elseif type(value) == 'string' then
             return '"' .. to_base64(value) .. '"'
         elseif getmetatable(value) == 'linux_container_channel' then

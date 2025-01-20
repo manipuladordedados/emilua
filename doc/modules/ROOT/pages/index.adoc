@@ -302,6 +302,5 @@ availability].
   io_uring.], so the main thread never blocks).
 * Serial ports.
 * A basic regex module.
-* Native JSON module.
 * Portable error code comparison.
 * And much more.

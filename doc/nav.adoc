@@ -102,8 +102,6 @@
 *** xref:ref:ip.tcp.acceptor.adoc[tcp.acceptor]
 *** xref:ref:ip.tcp.socket.adoc[tcp.socket]
 *** xref:ref:ip.udp.socket.adoc[udp.socket]
-** xref:ref:json.adoc[]
-** xref:ref:json.writer.adoc[]
 ** pipes
 *** xref:ref:pipe.read_stream.adoc[read_stream]
 *** xref:ref:pipe.write_stream.adoc[write_stream]
