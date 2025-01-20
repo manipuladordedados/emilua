@@ -3194,6 +3194,9 @@ static int emilua_open(lua_State* L)
     }
 
     int flags = 0;
+#ifdef O_NOCTTY
+    flags = O_NOCTTY;
+#endif // O_NOCTTY
     for (int i = 1 ;; ++i) {
         lua_rawgeti(L, 2, i);
         switch (lua_type(L, -1)) {

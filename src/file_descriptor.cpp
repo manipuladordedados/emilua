@@ -361,6 +361,9 @@ static int file_descriptor_openat(lua_State* L)
 
     open_how how;
     std::memset(&how, 0, sizeof(how));
+#ifdef O_NOCTTY
+    how.flags = O_NOCTTY;
+#endif // O_NOCTTY
     for (int i = 1 ;; ++i) {
         lua_rawgeti(L, 3, i);
         switch (lua_type(L, -1)) {

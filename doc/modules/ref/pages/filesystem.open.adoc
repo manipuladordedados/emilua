@@ -20,6 +20,9 @@ fs.open(path: fs.path, flags: string[][, mode: integer]) -> file_descriptor
 
 Open the file using the specified path.
 
+The implementation for this function always include the flag `O_NOCTTY` behind
+the scenes.
+
 `flags` may contain:
 
 `"append"`:: Open the file in append mode.

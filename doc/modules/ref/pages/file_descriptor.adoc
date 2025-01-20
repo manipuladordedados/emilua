@@ -33,6 +33,9 @@ See kcmp(2) and `KCMP_FILE`.
 
 === `openat(self, path: filesystem.path, flags: string[][, mode: integer]) -> file_descriptor`
 
+The implementation for this function always include the flag `O_NOCTTY` behind
+the scenes.
+
 `flags` may contain:
 
 `"append"`:: Open the file in append mode.
