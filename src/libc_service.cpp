@@ -1102,6 +1102,16 @@ static int master_arguments(lua_State* L)
                     lua_rawseti(L, -2, i++);
                 }
 
+                if ((r.oflag & O_NOFOLLOW) == O_NOFOLLOW) {
+                    lua_pushliteral(L, "no_follow");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.oflag & O_PATH) == O_PATH) {
+                    lua_pushliteral(L, "path");
+                    lua_rawseti(L, -2, i++);
+                }
+
 #ifdef O_TMPFILE
                 if ((r.oflag & O_TMPFILE) == O_TMPFILE) {
                     lua_pushliteral(L, "temporary");
@@ -1176,6 +1186,16 @@ static int master_arguments(lua_State* L)
 
                 if ((r.how.flags & O_TRUNC) == O_TRUNC) {
                     lua_pushliteral(L, "truncate");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_NOFOLLOW) == O_NOFOLLOW) {
+                    lua_pushliteral(L, "no_follow");
+                    lua_rawseti(L, -2, i++);
+                }
+
+                if ((r.how.flags & O_PATH) == O_PATH) {
+                    lua_pushliteral(L, "path");
                     lua_rawseti(L, -2, i++);
                 }
 

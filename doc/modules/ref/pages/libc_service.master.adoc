@@ -152,6 +152,11 @@ below).
 
 `"exclusive"`:::: Ensure a new file is created. Must be combined with create.
 
+`"no_follow"`:::: Fail if `path` resolves to a symbolic link.
+
+`"path"`:::: Get a stable reference to an inode without actually opening the
+contents.
+
 `"read_only"`:::: Open the file for reading.
 
 `"read_write"`:::: Open the file for reading and writing.
@@ -184,6 +189,11 @@ synchronise the file data and metadata to disk
 `"directory"`:::: If pathname is not a directory, cause the open to fail.
 
 `"exclusive"`:::: Ensure a new file is created. Must be combined with create.
+
+`"no_follow"`:::: Fail if `path` resolves to a symbolic link.
+
+`"path"`:::: Get a stable reference to an inode without actually opening the
+contents.
 
 `"read_only"`:::: Open the file for reading.
 
