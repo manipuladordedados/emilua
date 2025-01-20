@@ -36,6 +36,8 @@ Open the file using the specified path.
 synchronise the file data and metadata to disk
 (`FILE_FLAG_WRITE_THROUGH`/`O_SYNC`).
 
+`"temporary"`:: Create an unnamed temporary regular file.
+
 `"truncate"`:: Open the file with any existing contents truncated.
 
 `"write_only"`:: Open the file for writing.

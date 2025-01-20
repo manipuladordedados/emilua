@@ -3223,11 +3223,19 @@ static int emilua_open(lua_State* L)
             EMILUA_GPERF_PAIR("no_follow", O_NOFOLLOW)
             EMILUA_GPERF_PAIR("path", O_PATH)
         EMILUA_GPERF_END(s);
-        if (!f) {
+        if (f) {
+            flags |= *f;
+        } else if (s == "temporary") {
+#ifdef O_TMPFILE
+            flags |= O_TMPFILE;
+#else
+            push(L, std::errc::not_supported, "arg", 2);
+            return lua_error(L);
+#endif // defined(O_TMPFILE)
+        } else {
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
-        flags |= *f;
     }
  end_for:
 
