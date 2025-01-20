@@ -128,13 +128,18 @@ else
     ssl = dependency('openssl', version : '>=1.1.1')
 endif
 
+emiluabcxxd = executable(
+    'luabcxxd',
+    'tool/luabcxxd.cpp',
+    dependencies : [ luajit ],
+    implicit_include_directories : false,
+    install : true,
+    install_dir : get_option('libexecdir') / 'emilua',
+    install_tag : 'devel',
+)
+
 bytecode_gen = generator(
-    executable(
-        'luabcxxd',
-        'tool/luabcxxd.cpp',
-        dependencies : [ luajit ],
-        implicit_include_directories : false,
-    ),
+    emiluabcxxd,
     output: 'bc_@BASENAME@.cpp',
     arguments: ['@INPUT@', '@OUTPUT@']
 )
@@ -591,6 +596,7 @@ pkgconfig.generate(
 
         'emilua_bin=${bindir}' / 'emilua',
         'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
+        'emiluabcxxd=${libexecdir}' / 'emilua' / 'luabcxxd',
         'emilua_genmain=${libexecdir}' / 'emilua' / 'emilua-genmain' +
             meson.project_version().split('.')[0],
         'emilua_genmods=${libexecdir}' / 'emilua' / 'emilua-genmods' +
@@ -600,6 +606,7 @@ pkgconfig.generate(
         'pluginsdir=' + meson.project_build_root() / 'plugins',
         'emilua_bin=' + emilua_bin.full_path(),
         'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
+        'emiluabcxxd=' + emiluabcxxd.full_path(),
         'emilua_genmain=' + genmain_bin.full_path(),
         'emilua_genmods=' + genmods_bin.full_path(),
     ],
