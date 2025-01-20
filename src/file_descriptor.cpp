@@ -392,6 +392,13 @@ static int file_descriptor_openat(lua_State* L)
         EMILUA_GPERF_END(s);
         if (f) {
             how.flags |= *f;
+        } else if (s == "temporary") {
+#ifdef O_TMPFILE
+            how.flags |= O_TMPFILE;
+#else
+            push(L, std::errc::not_supported, "arg", 3);
+            return lua_error(L);
+#endif // defined(O_TMPFILE)
         } else {
             auto f = EMILUA_GPERF_BEGIN(s)
                 EMILUA_GPERF_PARAM(std::uint64_t action)

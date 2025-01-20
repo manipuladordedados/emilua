@@ -48,6 +48,8 @@ See kcmp(2) and `KCMP_FILE`.
 `"sync_all_on_write"`:: Open the file so that write operations automatically
 synchronise the file data and metadata to disk (`O_SYNC`).
 
+`"temporary"`:: Create an unnamed temporary regular file.
+
 `"truncate"`:: Open the file with any existing contents truncated.
 
 `"write_only"`:: Open the file for writing.
