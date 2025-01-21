@@ -12,6 +12,49 @@
 # this software. If not, see
 # <http://creativecommons.org/publicdomain/zero/1.0/>.
 
+function count_lfs(str    , pieces) {
+    if (index(str, "\n") == 0) {
+        return 0
+    }
+    return split(str, pieces, "\n") - 1
+}
+
+function append_header(str) {
+    output_header = output_header "\n#line " linenrdst " \"" ARGV[ARGC - 1] \
+        "\"\n" str
+    linenrdst += count_lfs(str) + 2
+}
+
+function append_body(str, is_unprocessed_original_source    , pp) {
+    if (is_unprocessed_original_source) {
+        pp = "#line " linenrsrc " \"" FILENAME "\"\n"
+        linenrsrc += count_lfs(str)
+    } else {
+        # we patch the correct value later
+        pp = "#line 0 \"" ARGV[ARGC - 1] "\"\n"
+    }
+
+    if ( \
+        length(output_body) > 0 && \
+        substr(output_body, length(output_body)) != "\n" \
+    ) {
+        pp = "\n" pp
+    }
+    output_body = output_body pp str
+}
+
+function fix_pp_line0(    linenr, out2, i, n) {
+    linenr = count_lfs(output_header) + 2
+
+    n = split(output_body, out2, "#line 0 ")
+    output_body = ""
+    for (i = 1 ; i < n ; ++i) {
+        linenr += count_lfs(out2[i])
+        output_body = output_body out2[i] "#line " linenr " "
+    }
+    output_body = output_body out2[n]
+}
+
 function gperf(context_index    , i, proc, input, out) {
     proc = GPERF_BIN " --language=C++ --enum --readonly-tables --struct-type " \
         "--initializer-suffix=,{} --class-name=Perfect_Hash_" context_index
@@ -43,15 +86,15 @@ function gperf(context_index    , i, proc, input, out) {
     }
 
     if (length(context[context_index, "ppguard"]) > 0) {
-        output_header = output_header \
+        append_header( \
             "#if " context[context_index, "ppguard"] "\n" \
             "namespace emilua::gperf::detail {\nnamespace {\n" out \
             "} // namespace\n} // namespace emilua::gperf::detail\n" \
-            "#endif // " context[context_index, "ppguard"] "\n"
+            "#endif // " context[context_index, "ppguard"] "\n")
     } else {
-        output_header = output_header \
+        append_header( \
             "namespace emilua::gperf::detail {\nnamespace {\n" out \
-            "} // namespace\n} // namespace emilua::gperf::detail\n"
+            "} // namespace\n} // namespace emilua::gperf::detail\n")
     }
 
     if (length(context[context_index, "default_value"]) > 0) {
@@ -70,7 +113,7 @@ function gperf(context_index    , i, proc, input, out) {
     }
 }
 
-function process_arguments(    i, levels, ret) {
+function process_arguments(    i, levels, ret, ch) {
     if (substr($0, 1, 1) != "(") {
         printf "Open parens expected. Got: `%s`\n", substr($0, 1, 1) \
             >"/dev/stderr"
@@ -79,10 +122,13 @@ function process_arguments(    i, levels, ret) {
 
     levels = 1
     for (i = 2 ; levels != 0 ; ++i) {
-        if (substr($0, i, 1) == "(") {
+        ch = substr($0, i, 1)
+        if (ch == "(") {
             ++levels
-        } else if (substr($0, i, 1) == ")") {
+        } else if (ch == ")") {
             --levels
+        } else if (ch == "\n") {
+            ++linenrsrc
         }
     }
     ret = substr($0, 2, i - 3)
@@ -145,6 +191,7 @@ function process_decls_block(    symbol, idx, saved_input, value, matches) {
     symbol = "EMILUA_GPERF_DECLS_END(" process_arguments() ")"
     idx = index($0, symbol)
     value = substr($0, 1, idx - 1)
+    linenrsrc += count_lfs(value)
     $0 = substr($0, idx + length(symbol))
 
     saved_input = $0
@@ -162,11 +209,11 @@ function process_decls_block(    symbol, idx, saved_input, value, matches) {
           matches)
     gsub(/EMILUA_GPERF_NAMESPACE\(([[:alpha:]_][[:alnum:]_:]*)?\)/, "", value)
     if (matches[1, "length"] > 0) {
-        output_header = sprintf( \
-            "%1$snamespace %2$s {\n%3$s\n} // namespace %2$s\n",
-            output_header, matches[1], value)
+        append_header(sprintf( \
+            "namespace %1$s {\n%2$s\n} // namespace %1$s\n",
+            matches[1], value))
     } else {
-        output_header = output_header value
+        append_header(value)
     }
 }
 
@@ -188,6 +235,7 @@ function process_gperf_block(    context_index, symbol, matches) {
         $0, /EMILUA_GPERF_(BEGIN|END|PARAM|DEFAULT_VALUE|PAIR|PPGUARD)/, \
         matches \
     )) {
+        linenrsrc += count_lfs(substr($0, 1, RSTART + RLENGTH - 1))
         $0 = substr($0, RSTART + RLENGTH)
         if (matches[1] == "BEGIN") {
             print "GPERF block cannot appear here" >"/dev/stderr"
@@ -215,24 +263,29 @@ BEGIN {
     RS = "^$"
     FS = "\0"
     getline
-    output_header = "#include <cstring>\n\
+    linenrsrc = 1
+    linenrdst = 9
+    output_header = "#line 2 \"" ARGV[ARGC - 1] "\"\n\
+#include <cstring>\n\
 \n\
 namespace emilua::gperf::detail { using std::size_t; using std::strcmp; }\n\
+#line 6 \"" ARGV[ARGC - 1] "\"\n\
 \n"
     output_body = ""
     context["next"] = 1
     context["next_value"] = 1
     while (match($0, /EMILUA_GPERF_(BEGIN|DECLS_BEGIN)/)) {
-        output_body = output_body substr($0, 1, RSTART - 1)
+        append_body(substr($0, 1, RSTART - 1), 1)
         if (substr($0, RSTART, RLENGTH) == "EMILUA_GPERF_DECLS_BEGIN") {
             $0 = substr($0, RSTART + RLENGTH)
             process_decls_block()
         } else {
             $0 = substr($0, RSTART + RLENGTH)
-            output_body = output_body process_gperf_block()
+            append_body(process_gperf_block())
         }
     }
-    output_body = output_body $0
+    append_body($0, 1)
     $0 = ""
+    fix_pp_line0()
     printf("%s%s", output_header, output_body) >ARGV[ARGC - 1]
 }
