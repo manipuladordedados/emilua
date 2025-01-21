@@ -84,6 +84,14 @@ static int real_openat2(int dirfd, const char* pathname, emilua::open_how* how)
 
 int openat(int dirfd, const char *file, int oflag, ...)
 {
+    emilua::open_how how;
+    std::memset(&how, 0, sizeof(how));
+    how.flags = oflag;
+    if (oflag & O_RESOLVE_BENEATH) {
+        how.flags &= ~static_cast<std::uint64_t>(O_RESOLVE_BENEATH);
+        how.resolve |= emilua::open_how::resolve_beneath;
+    }
+
     if (
         ((oflag & O_CREAT) == O_CREAT) ||
 #ifdef O_TMPFILE
@@ -96,9 +104,6 @@ int openat(int dirfd, const char *file, int oflag, ...)
         mode_t mode = va_arg(args, mode_t);
         va_end(args);
         if (emilua::ambient_authority.openat2) {
-            emilua::open_how how;
-            std::memset(&how, 0, sizeof(how));
-            how.flags = oflag;
             how.mode = mode;
             return (*emilua::ambient_authority.openat2)(
                 real_openat2, dirfd, file, &how);
@@ -108,9 +113,6 @@ int openat(int dirfd, const char *file, int oflag, ...)
     }
 
     if (emilua::ambient_authority.openat2) {
-        emilua::open_how how;
-        std::memset(&how, 0, sizeof(how));
-        how.flags = oflag;
         return (*emilua::ambient_authority.openat2)(
             real_openat2, dirfd, file, &how);
     } else {
