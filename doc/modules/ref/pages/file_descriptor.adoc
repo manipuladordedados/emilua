@@ -27,6 +27,11 @@ Closes the file descriptor w/o waiting for the GC.
 
 Creates a new file descriptor that refers to the same open file description.
 
+=== `is_socket(self, family: "unix"|"inet"|"inet6"[, type: "stream"|"datagram"|"seqpacket"]) -> boolean`
+
+Checks whether the file descriptor refers to a socket of the specified `family`
+and `type`.
+
 === `kcmp(self, other: file_descriptor) -> integer`
 
 See kcmp(2) and `KCMP_FILE`.

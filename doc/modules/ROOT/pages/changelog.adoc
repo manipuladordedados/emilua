@@ -26,6 +26,7 @@
 * Function `filesystem.open()`.
 * Function `file_descriptor.openat()`.
 * Function `file_descriptor.kcmp()`.
+* Function `file_descriptor.is_socket()`.
 * Function `dup_from()` in `system.in_`, `system.out`, and `system.err`.
 * Function `system.get_ld_library_directories()`.
 * `init.script`

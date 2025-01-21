@@ -1081,6 +1081,15 @@ if get_option('enable_tests')
                 'libc_service_bind2',
                 'libc_service_bind3',
             ]),
+            'is_socket' : [
+                'is_socket1',
+                'is_socket2',
+                'is_socket3',
+                'is_socket4',
+                'is_socket5',
+                'is_socket6',
+                'is_socket7',
+            ],
         }
 
         test(

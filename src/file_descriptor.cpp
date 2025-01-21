@@ -328,6 +328,111 @@ static int file_descriptor_kcmp(lua_State* L)
 #endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
 
 #if BOOST_OS_UNIX
+static int file_descriptor_is_socket(lua_State* L)
+{
+    lua_settop(L, 3);
+
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    {
+        struct stat st_fd;
+        if (fstat(*handle, &st_fd) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+
+        if (!S_ISSOCK(st_fd.st_mode)) {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+    }
+
+    {
+        auto key = tostringview(L, 2);
+        auto family = EMILUA_GPERF_BEGIN(key)
+            EMILUA_GPERF_PARAM(int action)
+            EMILUA_GPERF_PAIR("unix", AF_UNIX)
+            EMILUA_GPERF_PAIR("inet", AF_INET)
+            EMILUA_GPERF_PAIR("inet6", AF_INET6)
+        EMILUA_GPERF_END(key);
+        if (!family) {
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
+        }
+
+        int got = 0;
+        socklen_t l = sizeof(got);
+        if (getsockopt(*handle, SOL_SOCKET, SO_DOMAIN, &got, &l) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+        if (l != sizeof(got)) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
+        if (*family != got) {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+    }
+
+    switch (lua_type(L, 3)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 3);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TSTRING: {
+        auto key = tostringview(L, 3);
+        auto type = EMILUA_GPERF_BEGIN(key)
+            EMILUA_GPERF_PARAM(int action)
+            EMILUA_GPERF_PAIR("stream", SOCK_STREAM)
+            EMILUA_GPERF_PAIR("datagram", SOCK_DGRAM)
+            EMILUA_GPERF_PAIR("seqpacket", SOCK_SEQPACKET)
+        EMILUA_GPERF_END(key);
+        if (!type) {
+            push(L, std::errc::invalid_argument, "arg", 3);
+            return lua_error(L);
+        }
+
+        int got = 0;
+        socklen_t l = sizeof(got);
+        if (getsockopt(*handle, SOL_SOCKET, SO_TYPE, &got, &l) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+        if (l != sizeof(got)) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
+        if (*type != got) {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+        break;
+    }
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 static int file_descriptor_openat(lua_State* L)
 {
     lua_settop(L, 4);
@@ -995,6 +1100,16 @@ static int file_descriptor_mt_index(lua_State* L)
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "is_socket",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, file_descriptor_is_socket);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
