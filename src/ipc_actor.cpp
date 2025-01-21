@@ -1184,31 +1184,36 @@ static int child_main(void*)
         create_native_modules(wlock, appctx);
     }
 
-    asio::io_context ioctx{main_ctx_concurrency_hint};
-    asio::make_service<properties_service>(ioctx, main_ctx_concurrency_hint);
+    {
+        asio::io_context ioctx{main_ctx_concurrency_hint};
+        asio::make_service<properties_service>(
+            ioctx, main_ctx_concurrency_hint);
 
-    try {
-        auto vm_ctx = make_vm(
-            ioctx, appctx, ContextType::worker, entry_point, import_root);
-        appctx.master_vm = vm_ctx;
-
-        ++vm_ctx->inbox.nsenders;
-        auto inbox_service = new ipc_actor_inbox_service{ioctx, inboxfd};
-        vm_ctx->pending_operations.push_back(*inbox_service);
-
-        vm_ctx->strand().post([vm_ctx]() {
-            vm_ctx->fiber_resume(
-                vm_ctx->L(),
-                hana::make_set(vm_context::options::skip_clear_interrupter));
-        }, std::allocator<void>{});
-    } catch (const std::exception& e) {
         try {
-            std::cerr << "Error starting the lua VM: " << e.what() << std::endl;
-        } catch (const std::ios_base::failure&) {}
-        return 1;
-    }
+            auto vm_ctx = make_vm(
+                ioctx, appctx, ContextType::worker, entry_point, import_root);
+            appctx.master_vm = vm_ctx;
 
-    ioctx.run();
+            ++vm_ctx->inbox.nsenders;
+            auto inbox_service = new ipc_actor_inbox_service{ioctx, inboxfd};
+            vm_ctx->pending_operations.push_back(*inbox_service);
+
+            vm_ctx->strand().post([vm_ctx]() {
+                vm_ctx->fiber_resume(
+                    vm_ctx->L(),
+                    hana::make_set(
+                        vm_context::options::skip_clear_interrupter));
+            }, std::allocator<void>{});
+        } catch (const std::exception& e) {
+            try {
+                std::cerr << "Error starting the lua VM: " << e.what() <<
+                    std::endl;
+            } catch (const std::ios_base::failure&) {}
+            return 1;
+        }
+
+        ioctx.run();
+    }
 
     {
         std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
