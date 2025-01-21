@@ -79,6 +79,20 @@ get_builtin_native_module(std::string_view)
     return std::nullopt;
 }
 
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void create_native_modules(
+    const std::unique_lock<std::shared_mutex>& /*modules_cache_registry_wlock*/,
+    app_context& /*appctx*/)
+{}
+
+#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+[[gnu::weak]]
+#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+void destroy_native_modules()
+{}
+
 const char* rdf_error_category::name() const noexcept
 {
     return name_.c_str();

@@ -389,20 +389,6 @@ void fill_emilua_path(app_context& appctx)
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-void create_native_modules(
-    const std::unique_lock<std::shared_mutex>& /*modules_cache_registry_wlock*/,
-    app_context& /*appctx*/)
-{}
-
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-[[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-void destroy_native_modules()
-{}
-
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
-[[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 int main_ctx_concurrency_hint()
 {
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO

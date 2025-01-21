@@ -1162,9 +1162,6 @@ static int child_main(void*)
             emilua::log_domain<emilua::default_log_domain>::log_level = level;
     }
 
-    asio::io_context ioctx{main_ctx_concurrency_hint};
-    asio::make_service<properties_service>(ioctx, main_ctx_concurrency_hint);
-
     if (
         auto it = appctx.app_env.find("EMILUA_PATH") ;
         it != appctx.app_env.end()
@@ -1181,6 +1178,14 @@ static int child_main(void*)
             }
         }
     }
+
+    {
+        const std::unique_lock wlock{appctx.modules_cache_registry_mtx};
+        create_native_modules(wlock, appctx);
+    }
+
+    asio::io_context ioctx{main_ctx_concurrency_hint};
+    asio::make_service<properties_service>(ioctx, main_ctx_concurrency_hint);
 
     try {
         auto vm_ctx = make_vm(
@@ -1210,6 +1215,8 @@ static int child_main(void*)
         while (appctx.extra_threads_count > 0)
             appctx.extra_threads_count_empty_cond.wait(lk);
     }
+
+    destroy_native_modules();
 
     try {
         // The glibc runtime won't flush `stdout` on clone()d processes because

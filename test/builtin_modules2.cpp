@@ -61,10 +61,6 @@ get_builtin_native_module(std::string_view id)
     }
 }
 
-namespace main {
-
-int main(int argc, char *argv[], char *envp[]);
-
 void create_native_modules(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     app_context& appctx)
@@ -77,6 +73,10 @@ void destroy_native_modules()
 {
     foobar333.reset();
 }
+
+namespace main {
+
+int main(int argc, char *argv[], char *envp[]);
 
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {

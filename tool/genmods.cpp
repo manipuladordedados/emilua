@@ -157,11 +157,7 @@ stream.write_all(system.out, byte_span.append(
 
         return std::ref(*modules_indexes[v->action]);
     }
-    ]] ..
-    '} // namespace emilua\n' ..
 
-    'namespace emilua::main {\n' ..
-    [[
     void create_native_modules(
         const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
         app_context& appctx)
@@ -195,7 +191,7 @@ stream.write_all(system.out, byte_span.append(
     [[
     }
     ]] ..
-    '} // namespace emilua::main\n'
+    '} // namespace emilua\n'
 ))
             )lua";
     } else {

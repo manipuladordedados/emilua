@@ -13,6 +13,15 @@
 
 namespace emilua {
 
+// You may override these functions (they're weak symbols in static buidls) to
+// initialize your native modules from subprocess-based actors as well. {{{
+void create_native_modules(
+    const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+    app_context& appctx);
+
+void destroy_native_modules();
+// }}}
+
 std::shared_ptr<vm_context> make_vm(
     asio::io_context& ioctx,
     emilua::app_context& appctx,
