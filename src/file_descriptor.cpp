@@ -330,7 +330,7 @@ static int file_descriptor_kcmp(lua_State* L)
 #if BOOST_OS_UNIX
 static int file_descriptor_is_socket(lua_State* L)
 {
-    lua_settop(L, 3);
+    lua_settop(L, 4);
 
     auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
     if (!handle || !lua_getmetatable(L, 1)) {
@@ -361,9 +361,10 @@ static int file_descriptor_is_socket(lua_State* L)
         }
     }
 
+    std::optional<int> family;
     {
         auto key = tostringview(L, 2);
-        auto family = EMILUA_GPERF_BEGIN(key)
+        family = EMILUA_GPERF_BEGIN(key)
             EMILUA_GPERF_PARAM(int action)
             EMILUA_GPERF_PAIR("unix", AF_UNIX)
             EMILUA_GPERF_PAIR("inet", AF_INET)
@@ -391,6 +392,7 @@ static int file_descriptor_is_socket(lua_State* L)
         }
     }
 
+    std::optional<int> type;
     switch (lua_type(L, 3)) {
     default:
         push(L, std::errc::invalid_argument, "arg", 3);
@@ -399,7 +401,7 @@ static int file_descriptor_is_socket(lua_State* L)
         break;
     case LUA_TSTRING: {
         auto key = tostringview(L, 3);
-        auto type = EMILUA_GPERF_BEGIN(key)
+        type = EMILUA_GPERF_BEGIN(key)
             EMILUA_GPERF_PARAM(int action)
             EMILUA_GPERF_PAIR("stream", SOCK_STREAM)
             EMILUA_GPERF_PAIR("datagram", SOCK_DGRAM)
@@ -422,6 +424,52 @@ static int file_descriptor_is_socket(lua_State* L)
         }
 
         if (*type != got) {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+        break;
+    }
+    }
+
+    switch (lua_type(L, 4)) {
+    default:
+        push(L, std::errc::invalid_argument, "arg", 4);
+        return lua_error(L);
+    case LUA_TNIL:
+        break;
+    case LUA_TSTRING: {
+        if (!type || ((*family != AF_INET) && (*family != AF_INET6))) {
+            push(L, std::errc::invalid_argument, "arg", 4);
+            return lua_error(L);
+        }
+
+        auto key = tostringview(L, 4);
+        auto protocol = EMILUA_GPERF_BEGIN(key)
+            EMILUA_GPERF_PARAM(int action)
+            EMILUA_GPERF_PAIR("tcp", IPPROTO_TCP)
+            EMILUA_GPERF_PAIR("udp", IPPROTO_UDP)
+        EMILUA_GPERF_END(key);
+        if (
+            !protocol ||
+            ((*protocol == IPPROTO_TCP) && (*type != SOCK_STREAM)) ||
+            ((*protocol == IPPROTO_UDP) && (*type != SOCK_DGRAM))
+        ) {
+            push(L, std::errc::invalid_argument, "arg", 4);
+            return lua_error(L);
+        }
+
+        int got = 0;
+        socklen_t l = sizeof(got);
+        if (getsockopt(*handle, SOL_SOCKET, SO_PROTOCOL, &got, &l) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+        if (l != sizeof(got)) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
+        if ((*protocol != got) && (got != 0)) {
             lua_pushboolean(L, 0);
             return 1;
         }

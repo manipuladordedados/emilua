@@ -1089,6 +1089,11 @@ if get_option('enable_tests')
                 'is_socket5',
                 'is_socket6',
                 'is_socket7',
+                'is_socket8',
+                'is_socket9',
+                'is_socket10',
+                'is_socket11',
+                'is_socket12',
             ],
         }
 
