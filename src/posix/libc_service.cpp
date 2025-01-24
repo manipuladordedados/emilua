@@ -127,6 +127,19 @@ int unlink(const char* pathname)
     }
 }
 
+int rename(const char* pathname1, const char* pathname2)
+{
+    auto real_rename = reinterpret_cast<int (*)(const char*, const char*)>(
+        dlsym(RTLD_NEXT, "rename"));
+
+    if (emilua::ambient_authority.rename) {
+        return (*emilua::ambient_authority.rename)(
+            real_rename, pathname1, pathname2);
+    } else {
+        return real_rename(pathname1, pathname2);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

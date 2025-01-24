@@ -214,6 +214,24 @@ int remove(const char* pathname)
     return -1;
 }
 
+// glibc's rename() is not weak, so we cannot override it when linking
+// against static glibc. Defining our own symbol as a weak alias allows builds
+// against static glibc to succeed (for such case, our definition won't be
+// used).
+[[gnu::weak]]
+int rename(const char* pathname1, const char* pathname2)
+{
+    auto real_rename = reinterpret_cast<int (*)(const char*, const char*)>(
+        dlsym(RTLD_NEXT, "rename"));
+
+    if (emilua::ambient_authority.rename) {
+        return (*emilua::ambient_authority.rename)(
+            real_rename, pathname1, pathname2);
+    } else {
+        return real_rename(pathname1, pathname2);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {

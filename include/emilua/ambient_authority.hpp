@@ -64,6 +64,7 @@ struct ambient_authority
 {
     int (*open)(int (*)(const char*, int, ...), const char*, int, ...);
     int (*unlink)(int (*)(const char*), const char*);
+    int (*rename)(int (*)(const char*, const char*), const char*, const char*);
     int (*connect)(
         int (*)(int, const struct sockaddr*, socklen_t),
         int, const struct sockaddr*, socklen_t);

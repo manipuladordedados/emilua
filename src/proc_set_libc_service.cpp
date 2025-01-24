@@ -154,6 +154,19 @@ struct lua_filter
             }
         }
 
+        if (filters.contains(request::RENAME)) {
+            const auto& src = filters[request::RENAME];
+
+            lua_pushlightuserdata(L, &rename_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
+
         if (filters.contains(request::CONNECT_UNIX)) {
             const auto& src = filters[request::CONNECT_UNIX];
 
@@ -257,6 +270,7 @@ struct lua_filter
     static char open_key;
     static char openat_key;
     static char unlink_key;
+    static char rename_key;
     static char connect_unix_key;
     static char connect_inet_key;
     static char connect_inet6_key;
@@ -270,6 +284,7 @@ std::map<int, std::string> lua_filter::filters;
 char lua_filter::open_key;
 char lua_filter::openat_key;
 char lua_filter::unlink_key;
+char lua_filter::rename_key;
 char lua_filter::connect_unix_key;
 char lua_filter::connect_inet_key;
 char lua_filter::connect_inet6_key;
@@ -1012,6 +1027,144 @@ static int my_unlink(int (*real_unlink)(const char*), const char* pathname)
     };
 
     if (lua_pcall(L, /*nargs=*/2, /*nresults=*/2, /*errfunc=*/0) != 0) {
+        lua_pop(L, 1);
+        return on_lua_fail();
+    }
+
+    if (lua_type(L, -2) != LUA_TNUMBER) {
+        lua_pop(L, 2);
+        return on_lua_fail();
+    }
+    int res = lua_tointeger(L, -2);
+    switch (lua_type(L, -1)) {
+    default:
+        lua_pop(L, 2);
+        return on_lua_fail();
+    case LUA_TNIL:
+        lua_pop(L, 2);
+        break;
+    case LUA_TNUMBER: {
+        auto saved_errno = lua_tointeger(L, -1);
+        lua_pop(L, 2);
+        errno = saved_errno;
+        break;
+    }
+    }
+    return res;
+}
+
+static int forward_rename(
+    int (*real_rename)(const char*, const char*),
+    fds_type& fds, const char* path1, const char* path2)
+{
+    fds.fill(-1);
+
+    auto request = get_fresh_request_object();
+    request->function = request::RENAME;
+
+    {
+        std::span<char> buffer = request->buffer;
+
+        std::string_view path1v{path1};
+        if (path1v.size() > buffer.size()) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        std::memcpy(buffer.data(), path1v.data(), path1v.size());
+        buffer = buffer.last(buffer.size() - path1v.size());
+        request->uintargs[0] = path1v.size();
+
+        std::string_view path2v{path2};
+        if (path2v.size() > buffer.size()) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        std::memcpy(buffer.data(), path2v.data(), path2v.size());
+        buffer = buffer.last(buffer.size() - path2v.size());
+        request->uintargs[1] = path2v.size();
+    }
+
+    if (
+        TEMP_FAILURE_RETRY(
+            write(sockfd, request.get(), sizeof(struct request))) == -1
+    ) {
+        return real_rename(path1, path2);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_rename(path1, path2);
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_rename(
+    int (*real_rename)(const char*, const char*),
+    const char* path1, const char* path2)
+{
+    if (!lua_filter::filters.contains(request::RENAME)) {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_rename(real_rename, fds, path1, path2);
+    }
+
+    auto lua_filter = get_lua_filter_from_pool_or_create();
+    BOOST_SCOPE_EXIT_ALL(&) { add_lua_filter_to_pool(std::move(lua_filter)); };
+    auto L = lua_filter->L;
+    lua_pushlightuserdata(L, &lua_filter::rename_key);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(real_rename));
+    lua_pushcclosure(L, [](lua_State* L) -> int {
+        auto real_rename = reinterpret_cast<int (*)(const char*, const char*)>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        const char* path1 = luaL_checkstring(L, 1);
+        const char* path2 = luaL_checkstring(L, 2);
+        fds_type fds;
+        int res = forward_rename(real_rename, fds, path1, path2);
+        int rename_errno = (res == -1) ? errno : 0;
+
+        int ret = 2;
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, rename_errno);
+
+        for (int fd : fds) {
+            if (fd == -1)
+                break;
+
+            lua_pushinteger(L, fd);
+            ++ret;
+        }
+
+        return ret;
+    }, 1);
+    lua_pushstring(L, path1);
+    lua_pushstring(L, path2);
+
+    auto on_lua_fail = [&]() -> int {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_rename(real_rename, fds, path1, path2);
+    };
+
+    if (lua_pcall(L, /*nargs=*/3, /*nresults=*/2, /*errfunc=*/0) != 0) {
         lua_pop(L, 1);
         return on_lua_fail();
     }
@@ -2713,6 +2866,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     lua_filter::filters = std::move(lua_chunk_filters);
     ambient_authority.open = my_open;
     ambient_authority.unlink = my_unlink;
+    ambient_authority.rename = my_rename;
     ambient_authority.connect = my_connect;
     ambient_authority.bind = my_bind;
     ambient_authority.getaddrinfo = my_getaddrinfo;

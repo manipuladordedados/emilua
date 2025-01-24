@@ -124,6 +124,13 @@ Returns:
 * The value for ``unlink()``'s return.
 * Optional: The value for `errno`.
 
+=== `rename(real_rename: function, path1: string, path2: string) -> integer[, integer]`
+
+Returns:
+
+* The value for ``rename()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

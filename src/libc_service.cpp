@@ -58,6 +58,12 @@ struct unlink_request
     std::string path;
 };
 
+struct rename_request
+{
+    std::string path1;
+    std::string path2;
+};
+
 struct connect_unix_request
 {
     std::string path;
@@ -123,6 +129,7 @@ struct master
         open_request,
         openat_request,
         unlink_request,
+        rename_request,
         connect_unix_request,
         connect_inet_request,
         connect_inet6_request,
@@ -324,6 +331,26 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
 
             master.last_request.emplace<unlink_request>(
                 static_cast<std::string>(path));
+            break;
+        }
+        case request::RENAME: {
+            std::span<char> buffer = request.buffer;
+
+            if (request.uintargs[0] > buffer.size()) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            std::string_view path1{buffer.data(), request.uintargs[0]};
+            buffer = buffer.last(buffer.size() - request.uintargs[0]);
+
+            if (request.uintargs[1] > buffer.size()) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            std::string_view path2{buffer.data(), request.uintargs[1]};
+            buffer = buffer.last(buffer.size() - request.uintargs[1]);
+
+            master.last_request.emplace<rename_request>(
+                static_cast<std::string>(path1),
+                static_cast<std::string>(path2));
             break;
         }
         case request::CONNECT_UNIX: {
@@ -1304,6 +1331,23 @@ static int master_arguments(lua_State* L)
             *p = fs::path{r.path, fs::path::native_format};
             return 1;
         },
+        [&](const rename_request& r) {
+            auto p1 = static_cast<fs::path*>(
+                lua_newuserdata(L, sizeof(fs::path)));
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            setmetatable(L, -2);
+            new (p1) fs::path{};
+            *p1 = fs::path{r.path1, fs::path::native_format};
+
+            auto p2 = static_cast<fs::path*>(
+                lua_newuserdata(L, sizeof(fs::path)));
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            setmetatable(L, -2);
+            new (p2) fs::path{};
+            *p2 = fs::path{r.path2, fs::path::native_format};
+
+            return 2;
+        },
         [&](const connect_unix_request& r) {
             auto p = static_cast<fs::path*>(
                 lua_newuserdata(L, sizeof(fs::path)));
@@ -1432,6 +1476,7 @@ static int master_descriptors(lua_State* L)
             }
         },
         [&](const unlink_request& r) { return einval(L); },
+        [&](const rename_request& r) { return einval(L); },
         [&](const connect_unix_request& r) {
             if (mstr->last_fds[0] == -1) {
                 lua_pushnil(L);
@@ -1546,6 +1591,10 @@ inline int master_function_(lua_State* L)
             lua_pushliteral(L, "unlink");
             return 1;
         },
+        [&](const rename_request&) {
+            lua_pushliteral(L, "rename");
+            return 1;
+        },
         [&](const connect_unix_request&) {
             lua_pushliteral(L, "connect_unix");
             return 1;
@@ -1655,6 +1704,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PAIR("open", libc_service::request::OPEN)
         EMILUA_GPERF_PAIR("openat", libc_service::request::OPENAT)
         EMILUA_GPERF_PAIR("unlink", libc_service::request::UNLINK)
+        EMILUA_GPERF_PAIR("rename", libc_service::request::RENAME)
         EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
         EMILUA_GPERF_PAIR("connect_inet", libc_service::request::CONNECT_INET)
         EMILUA_GPERF_PAIR("connect_inet6", libc_service::request::CONNECT_INET6)

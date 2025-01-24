@@ -37,6 +37,7 @@ struct request
         OPEN,
         OPENAT,
         UNLINK,
+        RENAME,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,
