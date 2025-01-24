@@ -36,6 +36,7 @@ struct request
     {
         OPEN,
         OPENAT,
+        UNLINK,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

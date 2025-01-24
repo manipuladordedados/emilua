@@ -117,6 +117,13 @@ Returns:
 * The value for ``openat()``'s return.
 * Optional: The value for `errno`.
 
+=== `unlink(real_unlink: function, path: string) -> integer[, integer]`
+
+Returns:
+
+* The value for ``unlink()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

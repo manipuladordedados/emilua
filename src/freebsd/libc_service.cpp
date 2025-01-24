@@ -19,6 +19,7 @@ extern "C" {
 
 extern int __sys_open(const char *file, int oflag, ...);
 extern int __sys_openat(int dirfd, const char *file, int oflag, ...);
+extern int __sys_unlink(const char *file);
 extern int __sys_connect(int, const struct sockaddr*, socklen_t);
 extern int __sys_bind(int, const struct sockaddr*, socklen_t);
 
@@ -170,6 +171,15 @@ FILE* fopen(const char* pathname, const char* mode)
         errno = last_errno;
     }
     return ret;
+}
+
+int unlink(const char* pathname)
+{
+    if (emilua::ambient_authority.unlink) {
+        return (*emilua::ambient_authority.unlink)(__sys_unlink, pathname);
+    } else {
+        return __sys_unlink(pathname);
+    }
 }
 
 int connect(int s, const struct sockaddr* name, socklen_t namelen)

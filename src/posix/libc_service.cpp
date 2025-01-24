@@ -115,6 +115,18 @@ int openat(int dirfd, const char *file, int oflag, ...)
     }
 }
 
+int unlink(const char* pathname)
+{
+    auto real_unlink = reinterpret_cast<int (*)(const char*)>(
+        dlsym(RTLD_NEXT, "unlink"));
+
+    if (emilua::ambient_authority.unlink) {
+        return (*emilua::ambient_authority.unlink)(real_unlink, pathname);
+    } else {
+        return real_unlink(pathname);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

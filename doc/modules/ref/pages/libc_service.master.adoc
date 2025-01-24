@@ -48,6 +48,7 @@ Send the result for the currently arbitrated libc call.
 
 |open |integer
 |openat |integer
+|unlink |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -91,6 +92,7 @@ Send the result for the currently arbitrated libc call.
 
 |open |integer
 |openat |integer
+|unlink |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -230,6 +232,10 @@ are already present in the kernel's lookup cache.
 `mode: integer`::: Optional argument. Only present if `"create"` or
 `"temporary"` appear in `flags`.
 
+`unlink`::
+
+`path: filesystem.path`::: The file path.
+
 `connect_unix`::
 
 `path: filesystem.path`::: The UNIX socket path.
@@ -289,6 +295,7 @@ Possible values:
 
 * `"open"`
 * `"openat"`
+* `"unlink"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

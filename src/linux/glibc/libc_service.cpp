@@ -179,6 +179,41 @@ FILE* fopen64(const char* pathname, const char* mode)
     return ret;
 }
 
+// Glibc only provides the alias __unlink for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __unlink(const char* pathname)
+{
+    auto real_unlink = reinterpret_cast<int (*)(const char*)>(
+        dlsym(RTLD_NEXT, "unlink"));
+    return real_unlink(pathname);
+}
+
+int unlink(const char* pathname)
+{
+    if (emilua::ambient_authority.unlink) {
+        return (*emilua::ambient_authority.unlink)(__unlink, pathname);
+    } else {
+        return __unlink(pathname);
+    }
+}
+
+// Glibc doesn't want us to override remove() so this only works for builds
+// against dynamic libc.
+[[gnu::weak]]
+int remove(const char* pathname)
+{
+    if (unlink(pathname) == 0)
+        return 0;
+
+    if (errno == EISDIR || errno == EPERM)
+        return rmdir(pathname);
+
+    return -1;
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {
