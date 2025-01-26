@@ -235,6 +235,7 @@ One of:
 
 * `"regular"`
 * `"directory"`
+* `"symlink"`
 * `"block"`
 * `"character"`
 * `"fifo"`

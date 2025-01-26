@@ -678,6 +678,9 @@ inline int file_descriptor_type(lua_State* L)
     case S_IFSOCK:
         ret = "socket";
         break;
+    case S_IFLNK:
+        ret = "symlink";
+        break;
     case S_IFREG:
         ret = "regular";
         break;
