@@ -50,6 +50,43 @@ Send the result for the currently arbitrated libc call.
 |openat |integer
 |unlink |integer
 |rename |integer
+
+|stat
+a|
+
+On error, it should be the number `-1`.
+
+On success, it should be an object (table) with the following properties:
+
+`dev: number`:: Device ID.
+
+`ino: number`:: Inode number.
+
+`mode: number`:: File access mode bits.
+
+`type: "regular"\|"directory"\|"symlink"\|"block"\|"character"\|"fifo"\|"socket"`::
+File type.
+
+`nlink: number`:: Number of hardlinks.
+
+`uid: number`:: User ID of owner.
+
+`gid: number`:: Group ID of owner.
+
+`rdev: number`:: Like `dev`, but for special files.
+
+`size: number`:: Total size, in bytes.
+
+`atime: filesystem.clock.time_point`:: The time of the last access.
+
+`mtime: filesystem.clock.time_point`:: The time of the last modification.
+
+`ctime: filesystem.clock.time_point`:: The time of the last status change.
+
+`blksize: number`:: Block size for filesystem I/O.
+
+`blocks: number`:: Number of blocks allocated.
+
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -95,6 +132,43 @@ Send the result for the currently arbitrated libc call.
 |openat |integer
 |unlink |integer
 |rename |integer
+
+|stat
+a|
+
+On error, it should be the number `-1`.
+
+On success, it should be an object (table) with the following properties:
+
+`dev: number`:: Device ID.
+
+`ino: number`:: Inode number.
+
+`mode: number`:: File access mode bits.
+
+`type: "regular"\|"directory"\|"symlink"\|"block"\|"character"\|"fifo"\|"socket"`::
+File type.
+
+`nlink: number`:: Number of hardlinks.
+
+`uid: number`:: User ID of owner.
+
+`gid: number`:: Group ID of owner.
+
+`rdev: number`:: Like `dev`, but for special files.
+
+`size: number`:: Total size, in bytes.
+
+`atime: filesystem.clock.time_point`:: The time of the last access.
+
+`mtime: filesystem.clock.time_point`:: The time of the last modification.
+
+`ctime: filesystem.clock.time_point`:: The time of the last status change.
+
+`blksize: number`:: Block size for filesystem I/O.
+
+`blocks: number`:: Number of blocks allocated.
+
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -244,6 +318,10 @@ are already present in the kernel's lookup cache.
 
 `path2: filesystem.path`::: The file2 path.
 
+`stat`::
+
+`path: filesystem.path`::: The file path.
+
 `connect_unix`::
 
 `path: filesystem.path`::: The UNIX socket path.
@@ -305,6 +383,7 @@ Possible values:
 * `"openat"`
 * `"unlink"`
 * `"rename"`
+* `"stat"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

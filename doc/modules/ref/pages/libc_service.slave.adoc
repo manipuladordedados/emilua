@@ -131,6 +131,13 @@ Returns:
 * The value for ``rename()``'s return.
 * Optional: The value for `errno`.
 
+=== `stat(real_stat: function, path: string) -> integer|table[, integer]`
+
+Returns:
+
+* The value for ``stat()``'s return. Or Lua table on success (return `0`).
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

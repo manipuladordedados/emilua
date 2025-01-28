@@ -64,6 +64,11 @@ struct rename_request
     std::string path2;
 };
 
+struct stat_request
+{
+    std::string path;
+};
+
 struct connect_unix_request
 {
     std::string path;
@@ -130,6 +135,7 @@ struct master
         openat_request,
         unlink_request,
         rename_request,
+        stat_request,
         connect_unix_request,
         connect_inet_request,
         connect_inet6_request,
@@ -351,6 +357,19 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
             master.last_request.emplace<rename_request>(
                 static_cast<std::string>(path1),
                 static_cast<std::string>(path2));
+            break;
+        }
+        case request::STAT: {
+            std::span<char> buffer = request.buffer;
+
+            if (request.uintargs[0] > buffer.size()) {
+                return close_socket_and_resume_fiber_with_ebadmsg();
+            }
+            std::string_view path{buffer.data(), request.uintargs[0]};
+            buffer = buffer.last(buffer.size() - request.uintargs[0]);
+
+            master.last_request.emplace<stat_request>(
+                static_cast<std::string>(path));
             break;
         }
         case request::CONNECT_UNIX: {
@@ -699,7 +718,7 @@ static std::errc fill_reply_buffer(
     const decltype((std::declval<master>().last_request))& last_request
    )
 {
-    return std::visit(hana::overload_linearly(
+    std::errc ret = std::visit(hana::overload_linearly(
         [](std::monostate) { return std::errc::invalid_argument; },
         [&](const getaddrinfo_request&) {
             switch (lua_type(L, 2)) {
@@ -772,42 +791,275 @@ static std::errc fill_reply_buffer(
                 break;
             }
             }
-
-            switch (lua_type(L, ERRNOARGIDX)) {
+            return std::errc{};
+        },
+        [&](const stat_request&) {
+            switch (lua_type(L, 2)) {
             default:
                 return std::errc::invalid_argument;
-            case LUA_TNIL:
-                reply_buffer.error_code = 0;
-                break;
             case LUA_TNUMBER:
-                reply_buffer.error_code = lua_tointeger(L, ERRNOARGIDX);
-                break;
-            case LUA_TTABLE: {
-                if (!lua_getmetatable(L, ERRNOARGIDX))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_code_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                lua_pushliteral(L, "category");
-                lua_rawget(L, ERRNOARGIDX);
-                auto cat = static_cast<const std::error_category**>(
-                    lua_touserdata(L, -1));
-                if (!lua_getmetatable(L, -1))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_category_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                if (*cat != &std::generic_category() &&
-                    *cat != &std::system_category()) {
+                if (lua_tointeger(L, 2) != -1) {
                     return std::errc::invalid_argument;
                 }
-                lua_pushliteral(L, "code");
-                lua_rawget(L, ERRNOARGIDX);
-                if (lua_type(L, -1) != LUA_TNUMBER)
+                reply_buffer.result = -1;
+                break;
+            case LUA_TTABLE: {
+                reply_buffer.result = 0;
+
+                struct stat statbuf;
+                std::memset(&statbuf, 0, sizeof(struct stat));
+
+                lua_pushliteral(L, "dev");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
                     return std::errc::invalid_argument;
-                reply_buffer.error_code = lua_tointeger(L, -1);
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_dev = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "ino");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_ino = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "mode");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_mode = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "type");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TSTRING: {
+                    auto strkey = tostringview(L, -1);
+                    auto key = EMILUA_GPERF_BEGIN(strkey)
+                        EMILUA_GPERF_PARAM(int action)
+                        EMILUA_GPERF_DEFAULT_VALUE(0)
+                        EMILUA_GPERF_PAIR("regular", S_IFREG)
+                        EMILUA_GPERF_PAIR("directory", S_IFDIR)
+                        EMILUA_GPERF_PAIR("symlink", S_IFLNK)
+                        EMILUA_GPERF_PAIR("block", S_IFBLK)
+                        EMILUA_GPERF_PAIR("character", S_IFCHR)
+                        EMILUA_GPERF_PAIR("fifo", S_IFIFO)
+                        EMILUA_GPERF_PAIR("socket", S_IFSOCK)
+                    EMILUA_GPERF_END(strkey);
+                    if (key == 0) {
+                        return std::errc::invalid_argument;
+                    }
+                    statbuf.st_mode |= key;
+                    break;
+                }
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "nlink");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_nlink = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "uid");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_uid = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "gid");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_gid = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "rdev");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_rdev = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "size");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_size = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "atime");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TUSERDATA: {
+                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+                        lua_touserdata(L, -1));
+                    if (!lua_getmetatable(L, -1)) {
+                        return std::errc::invalid_argument;
+                    }
+                    rawgetp(
+                        L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
+                    if (!lua_rawequal(L, -1, -2)) {
+                        return std::errc::invalid_argument;
+                    }
+
+                    auto unixtp = time_point_cast<std::chrono::nanoseconds>(
+                        std::chrono::file_clock::to_sys(*tp));
+                    std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
+                    auto secs = duration_cast<std::chrono::seconds>(nsecs);
+                    nsecs -= secs;
+                    statbuf.st_atim.tv_sec = secs.count();
+                    statbuf.st_atim.tv_nsec = nsecs.count();
+                    break;
+                }
+                }
+
+                lua_pushliteral(L, "mtime");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TUSERDATA: {
+                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+                        lua_touserdata(L, -1));
+                    if (!lua_getmetatable(L, -1)) {
+                        return std::errc::invalid_argument;
+                    }
+                    rawgetp(
+                        L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
+                    if (!lua_rawequal(L, -1, -2)) {
+                        return std::errc::invalid_argument;
+                    }
+
+                    auto unixtp = time_point_cast<std::chrono::nanoseconds>(
+                        std::chrono::file_clock::to_sys(*tp));
+                    std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
+                    auto secs = duration_cast<std::chrono::seconds>(nsecs);
+                    nsecs -= secs;
+                    statbuf.st_mtim.tv_sec = secs.count();
+                    statbuf.st_mtim.tv_nsec = nsecs.count();
+                    break;
+                }
+                }
+
+                lua_pushliteral(L, "ctime");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TUSERDATA: {
+                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
+                        lua_touserdata(L, -1));
+                    if (!lua_getmetatable(L, -1)) {
+                        return std::errc::invalid_argument;
+                    }
+                    rawgetp(
+                        L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
+                    if (!lua_rawequal(L, -1, -2)) {
+                        return std::errc::invalid_argument;
+                    }
+
+                    auto unixtp = time_point_cast<std::chrono::nanoseconds>(
+                        std::chrono::file_clock::to_sys(*tp));
+                    std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
+                    auto secs = duration_cast<std::chrono::seconds>(nsecs);
+                    nsecs -= secs;
+                    statbuf.st_ctim.tv_sec = secs.count();
+                    statbuf.st_ctim.tv_nsec = nsecs.count();
+                    break;
+                }
+                }
+
+                lua_pushliteral(L, "blksize");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_blksize = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                lua_pushliteral(L, "blocks");
+                lua_rawget(L, 2);
+                switch (lua_type(L, -1)) {
+                default:
+                    return std::errc::invalid_argument;
+                case LUA_TNIL:
+                    break;
+                case LUA_TNUMBER:
+                    statbuf.st_blocks = lua_tointeger(L, -1);
+                    break;
+                }
+                lua_pop(L, 1);
+
+                std::memcpy(
+                    reply_buffer.buffer.data(), &statbuf, sizeof(struct stat));
                 break;
             }
             }
@@ -815,47 +1067,53 @@ static std::errc fill_reply_buffer(
         },
         [&](const auto&) {
             reply_buffer.result = luaL_checkinteger(L, 2);
-            switch (lua_type(L, ERRNOARGIDX)) {
-            default:
-                return std::errc::invalid_argument;
-            case LUA_TNIL:
-                reply_buffer.error_code = 0;
-                break;
-            case LUA_TNUMBER:
-                reply_buffer.error_code = lua_tointeger(L, ERRNOARGIDX);
-                break;
-            case LUA_TTABLE: {
-                if (!lua_getmetatable(L, ERRNOARGIDX))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_code_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                lua_pushliteral(L, "category");
-                lua_rawget(L, ERRNOARGIDX);
-                auto cat = static_cast<const std::error_category**>(
-                    lua_touserdata(L, -1));
-                if (!lua_getmetatable(L, -1))
-                    return std::errc::invalid_argument;
-                rawgetp(L, LUA_REGISTRYINDEX,
-                        &emilua::detail::error_category_mt_key);
-                if (!lua_rawequal(L, -1, -2))
-                    return std::errc::invalid_argument;
-                if (*cat != &std::generic_category() &&
-                    *cat != &std::system_category()) {
-                    return std::errc::invalid_argument;
-                }
-                lua_pushliteral(L, "code");
-                lua_rawget(L, ERRNOARGIDX);
-                if (lua_type(L, -1) != LUA_TNUMBER)
-                    return std::errc::invalid_argument;
-                reply_buffer.error_code = lua_tointeger(L, -1);
-                break;
-            }
-            }
             return std::errc{};
         }
     ), last_request);
+
+    if (ret != std::errc{}) {
+        return ret;
+    }
+
+    switch (lua_type(L, ERRNOARGIDX)) {
+    default:
+        return std::errc::invalid_argument;
+    case LUA_TNIL:
+        reply_buffer.error_code = 0;
+        break;
+    case LUA_TNUMBER:
+        reply_buffer.error_code = lua_tointeger(L, ERRNOARGIDX);
+        break;
+    case LUA_TTABLE: {
+        if (!lua_getmetatable(L, ERRNOARGIDX))
+            return std::errc::invalid_argument;
+        rawgetp(L, LUA_REGISTRYINDEX,
+                &emilua::detail::error_code_mt_key);
+        if (!lua_rawequal(L, -1, -2))
+            return std::errc::invalid_argument;
+        lua_pushliteral(L, "category");
+        lua_rawget(L, ERRNOARGIDX);
+        auto cat = static_cast<const std::error_category**>(
+            lua_touserdata(L, -1));
+        if (!lua_getmetatable(L, -1))
+            return std::errc::invalid_argument;
+        rawgetp(L, LUA_REGISTRYINDEX,
+                &emilua::detail::error_category_mt_key);
+        if (!lua_rawequal(L, -1, -2))
+            return std::errc::invalid_argument;
+        if (*cat != &std::generic_category() &&
+            *cat != &std::system_category()) {
+            return std::errc::invalid_argument;
+        }
+        lua_pushliteral(L, "code");
+        lua_rawget(L, ERRNOARGIDX);
+        if (lua_type(L, -1) != LUA_TNUMBER)
+            return std::errc::invalid_argument;
+        reply_buffer.error_code = lua_tointeger(L, -1);
+        break;
+    }
+    }
+    return std::errc{};
 }
 
 static int master_send(lua_State* L)
@@ -1348,6 +1606,15 @@ static int master_arguments(lua_State* L)
 
             return 2;
         },
+        [&](const stat_request& r) {
+            auto p = static_cast<fs::path*>(
+                lua_newuserdata(L, sizeof(fs::path)));
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            setmetatable(L, -2);
+            new (p) fs::path{};
+            *p = fs::path{r.path, fs::path::native_format};
+            return 1;
+        },
         [&](const connect_unix_request& r) {
             auto p = static_cast<fs::path*>(
                 lua_newuserdata(L, sizeof(fs::path)));
@@ -1477,6 +1744,7 @@ static int master_descriptors(lua_State* L)
         },
         [&](const unlink_request& r) { return einval(L); },
         [&](const rename_request& r) { return einval(L); },
+        [&](const stat_request& r) { return einval(L); },
         [&](const connect_unix_request& r) {
             if (mstr->last_fds[0] == -1) {
                 lua_pushnil(L);
@@ -1595,6 +1863,10 @@ inline int master_function_(lua_State* L)
             lua_pushliteral(L, "rename");
             return 1;
         },
+        [&](const stat_request&) {
+            lua_pushliteral(L, "stat");
+            return 1;
+        },
         [&](const connect_unix_request&) {
             lua_pushliteral(L, "connect_unix");
             return 1;
@@ -1705,6 +1977,7 @@ static int slave_mt_newindex(lua_State* L)
         EMILUA_GPERF_PAIR("openat", libc_service::request::OPENAT)
         EMILUA_GPERF_PAIR("unlink", libc_service::request::UNLINK)
         EMILUA_GPERF_PAIR("rename", libc_service::request::RENAME)
+        EMILUA_GPERF_PAIR("stat", libc_service::request::STAT)
         EMILUA_GPERF_PAIR("connect_unix", libc_service::request::CONNECT_UNIX)
         EMILUA_GPERF_PAIR("connect_inet", libc_service::request::CONNECT_INET)
         EMILUA_GPERF_PAIR("connect_inet6", libc_service::request::CONNECT_INET6)

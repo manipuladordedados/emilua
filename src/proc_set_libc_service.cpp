@@ -167,6 +167,19 @@ struct lua_filter
             }
         }
 
+        if (filters.contains(request::STAT)) {
+            const auto& src = filters[request::STAT];
+
+            lua_pushlightuserdata(L, &stat_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
+
         if (filters.contains(request::CONNECT_UNIX)) {
             const auto& src = filters[request::CONNECT_UNIX];
 
@@ -271,6 +284,7 @@ struct lua_filter
     static char openat_key;
     static char unlink_key;
     static char rename_key;
+    static char stat_key;
     static char connect_unix_key;
     static char connect_inet_key;
     static char connect_inet6_key;
@@ -285,6 +299,7 @@ char lua_filter::open_key;
 char lua_filter::openat_key;
 char lua_filter::unlink_key;
 char lua_filter::rename_key;
+char lua_filter::stat_key;
 char lua_filter::connect_unix_key;
 char lua_filter::connect_inet_key;
 char lua_filter::connect_inet6_key;
@@ -1188,6 +1203,351 @@ static int my_rename(
         break;
     }
     }
+    return res;
+}
+
+static int forward_stat(
+    int (*real_stat)(const char*, struct stat*),
+    fds_type& fds, const char* path, struct stat* statbuf)
+{
+    fds.fill(-1);
+
+    auto request = get_fresh_request_object();
+    request->function = request::STAT;
+
+    {
+        std::span<char> buffer = request->buffer;
+
+        std::string_view pathv{path};
+        if (pathv.size() > buffer.size()) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        std::memcpy(buffer.data(), pathv.data(), pathv.size());
+        buffer = buffer.last(buffer.size() - pathv.size());
+        request->uintargs[0] = pathv.size();
+    }
+
+    if (
+        TEMP_FAILURE_RETRY(
+            write(sockfd, request.get(), sizeof(struct request))) == -1
+    ) {
+        return real_stat(path, statbuf);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        std::memcpy(statbuf, reply->buffer.data(), sizeof(struct stat));
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_stat(path, statbuf);
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_stat(
+    int (*real_stat)(const char*, struct stat*),
+    const char* pathname, struct stat* statbuf)
+{
+    if (!lua_filter::filters.contains(request::STAT)) {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_stat(real_stat, fds, pathname, statbuf);
+    }
+
+    auto lua_filter = get_lua_filter_from_pool_or_create();
+    BOOST_SCOPE_EXIT_ALL(&) { add_lua_filter_to_pool(std::move(lua_filter)); };
+    auto L = lua_filter->L;
+    lua_pushlightuserdata(L, &lua_filter::stat_key);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(real_stat));
+    lua_pushcclosure(L, [](lua_State* L) -> int {
+        auto real_stat = reinterpret_cast<int (*)(const char*, struct stat*)>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        const char* path = luaL_checkstring(L, 1);
+        fds_type fds;
+        struct stat statbuf;
+        int res = forward_stat(real_stat, fds, path, &statbuf);
+        int stat_errno = (res == -1) ? errno : 0;
+
+        int ret = 2;
+        if (res == 0) {
+            lua_newtable(L);
+
+            lua_pushinteger(L, statbuf.st_dev);
+            lua_setfield(L, -2, "dev");
+
+            lua_pushinteger(L, statbuf.st_ino);
+            lua_setfield(L, -2, "ino");
+
+            lua_pushinteger(L, statbuf.st_mode);
+            lua_setfield(L, -2, "mode");
+
+            lua_pushinteger(L, statbuf.st_nlink);
+            lua_setfield(L, -2, "nlink");
+
+            lua_pushinteger(L, statbuf.st_uid);
+            lua_setfield(L, -2, "uid");
+
+            lua_pushinteger(L, statbuf.st_gid);
+            lua_setfield(L, -2, "gid");
+
+            lua_pushinteger(L, statbuf.st_rdev);
+            lua_setfield(L, -2, "rdev");
+
+            lua_pushinteger(L, statbuf.st_size);
+            lua_setfield(L, -2, "size");
+
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+                lua_pushinteger(L, statbuf.st_atim.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_atim.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+            }
+            lua_setfield(L, -2, "atim");
+
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+                lua_pushinteger(L, statbuf.st_mtim.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_mtim.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+            }
+            lua_setfield(L, -2, "mtim");
+
+            {
+                lua_createtable(L, /*narr=*/0, /*nrec=*/2);
+
+                lua_pushinteger(L, statbuf.st_ctim.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_ctim.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+            }
+            lua_setfield(L, -2, "ctim");
+
+            lua_pushinteger(L, statbuf.st_blksize);
+            lua_setfield(L, -2, "blksize");
+
+            lua_pushinteger(L, statbuf.st_blocks);
+            lua_setfield(L, -2, "blocks");
+        } else {
+            lua_pushinteger(L, res);
+        }
+        lua_pushinteger(L, stat_errno);
+
+        for (int fd : fds) {
+            if (fd == -1)
+                break;
+
+            lua_pushinteger(L, fd);
+            ++ret;
+        }
+
+        return ret;
+    }, 1);
+    lua_pushstring(L, pathname);
+
+    auto on_lua_fail = [&]() -> int {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_stat(real_stat, fds, pathname, statbuf);
+    };
+
+    if (lua_pcall(L, /*nargs=*/2, /*nresults=*/2, /*errfunc=*/0) != 0) {
+        lua_pop(L, 1);
+        return on_lua_fail();
+    }
+
+    int res;
+    int saved_errno = 0;
+    {
+        BOOST_SCOPE_EXIT_ALL(&) { lua_settop(L, 0); };
+
+        switch (lua_type(L, -2)) {
+        default:
+            return on_lua_fail();
+        case LUA_TNUMBER:
+            res = lua_tointeger(L, -2);
+            if (res != -1) {
+                return on_lua_fail();
+            }
+            break;
+        case LUA_TTABLE:
+            res = 0;
+
+            lua_pushliteral(L, "dev");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_dev = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "ino");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_ino = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "mode");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_mode = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "nlink");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_nlink = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "uid");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_uid = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "gid");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_gid = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "rdev");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_rdev = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "size");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_size = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "blksize");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_blksize = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "blocks");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_blocks = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "atim");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TTABLE) {
+                return on_lua_fail();
+            }
+            lua_pushliteral(L, "sec");
+            lua_rawget(L, -2);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_atim.tv_sec = lua_tointeger(L, -1);
+            lua_pushliteral(L, "nsec");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_atim.tv_nsec = lua_tointeger(L, -1);
+            lua_pop(L, 3);
+
+            lua_pushliteral(L, "mtim");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TTABLE) {
+                return on_lua_fail();
+            }
+            lua_pushliteral(L, "sec");
+            lua_rawget(L, -2);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_mtim.tv_sec = lua_tointeger(L, -1);
+            lua_pushliteral(L, "nsec");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_mtim.tv_nsec = lua_tointeger(L, -1);
+            lua_pop(L, 3);
+
+            lua_pushliteral(L, "ctim");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TTABLE) {
+                return on_lua_fail();
+            }
+            lua_pushliteral(L, "sec");
+            lua_rawget(L, -2);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_ctim.tv_sec = lua_tointeger(L, -1);
+            lua_pushliteral(L, "nsec");
+            lua_rawget(L, -3);
+            if (lua_type(L, -1) != LUA_TNUMBER) {
+                return on_lua_fail();
+            }
+            statbuf->st_ctim.tv_nsec = lua_tointeger(L, -1);
+            lua_pop(L, 3);
+
+            break;
+        }
+
+        switch (lua_type(L, -1)) {
+        default:
+            return on_lua_fail();
+        case LUA_TNIL:
+            break;
+        case LUA_TNUMBER:
+            saved_errno = lua_tointeger(L, -1);
+            break;
+        }
+    }
+    errno = saved_errno;
     return res;
 }
 
@@ -2867,6 +3227,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     ambient_authority.open = my_open;
     ambient_authority.unlink = my_unlink;
     ambient_authority.rename = my_rename;
+    ambient_authority.stat = my_stat;
     ambient_authority.connect = my_connect;
     ambient_authority.bind = my_bind;
     ambient_authority.getaddrinfo = my_getaddrinfo;

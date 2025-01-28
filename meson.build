@@ -1073,6 +1073,11 @@ if get_option('enable_tests')
             (('-static' in get_option('cpp_link_args')) ? [] : [
                 'libc_service_cat',
             ]) +
+            (host_machine.system() == 'freebsd' ? [] : [
+                'libc_service_stat1',
+                'libc_service_stat2',
+                'libc_service_stat3',
+            ]) +
             (get_option('enable_io_uring') ? [] : [
                 'libc_service_connect',
                 'libc_service_connect2',

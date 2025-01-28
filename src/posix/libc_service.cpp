@@ -140,6 +140,18 @@ int rename(const char* pathname1, const char* pathname2)
     }
 }
 
+int stat(const char* pathname, struct stat* statbuf)
+{
+    auto real_stat = reinterpret_cast<int (*)(const char*, struct stat*)>(
+        dlsym(RTLD_NEXT, "stat"));
+
+    if (emilua::ambient_authority.stat) {
+        return (*emilua::ambient_authority.stat)(real_stat, pathname, statbuf);
+    } else {
+        return real_stat(pathname, statbuf);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

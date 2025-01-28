@@ -9,6 +9,7 @@ namespace emilua {
 
 extern char filesystem_key;
 extern char filesystem_path_mt_key;
+extern char file_clock_time_point_mt_key;
 
 void init_filesystem(lua_State* L);
 

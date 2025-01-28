@@ -56,8 +56,8 @@ struct directory_iterator
     static int make(lua_State* L);
 };
 
+char file_clock_time_point_mt_key;
 static char filesystem_path_iterator_mt_key;
-static char file_clock_time_point_mt_key;
 static char file_status_mt_key;
 static char directory_entry_mt_key;
 static char recursive_directory_iterator_mt_key;

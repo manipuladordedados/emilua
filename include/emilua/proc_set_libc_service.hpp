@@ -7,6 +7,8 @@
 #include <boost/predef/os/linux.h>
 #include <boost/predef/os/unix.h>
 
+#include <sys/stat.h>
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <array>
@@ -38,6 +40,7 @@ struct request
         OPENAT,
         UNLINK,
         RENAME,
+        STAT,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,
@@ -73,7 +76,13 @@ struct reply
     int error_code; //< errno
 
     int intargs[3];
-    std::array<char, 16> buffer;
+    std::array<
+        char,
+        std::max<std::size_t>({
+            /*IPv6 size=*/16,
+            sizeof(struct stat)
+        })
+    > buffer;
 };
 
 void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters);
