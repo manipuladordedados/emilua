@@ -58,6 +58,10 @@ include::pages/filesystem.mknod.adoc[]
 
 include::pages/filesystem.makedev.adoc[]
 
+include::pages/filesystem.dev_major.adoc[]
+
+include::pages/filesystem.dev_minor.adoc[]
+
 include::pages/filesystem.equivalent.adoc[]
 
 include::pages/filesystem.file_size.adoc[]

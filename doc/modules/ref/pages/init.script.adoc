@@ -64,6 +64,14 @@ function mode(user, group, other)
 end
 ----
 
+=== `dev_major(dev: integer) -> integer
+
+See makedev(3).
+
+=== `dev_minor(dev: integer) -> integer
+
+See makedev(3).
+
 === `write_all(fd: integer, buffer: string) -> integer, integer`
 
 Similar to `stream.write_all()`.

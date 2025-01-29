@@ -1,0 +1,21 @@
+= filesystem.dev_major
+
+ifeval::["{doctype}" == "manpage"]
+
+== Name
+
+Emilua - Lua execution engine
+
+endif::[]
+
+== Synopsis
+
+[source,lua]
+----
+local fs = require "filesystem"
+fs.dev_major(dev: integer) -> integer
+----
+
+== Description
+
+See makedev(3).

@@ -14,6 +14,7 @@
 #include <errno.h>
 
 #if BOOST_OS_LINUX
+#include <sys/sysmacros.h>
 #include <sys/prctl.h>
 #endif // BOOST_OS_LINUX
 
@@ -151,6 +152,24 @@ void open_posix_libs(lua_State* L)
             return 1;
         });
     lua_setglobal(L, "mode");
+
+    lua_pushcfunction(
+        L,
+        [](lua_State* L) -> int {
+            int dev = luaL_checkinteger(L, 1);
+            lua_pushinteger(L, major(dev));
+            return 1;
+        });
+    lua_setglobal(L, "major");
+
+    lua_pushcfunction(
+        L,
+        [](lua_State* L) -> int {
+            int dev = luaL_checkinteger(L, 1);
+            lua_pushinteger(L, minor(dev));
+            return 1;
+        });
+    lua_setglobal(L, "minor");
 
     lua_pushcfunction(
         L,

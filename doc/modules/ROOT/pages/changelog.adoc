@@ -23,6 +23,7 @@
 * Value `"\0pid"` for the parameter `"environment"` in `system.spawn()`.
 * Function `wait()` for acceptors.
 * Property `file_descriptor.type`.
+* Function `filesystem.dev_major()`, and `filesystem.dev_minor()`.
 * Function `filesystem.open()`.
 * Function `file_descriptor.openat()`.
 * Function `file_descriptor.kcmp()`.
@@ -30,6 +31,7 @@
 * Function `dup_from()` in `system.in_`, `system.out`, and `system.err`.
 * Function `system.get_ld_library_directories()`.
 * `init.script`
+** `dev_major()` and `dev_minor()`.
 ** `caph_cache_tzdata()` (FreeBSD).
 ** `dup()` and `dup2()`.
 ** `close()` and `closefrom()`.

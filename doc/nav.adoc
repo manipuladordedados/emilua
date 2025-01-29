@@ -48,6 +48,8 @@
 *** xref:ref:filesystem.mkfifo.adoc[mkfifo]
 *** xref:ref:filesystem.mknod.adoc[mknod]
 *** xref:ref:filesystem.makedev.adoc[makedev]
+*** xref:ref:filesystem.dev_major.adoc[dev_major]
+*** xref:ref:filesystem.dev_minor.adoc[dev_minor]
 *** xref:ref:filesystem.equivalent.adoc[equivalent]
 *** xref:ref:filesystem.file_size.adoc[file_size]
 *** xref:ref:filesystem.hardlink_count.adoc[hardlink_count]

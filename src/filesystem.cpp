@@ -3418,6 +3418,20 @@ static int fs_makedev(lua_State* L)
     lua_pushinteger(L, makedev(major, minor));
     return 1;
 }
+
+static int fs_dev_major(lua_State* L)
+{
+    int dev = luaL_checkinteger(L, 1);
+    lua_pushinteger(L, major(dev));
+    return 1;
+}
+
+static int fs_dev_minor(lua_State* L)
+{
+    int dev = luaL_checkinteger(L, 1);
+    lua_pushinteger(L, minor(dev));
+    return 1;
+}
 #endif // BOOST_OS_UNIX
 
 static int equivalent(lua_State* L)
@@ -4794,6 +4808,26 @@ static int filesystem_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_UNIX
                 lua_pushcfunction(L, fs_makedev);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "dev_major",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, fs_dev_major);
+#else
+                lua_pushcfunction(L, throw_enosys);
+#endif // BOOST_OS_UNIX
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "dev_minor",
+            [](lua_State* L) -> int {
+#if BOOST_OS_UNIX
+                lua_pushcfunction(L, fs_dev_minor);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_UNIX
