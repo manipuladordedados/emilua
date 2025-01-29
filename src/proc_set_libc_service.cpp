@@ -219,6 +219,19 @@ struct lua_filter
             }
         }
 
+        if (filters.contains(request::MKDIR)) {
+            const auto& src = filters[request::MKDIR];
+
+            lua_pushlightuserdata(L, &mkdir_key);
+            switch (luaL_loadbuffer(L, src.data(), src.size(), NULL)) {
+            case 0:
+                lua_rawset(L, LUA_REGISTRYINDEX);
+                break;
+            default:
+                lua_pop(L, 2);
+            }
+        }
+
         if (filters.contains(request::CONNECT_UNIX)) {
             const auto& src = filters[request::CONNECT_UNIX];
 
@@ -327,6 +340,7 @@ struct lua_filter
     static char lstat_key;
     static char access_key;
     static char eaccess_key;
+    static char mkdir_key;
     static char connect_unix_key;
     static char connect_inet_key;
     static char connect_inet6_key;
@@ -345,6 +359,7 @@ char lua_filter::stat_key;
 char lua_filter::lstat_key;
 char lua_filter::access_key;
 char lua_filter::eaccess_key;
+char lua_filter::mkdir_key;
 char lua_filter::connect_unix_key;
 char lua_filter::connect_inet_key;
 char lua_filter::connect_inet6_key;
@@ -2201,6 +2216,136 @@ static int my_eaccess(
     return res;
 }
 
+static int forward_mkdir(
+    int (*real_mkdir)(const char*, mode_t),
+    fds_type& fds, const char* path, mode_t mode)
+{
+    fds.fill(-1);
+
+    auto request = get_fresh_request_object();
+    request->function = request::MKDIR;
+
+    {
+        std::span<char> buffer = request->buffer;
+
+        std::string_view pathv{path};
+        if (pathv.size() > buffer.size()) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        std::memcpy(buffer.data(), pathv.data(), pathv.size());
+        buffer = buffer.last(buffer.size() - pathv.size());
+        request->uintargs[0] = pathv.size();
+    }
+
+    request->intargs[0] = mode;
+
+    if (
+        TEMP_FAILURE_RETRY(
+            write(sockfd, request.get(), sizeof(struct request))) == -1
+    ) {
+        return real_mkdir(path, mode);
+    }
+
+    auto reply = get_reply(request->id);
+    std::memcpy(fds.data(), reply->fds.data(), sizeof(int) * fds.size());
+    switch (reply->action) {
+    case reply::USE_REPLY_RESULT:
+        errno = reply->error_code;
+        return reply->result;
+    case reply::FORWARD_TO_REAL_LIBC:
+        return real_mkdir(path, mode);
+    default:
+        __builtin_unreachable();
+    }
+}
+
+static int my_mkdir(
+    int (*real_mkdir)(const char*, mode_t), const char* pathname, mode_t mode)
+{
+    if (!lua_filter::filters.contains(request::MKDIR)) {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_mkdir(real_mkdir, fds, pathname, mode);
+    }
+
+    auto lua_filter = get_lua_filter_from_pool_or_create();
+    BOOST_SCOPE_EXIT_ALL(&) { add_lua_filter_to_pool(std::move(lua_filter)); };
+    auto L = lua_filter->L;
+    lua_pushlightuserdata(L, &lua_filter::mkdir_key);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(real_mkdir));
+    lua_pushcclosure(L, [](lua_State* L) -> int {
+        auto real_mkdir = reinterpret_cast<int (*)(const char*, mode_t)>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        const char* path = luaL_checkstring(L, 1);
+        mode_t mode = luaL_checkinteger(L, 2);
+        fds_type fds;
+        int res = forward_mkdir(real_mkdir, fds, path, mode);
+        int mkdir_errno = (res == -1) ? errno : 0;
+
+        int ret = 2;
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, mkdir_errno);
+
+        for (int fd : fds) {
+            if (fd == -1)
+                break;
+
+            lua_pushinteger(L, fd);
+            ++ret;
+        }
+
+        return ret;
+    }, 1);
+    lua_pushstring(L, pathname);
+    lua_pushinteger(L, mode);
+
+    auto on_lua_fail = [&]() -> int {
+        fds_type fds;
+        BOOST_SCOPE_EXIT_ALL(&) {
+            for (int fd : fds) {
+                if (fd != -1)
+                    std::ignore = close(fd);
+            }
+        };
+
+        return forward_mkdir(real_mkdir, fds, pathname, mode);
+    };
+
+    if (lua_pcall(L, /*nargs=*/3, /*nresults=*/2, /*errfunc=*/0) != 0) {
+        lua_pop(L, 1);
+        return on_lua_fail();
+    }
+
+    if (lua_type(L, -2) != LUA_TNUMBER) {
+        lua_pop(L, 2);
+        return on_lua_fail();
+    }
+    int res = lua_tointeger(L, -2);
+    switch (lua_type(L, -1)) {
+    default:
+        lua_pop(L, 2);
+        return on_lua_fail();
+    case LUA_TNIL:
+        lua_pop(L, 2);
+        break;
+    case LUA_TNUMBER: {
+        auto saved_errno = lua_tointeger(L, -1);
+        lua_pop(L, 2);
+        errno = saved_errno;
+        break;
+    }
+    }
+    return res;
+}
+
 static int forward_connect_unix(
     int (*real_connect)(int, const struct sockaddr*, socklen_t),
     fds_type& fds, int s, std::string_view path)
@@ -3881,6 +4026,7 @@ void proc_set(int sockfd, std::map<int, std::string> lua_chunk_filters)
     ambient_authority.lstat = my_lstat;
     ambient_authority.access = my_access;
     ambient_authority.eaccess = my_eaccess;
+    ambient_authority.mkdir = my_mkdir;
     ambient_authority.connect = my_connect;
     ambient_authority.bind = my_bind;
     ambient_authority.getaddrinfo = my_getaddrinfo;

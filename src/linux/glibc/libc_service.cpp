@@ -370,6 +370,27 @@ int euidaccess(const char* pathname, int amode)
     }
 }
 
+// Glibc only provides the alias __mkdir for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __mkdir(const char* pathname, mode_t mode)
+{
+    auto real_mkdir = reinterpret_cast<int (*)(const char*, mode_t)>(
+        dlsym(RTLD_NEXT, "mkdir"));
+    return real_mkdir(pathname, mode);
+}
+
+int mkdir(const char* pathname, mode_t mode)
+{
+    if (emilua::ambient_authority.mkdir) {
+        return (*emilua::ambient_authority.mkdir)(__mkdir, pathname, mode);
+    } else {
+        return __mkdir(pathname, mode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {

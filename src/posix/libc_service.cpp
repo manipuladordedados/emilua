@@ -191,6 +191,19 @@ int eaccess(const char* pathname, int amode)
     }
 }
 
+int mkdir(const char* pathname, mode_t mode)
+{
+    auto real_mkdir = reinterpret_cast<int (*)(const char*, mode_t)>(
+        dlsym(RTLD_NEXT, "mkdir"));
+
+    if (emilua::ambient_authority.mkdir) {
+        return (*emilua::ambient_authority.mkdir)(
+            real_mkdir, pathname, mode);
+    } else {
+        return real_mkdir(pathname, mode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

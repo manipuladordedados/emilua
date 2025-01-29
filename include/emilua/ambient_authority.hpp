@@ -69,6 +69,7 @@ struct ambient_authority
     int (*lstat)(int (*)(const char*, struct stat*), const char*, struct stat*);
     int (*access)(int (*)(const char*, int), const char*, int);
     int (*eaccess)(int (*)(const char*, int), const char*, int);
+    int (*mkdir)(int (*)(const char*, mode_t), const char*, mode_t);
     int (*connect)(
         int (*)(int, const struct sockaddr*, socklen_t),
         int, const struct sockaddr*, socklen_t);

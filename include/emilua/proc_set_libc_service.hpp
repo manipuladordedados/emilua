@@ -44,6 +44,7 @@ struct request
         LSTAT,
         ACCESS,
         EACCESS,
+        MKDIR,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

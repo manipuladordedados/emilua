@@ -159,6 +159,13 @@ Returns:
 * The value for ``eaccess()``'s return.
 * Optional: The value for `errno`.
 
+=== `mkdir(real_mkdir: function, path: string, mode: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``mkdir()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:
