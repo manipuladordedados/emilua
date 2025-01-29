@@ -1007,6 +1007,21 @@ int system_spawn(lua_State* L)
                 }
 
                 env_with_pid = key;
+            } else if (key.starts_with('\0')) {
+                // Skip env var. User might have passed
+                // `system.environment`. `system.environment` might contain
+                // extra elements that are only possible when the process was
+                // started through `spawn_vm()`. We intentionally allow such
+                // extra values that are impossible in real environments. The
+                // intent is to allow the first root process to communicate
+                // setup steps that propagate through all descendants in a
+                // tree/subtree (e.g. seccomp filters).
+                //
+                // So much work has gone into making sure that all IPC-based
+                // actors use the same APIs transparently that is now hard to
+                // tell whether some code is running in the root actor or a
+                // subtree. The environment fills this gap as it can be abused
+                // to communicate extra pieces of information to descendants.
             } else {
                 environment.emplace_back();
                 environment.back().reserve(key.size() + 1 + value.size());
