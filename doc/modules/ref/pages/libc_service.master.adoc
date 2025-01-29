@@ -87,6 +87,7 @@ File type.
 
 `blocks: number`:: Number of blocks allocated.
 
+|access |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -169,6 +170,7 @@ File type.
 
 `blocks: number`:: Number of blocks allocated.
 
+|access |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -323,6 +325,20 @@ are already present in the kernel's lookup cache.
 
 `path: filesystem.path`::: The file path.
 
+`access`::
+
+`path: filesystem.path`::: The file path.
+
+`amode: "f"|string[]`::: Requested access mode.
++
+It's either `"f"`, or an array of strings that may contain:
+
+`"r"`:::: `R_OK`. Read permission.
+
+`"w"`:::: `W_OK`. Write permission.
+
+`"x"`:::: `X_OK`. Execute permission.
+
 `connect_unix`::
 
 `path: filesystem.path`::: The UNIX socket path.
@@ -386,6 +402,7 @@ Possible values:
 * `"rename"`
 * `"stat"`
 * `"lstat"`
+* `"access"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

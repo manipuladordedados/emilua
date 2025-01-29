@@ -145,6 +145,13 @@ Returns:
 * The value for ``lstat()``'s return. Or Lua table on success (return `0`).
 * Optional: The value for `errno`.
 
+=== `access(real_access: function, path: string, amode: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``access()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

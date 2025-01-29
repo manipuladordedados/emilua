@@ -165,6 +165,19 @@ int lstat(const char* pathname, struct stat* statbuf)
     }
 }
 
+int access(const char* pathname, int amode)
+{
+    auto real_access = reinterpret_cast<int (*)(const char*, int)>(
+        dlsym(RTLD_NEXT, "access"));
+
+    if (emilua::ambient_authority.access) {
+        return (*emilua::ambient_authority.access)(
+            real_access, pathname, amode);
+    } else {
+        return real_access(pathname, amode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

@@ -316,6 +316,27 @@ int lstat64(const char* pathname, struct stat* statbuf)
     }
 }
 
+// Glibc only provides the alias __access for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __access(const char* pathname, int amode)
+{
+    auto real_access = reinterpret_cast<int (*)(const char*, int)>(
+        dlsym(RTLD_NEXT, "access"));
+    return real_access(pathname, amode);
+}
+
+int access(const char* pathname, int amode)
+{
+    if (emilua::ambient_authority.access) {
+        return (*emilua::ambient_authority.access)(__access, pathname, amode);
+    } else {
+        return __access(pathname, amode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {

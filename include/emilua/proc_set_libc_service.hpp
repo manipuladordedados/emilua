@@ -42,6 +42,7 @@ struct request
         RENAME,
         STAT,
         LSTAT,
+        ACCESS,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,
