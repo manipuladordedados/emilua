@@ -246,10 +246,11 @@ void parse_env(char *envp[])
 {
     for (char** rawenv = envp ; *rawenv ; ++rawenv) {
         std::string_view env{*rawenv};
-        auto i = env.find('=');
-        auto key = env.substr(0, i);
-        auto value = env.substr(i + 1);
-        tmp_env.emplace(key, value);
+        if (auto i = env.find('=') ; i != env.npos) {
+            auto key = env.substr(0, i);
+            auto value = env.substr(i + 1);
+            tmp_env.emplace(key, value);
+        }
     }
 
 #if EMILUA_CONFIG_ENABLE_COLOR
