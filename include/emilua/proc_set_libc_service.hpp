@@ -43,6 +43,7 @@ struct request
         STAT,
         LSTAT,
         ACCESS,
+        EACCESS,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

@@ -178,6 +178,19 @@ int access(const char* pathname, int amode)
     }
 }
 
+int eaccess(const char* pathname, int amode)
+{
+    auto real_eaccess = reinterpret_cast<int (*)(const char*, int)>(
+        dlsym(RTLD_NEXT, "eaccess"));
+
+    if (emilua::ambient_authority.eaccess) {
+        return (*emilua::ambient_authority.eaccess)(
+            real_eaccess, pathname, amode);
+    } else {
+        return real_eaccess(pathname, amode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

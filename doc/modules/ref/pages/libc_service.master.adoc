@@ -87,7 +87,7 @@ File type.
 
 `blocks: number`:: Number of blocks allocated.
 
-|access |integer
+|access, eaccess |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -170,7 +170,7 @@ File type.
 
 `blocks: number`:: Number of blocks allocated.
 
-|access |integer
+|access, eaccess |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -326,6 +326,7 @@ are already present in the kernel's lookup cache.
 `path: filesystem.path`::: The file path.
 
 `access`::
+`eaccess`::
 
 `path: filesystem.path`::: The file path.
 
@@ -403,6 +404,7 @@ Possible values:
 * `"stat"`
 * `"lstat"`
 * `"access"`
+* `"eaccess"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

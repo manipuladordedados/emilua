@@ -152,6 +152,13 @@ Returns:
 * The value for ``access()``'s return.
 * Optional: The value for `errno`.
 
+=== `eaccess(real_eaccess: function, path: string, amode: integer) -> integer[, integer]`
+
+Returns:
+
+* The value for ``eaccess()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

@@ -337,6 +337,39 @@ int access(const char* pathname, int amode)
     }
 }
 
+// Glibc only provides the alias __euidaccess for static builds. On static
+// builds, glibc's version will override ours because our symbol is weak. On
+// dynamic builds, our version will be used because there are no other
+// definitions for this symbol and then we get glibc's implementation through
+// RTLD_NEXT.
+[[gnu::weak]]
+int __euidaccess(const char* pathname, int amode)
+{
+    auto real_eaccess = reinterpret_cast<int (*)(const char*, int)>(
+        dlsym(RTLD_NEXT, "eaccess"));
+    return real_eaccess(pathname, amode);
+}
+
+int eaccess(const char* pathname, int amode)
+{
+    if (emilua::ambient_authority.eaccess) {
+        return (*emilua::ambient_authority.eaccess)(
+            __euidaccess, pathname, amode);
+    } else {
+        return __euidaccess(pathname, amode);
+    }
+}
+
+int euidaccess(const char* pathname, int amode)
+{
+    if (emilua::ambient_authority.eaccess) {
+        return (*emilua::ambient_authority.eaccess)(
+            __euidaccess, pathname, amode);
+    } else {
+        return __euidaccess(pathname, amode);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {

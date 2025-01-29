@@ -22,6 +22,7 @@ extern int __sys_openat(int dirfd, const char *file, int oflag, ...);
 extern int __sys_unlink(const char *file);
 extern int __sys_rename(const char *file1, const char *file2);
 extern int __sys_access(const char *file, int amode);
+extern int __sys_eaccess(const char *file, int amode);
 extern int __sys_connect(int, const struct sockaddr*, socklen_t);
 extern int __sys_bind(int, const struct sockaddr*, socklen_t);
 
@@ -201,6 +202,16 @@ int access(const char* pathname, int amode)
             __sys_access, pathname, amode);
     } else {
         return __sys_access(pathname, amode);
+    }
+}
+
+int eaccess(const char* pathname, int amode)
+{
+    if (emilua::ambient_authority.eaccess) {
+        return (*emilua::ambient_authority.eaccess)(
+            __sys_eaccess, pathname, amode);
+    } else {
+        return __sys_eaccess(pathname, amode);
     }
 }
 
