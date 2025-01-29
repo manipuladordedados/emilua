@@ -166,6 +166,13 @@ Returns:
 * The value for ``mkdir()``'s return.
 * Optional: The value for `errno`.
 
+=== `rmdir(real_rmdir: function, path: string) -> integer[, integer]`
+
+Returns:
+
+* The value for ``rmdir()``'s return.
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

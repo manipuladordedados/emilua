@@ -45,6 +45,7 @@ struct request
         ACCESS,
         EACCESS,
         MKDIR,
+        RMDIR,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

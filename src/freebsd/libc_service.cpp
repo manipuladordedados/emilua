@@ -24,6 +24,7 @@ extern int __sys_rename(const char *file1, const char *file2);
 extern int __sys_access(const char *file, int amode);
 extern int __sys_eaccess(const char *file, int amode);
 extern int __sys_mkdir(const char *file, mode_t mode);
+extern int __sys_rmdir(const char *file);
 extern int __sys_connect(int, const struct sockaddr*, socklen_t);
 extern int __sys_bind(int, const struct sockaddr*, socklen_t);
 
@@ -222,6 +223,15 @@ int mkdir(const char* pathname, mode_t mode)
         return (*emilua::ambient_authority.mkdir)(__sys_mkdir, pathname, mode);
     } else {
         return __sys_mkdir(pathname, mode);
+    }
+}
+
+int rmdir(const char* pathname)
+{
+    if (emilua::ambient_authority.rmdir) {
+        return (*emilua::ambient_authority.rmdir)(__sys_rmdir, pathname);
+    } else {
+        return __sys_rmdir(pathname);
     }
 }
 

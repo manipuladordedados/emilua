@@ -204,6 +204,18 @@ int mkdir(const char* pathname, mode_t mode)
     }
 }
 
+int rmdir(const char* pathname)
+{
+    auto real_rmdir = reinterpret_cast<int (*)(const char*)>(
+        dlsym(RTLD_NEXT, "rmdir"));
+
+    if (emilua::ambient_authority.rmdir) {
+        return (*emilua::ambient_authority.rmdir)(real_rmdir, pathname);
+    } else {
+        return real_rmdir(pathname);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

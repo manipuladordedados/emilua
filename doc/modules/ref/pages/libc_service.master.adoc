@@ -89,6 +89,7 @@ File type.
 
 |access, eaccess |integer
 |mkdir |integer
+|rmdir |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -173,6 +174,7 @@ File type.
 
 |access, eaccess |integer
 |mkdir |integer
+|rmdir |integer
 |connect_unix |integer
 |connect_inet |integer
 |connect_inet6 |integer
@@ -348,6 +350,10 @@ It's either `"f"`, or an array of strings that may contain:
 
 `mode: integer`::: File access mode bits.
 
+`rmdir`::
+
+`path: filesystem.path`::: The file path.
+
 `connect_unix`::
 
 `path: filesystem.path`::: The UNIX socket path.
@@ -414,6 +420,7 @@ Possible values:
 * `"access"`
 * `"eaccess"`
 * `"mkdir"`
+* `"rmdir"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

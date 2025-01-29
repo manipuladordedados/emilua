@@ -391,6 +391,27 @@ int mkdir(const char* pathname, mode_t mode)
     }
 }
 
+// Glibc only provides the alias __rmdir for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __rmdir(const char* pathname)
+{
+    auto real_rmdir = reinterpret_cast<int (*)(const char*)>(
+        dlsym(RTLD_NEXT, "rmdir"));
+    return real_rmdir(pathname);
+}
+
+int rmdir(const char* pathname)
+{
+    if (emilua::ambient_authority.rmdir) {
+        return (*emilua::ambient_authority.rmdir)(__rmdir, pathname);
+    } else {
+        return __rmdir(pathname);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {
