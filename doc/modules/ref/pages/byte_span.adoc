@@ -59,7 +59,7 @@ whole memory region pointed to by the returned `byte_span`.
 If `length` and `capacity` are equal, then it's identical to
 `new(length):fill(0)`.
 
-=== `slice(self[, start: integer, end: integer]) -> byte_span`
+=== `sub(self[, start: integer, end: integer]) -> byte_span`
 
 Returns a new `byte_span` that points to a slice of the same memory region.
 

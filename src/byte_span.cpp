@@ -140,7 +140,7 @@ static int byte_span_mt_tostring(lua_State* L)
 
 EMILUA_GPERF_DECLS_BEGIN(byte_span)
 EMILUA_GPERF_NAMESPACE(emilua)
-static int byte_span_slice(lua_State* L)
+static int byte_span_sub(lua_State* L)
 {
     lua_settop(L, 3);
 
@@ -2295,9 +2295,9 @@ static int byte_span_mt_index(lua_State* L)
             return lua_error(L);
         })
         EMILUA_GPERF_PAIR(
-            "slice",
+            "sub",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_slice);
+                lua_pushcfunction(L, byte_span_sub);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

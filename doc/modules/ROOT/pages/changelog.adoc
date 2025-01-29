@@ -48,6 +48,7 @@
 
 === Changed
 
+* `byte_span.slice()` renamed to `byte_span.sub()`.
 * If called with a directory argument, `/usr/bin/emilua` will execute the file
   `init.lua` inside this directory.
 * `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in

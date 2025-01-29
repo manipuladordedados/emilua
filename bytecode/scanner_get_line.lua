@@ -4,7 +4,7 @@ local type, getmetatable, pcall, error, byte_span_new,
 return function(self)
     local ready_wnd = self.buffer_:first(self.buffer_used - self.record_size)
     if self.record_size > 0 then
-        ready_wnd:copy(self.buffer_:slice(1 + self.record_size))
+        ready_wnd:copy(self.buffer_:sub(1 + self.record_size))
         self.buffer_used = self.buffer_used - self.record_size
         self.record_size = 0
     end
@@ -39,8 +39,7 @@ return function(self)
                                    re_search_flags)
             if not m.empty then
                 line = ready_wnd:first(m[0].start - 1)
-                self.record_terminator = ready_wnd:slice(
-                    m[0].start, m[0].end_)
+                self.record_terminator = ready_wnd:sub(m[0].start, m[0].end_)
                 self.record_size = m[0].end_
             end
         end
@@ -62,7 +61,7 @@ return function(self)
                         nf = nf + 1
                         -- TODO: use several indexes to avoid reslicing so
                         -- much
-                        line = line:slice(idx + #field_separator)
+                        line = line:sub(idx + #field_separator)
                         idx = line:find(field_separator)
                     end
                     ret[nf] = line
@@ -91,7 +90,7 @@ return function(self)
             self.buffer_ = new_buffer
         end
         local ok, nread = pcall(read_some, stream,
-                                self.buffer_:slice(1 + self.buffer_used))
+                                self.buffer_:sub(1 + self.buffer_used))
         if not ok then
             if nread ~= EEOF or #ready_wnd == 0 then
                 error(nread, 0)
@@ -119,7 +118,7 @@ return function(self)
                         nf = nf + 1
                         -- TODO: use several indexes to avoid reslicing so
                         -- much
-                        ready_wnd = ready_wnd:slice(idx + #field_separator)
+                        ready_wnd = ready_wnd:sub(idx + #field_separator)
                         idx = ready_wnd:find(field_separator)
                     end
                     ret[nf] = ready_wnd
