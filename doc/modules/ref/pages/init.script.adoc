@@ -150,6 +150,8 @@ as the second result):
   value is ever returned). This function is also available on Linux (the
   implementation emulates the intended behavior using `close_range()`).
 * `open()`.
+* `access()`.
+* `eaccess()`.
 * `mkdir()`.
 * `chdir()`.
 * `mkfifo()`.
@@ -312,6 +314,13 @@ Mode bits for access permission:
 * `S_ISUID`.
 * `S_ISGID`.
 * `S_ISVTX`.
+
+`access()` flags:
+
+* `F_OK`.
+* `R_OK`.
+* `W_OK`.
+* `X_OK`.
 
 `openat()` flags:
 

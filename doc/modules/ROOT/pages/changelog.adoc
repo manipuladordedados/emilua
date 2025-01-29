@@ -35,6 +35,8 @@
 ** `close()` and `closefrom()`.
 ** `linkat()` and `AT_SYMLINK_FOLLOW`.
 ** `bind_unix()`.
+** `access()`, `eaccess()`, and `access()` flags (`F_OK`, `R_OK`, `W_OK`, and
+   `X_OK`).
 * More capsicum-related functions.
 ** `file_descriptor.cap_rights_contains()`.
 ** `file_descriptor.cap_rights_remove()`.

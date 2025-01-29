@@ -198,6 +198,11 @@ int posix_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR("S_ISUID", EMILUA_DETAIL_INT_CONSTANT(S_ISUID))
         EMILUA_GPERF_PAIR("S_ISGID", EMILUA_DETAIL_INT_CONSTANT(S_ISGID))
         EMILUA_GPERF_PAIR("S_ISVTX", EMILUA_DETAIL_INT_CONSTANT(S_ISVTX))
+        // access() flags
+        EMILUA_GPERF_PAIR("F_OK", EMILUA_DETAIL_INT_CONSTANT(F_OK))
+        EMILUA_GPERF_PAIR("R_OK", EMILUA_DETAIL_INT_CONSTANT(R_OK))
+        EMILUA_GPERF_PAIR("W_OK", EMILUA_DETAIL_INT_CONSTANT(W_OK))
+        EMILUA_GPERF_PAIR("X_OK", EMILUA_DETAIL_INT_CONSTANT(X_OK))
         // openat() flags
         EMILUA_GPERF_PAIR("AT_FDCWD", EMILUA_DETAIL_INT_CONSTANT(AT_FDCWD))
         EMILUA_GPERF_PAIR(
@@ -521,6 +526,36 @@ int posix_mt_index(lua_State* L)
                     }
                     int last_error = (res == -1) ? errno : 0;
                     CHECK_LAST_ERROR(L, last_error, "open");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "access",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    int amode = luaL_checkinteger(L, 2);
+                    int res = access(path, amode);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "access");
+                    lua_pushinteger(L, res);
+                    lua_pushinteger(L, last_error);
+                    return 2;
+                });
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "eaccess",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, [](lua_State* L) -> int {
+                    const char* path = luaL_checkstring(L, 1);
+                    int amode = luaL_checkinteger(L, 2);
+                    int res = eaccess(path, amode);
+                    int last_error = (res == -1) ? errno : 0;
+                    CHECK_LAST_ERROR(L, last_error, "eaccess");
                     lua_pushinteger(L, res);
                     lua_pushinteger(L, last_error);
                     return 2;
