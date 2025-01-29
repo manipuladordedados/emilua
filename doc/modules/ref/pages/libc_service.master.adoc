@@ -51,7 +51,7 @@ Send the result for the currently arbitrated libc call.
 |unlink |integer
 |rename |integer
 
-|stat
+|stat, lstat
 a|
 
 On error, it should be the number `-1`.
@@ -133,7 +133,7 @@ Send the result for the currently arbitrated libc call.
 |unlink |integer
 |rename |integer
 
-|stat
+|stat, lstat
 a|
 
 On error, it should be the number `-1`.
@@ -319,6 +319,7 @@ are already present in the kernel's lookup cache.
 `path2: filesystem.path`::: The file2 path.
 
 `stat`::
+`lstat`::
 
 `path: filesystem.path`::: The file path.
 
@@ -384,6 +385,7 @@ Possible values:
 * `"unlink"`
 * `"rename"`
 * `"stat"`
+* `"lstat"`
 * `"connect_unix"`
 * `"connect_inet"`
 * `"connect_inet6"`

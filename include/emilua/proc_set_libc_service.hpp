@@ -41,6 +41,7 @@ struct request
         UNLINK,
         RENAME,
         STAT,
+        LSTAT,
         CONNECT_UNIX,
         CONNECT_INET,
         CONNECT_INET6,

@@ -66,6 +66,7 @@ struct ambient_authority
     int (*unlink)(int (*)(const char*), const char*);
     int (*rename)(int (*)(const char*, const char*), const char*, const char*);
     int (*stat)(int (*)(const char*, struct stat*), const char*, struct stat*);
+    int (*lstat)(int (*)(const char*, struct stat*), const char*, struct stat*);
     int (*connect)(
         int (*)(int, const struct sockaddr*, socklen_t),
         int, const struct sockaddr*, socklen_t);

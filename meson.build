@@ -1077,6 +1077,9 @@ if get_option('enable_tests')
                 'libc_service_stat1',
                 'libc_service_stat2',
                 'libc_service_stat3',
+                'libc_service_lstat1',
+                'libc_service_lstat2',
+                'libc_service_lstat3',
             ]) +
             (get_option('enable_io_uring') ? [] : [
                 'libc_service_connect',

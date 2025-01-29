@@ -138,6 +138,13 @@ Returns:
 * The value for ``stat()``'s return. Or Lua table on success (return `0`).
 * Optional: The value for `errno`.
 
+=== `lstat(real_lstat: function, path: string) -> integer|table[, integer]`
+
+Returns:
+
+* The value for ``lstat()``'s return. Or Lua table on success (return `0`).
+* Optional: The value for `errno`.
+
 === `connect_unix(real_connect: function, fd: integer, path: string) -> integer[, integer]`
 
 Returns:

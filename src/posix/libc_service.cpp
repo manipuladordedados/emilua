@@ -152,6 +152,19 @@ int stat(const char* pathname, struct stat* statbuf)
     }
 }
 
+int lstat(const char* pathname, struct stat* statbuf)
+{
+    auto real_lstat = reinterpret_cast<int (*)(const char*, struct stat*)>(
+        dlsym(RTLD_NEXT, "lstat"));
+
+    if (emilua::ambient_authority.lstat) {
+        return (*emilua::ambient_authority.lstat)(
+            real_lstat, pathname, statbuf);
+    } else {
+        return real_lstat(pathname, statbuf);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     auto real_connect = reinterpret_cast<

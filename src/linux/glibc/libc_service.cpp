@@ -274,6 +274,48 @@ int stat64(const char* pathname, struct stat* statbuf)
     }
 }
 
+// Glibc only provides the alias __lstat for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __lstat(const char* pathname, struct stat* statbuf)
+{
+    auto real_lstat = reinterpret_cast<int (*)(const char*, struct stat*)>(
+        dlsym(RTLD_NEXT, "lstat"));
+    return real_lstat(pathname, statbuf);
+}
+
+int lstat(const char* pathname, struct stat* statbuf)
+{
+    if (emilua::ambient_authority.lstat) {
+        return (*emilua::ambient_authority.lstat)(__lstat, pathname, statbuf);
+    } else {
+        return __lstat(pathname, statbuf);
+    }
+}
+
+// Glibc only provides the alias __lstat64 for static builds. On static builds,
+// glibc's version will override ours because our symbol is weak. On dynamic
+// builds, our version will be used because there are no other definitions for
+// this symbol and then we get glibc's implementation through RTLD_NEXT.
+[[gnu::weak]]
+int __lstat64(const char* pathname, struct stat* statbuf)
+{
+    auto real_lstat64 = reinterpret_cast<int (*)(const char*, struct stat*)>(
+        dlsym(RTLD_NEXT, "lstat64"));
+    return real_lstat64(pathname, statbuf);
+}
+
+int lstat64(const char* pathname, struct stat* statbuf)
+{
+    if (emilua::ambient_authority.lstat) {
+        return (*emilua::ambient_authority.lstat)(__lstat64, pathname, statbuf);
+    } else {
+        return __lstat64(pathname, statbuf);
+    }
+}
+
 int connect(int s, const struct sockaddr* name, socklen_t namelen)
 {
     if (emilua::ambient_authority.connect) {
