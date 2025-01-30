@@ -62,6 +62,34 @@ static int ipc_actor_service_sockfd = -1;
 #endif // BOOST_OS_UNIX
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
 
+static inline bool is_suid()
+{
+#if BOOST_OS_WINDOWS
+    static constexpr bool ret = false;
+#else
+    bool ret;
+    uid_t ruid, euid, suid;
+    if (getresuid(&ruid, &euid, &suid) == -1) {
+        // on errors, assume the worst
+        ret = true;
+    } else {
+        ret = ruid != euid;
+    }
+#endif
+    return ret;
+}
+
+static inline bool is_safe_emilua_env(std::string_view key)
+{
+    return EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(bool action)
+        EMILUA_GPERF_DEFAULT_VALUE(true)
+        EMILUA_GPERF_PAIR("EMILUA_COLORS", true)
+        EMILUA_GPERF_PAIR("EMILUA_PATH", false)
+        EMILUA_GPERF_PAIR("EMILUA_LOG_LEVELS", false)
+    EMILUA_GPERF_END(key);
+}
+
 // Useful to run an Emilua program inside Docker w/o any sort of mini-init
 // supervisor. Also useful if you want to use Emilua to create your own init
 // system.
@@ -249,8 +277,17 @@ void parse_env(char *envp[])
         if (auto i = env.find('=') ; i != env.npos) {
             auto key = env.substr(0, i);
             auto value = env.substr(i + 1);
-            tmp_env.emplace(key, value);
+            if (!is_suid() || is_safe_emilua_env(key)) {
+                tmp_env.emplace(key, value);
+            }
         }
+    }
+
+    // We want to avoid isatty() in suid binaries, but we must ensure this is
+    // also avoided for subprocesses. Hence we insert into the environment block
+    // to make sure subprocesses also inherit this setting.
+    if (is_suid() && tmp_env.find("EMILUA_COLORS") == tmp_env.end()) {
+        tmp_env.emplace("EMILUA_COLORS", "0");
     }
 
 #if EMILUA_CONFIG_ENABLE_COLOR

@@ -401,7 +401,7 @@ libemilua_dep = declare_dependency(
 
 libemilua_main = library(
     'emilua-main',
-    ['src/lib_main.cpp'],
+    gperf_gen.process(['src/lib_main.cpp']),
     dependencies : [
         thread_dep,
         boost,
