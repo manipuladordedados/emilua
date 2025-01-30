@@ -93,7 +93,7 @@ spawn(fn)
 ----
 
 You can use the fiber handle just like you'd use a thread handle. There is
-`join()`, `detach()` and `interrupt()`.
+`join()`, `detach()` and `cancel()`.
 
 All sync primitives obey some characteristics thanks to the restrictions we've
 laid out:
@@ -116,7 +116,7 @@ reused for other operations.
 A good level of serialization can be done by exploring these properties and
 simplify the implementation a lot. For once, you know no other code will wake
 the fiber up, so you can just as well call `io_obj.cancel()` on the interrupter
-and map `asio::error::operation_aborted` to `errc::interrupted` on the
+and map `asio::error::operation_aborted` to `errc::fiber_canceled` on the
 completion handler. A single handler (and no other) will take care of waking the
 fiber. There is no race to deal with here or anything alike.
 

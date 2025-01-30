@@ -53,15 +53,15 @@ They're only useful if there are comprehensive test cases. Still, the use of
 these functions may make the code more readable. And some tools may be developed
 to understand these blocks and do some simple static analysis.
 
-=== `this_fiber.{disable,restore}_interruption()`
+=== `this_fiber.{disable,restore}_cancellation()`
 
 [source,lua]
 ----
-disable_interruption()
-restore_interruption()
+disable_cancellation()
+restore_cancellation()
 ----
 
-Check the interruption tutorial to see what it does.
+Check the cancellation tutorial to see what it does.
 
 == Properties
 

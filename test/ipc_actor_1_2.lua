@@ -23,7 +23,7 @@ else
         inbox:receive()
     end)
     sleep(0.1)
-    f:interrupt()
+    f:cancel()
     f:join()
 
     sleep(0.2)

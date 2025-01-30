@@ -1,13 +1,13 @@
--- The interrupt call is always valid
+-- The cancel call is always valid
 
 f = spawn(function() end)
-f:interrupt()
+f:cancel()
 f:detach()
-f:interrupt()
-f:interrupt()
+f:cancel()
+f:cancel()
 
 f = spawn(function() end)
-f:interrupt()
+f:cancel()
 f:join()
-f:interrupt()
-f:interrupt()
+f:cancel()
+f:cancel()

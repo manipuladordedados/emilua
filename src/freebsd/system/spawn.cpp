@@ -295,7 +295,7 @@ static int subprocess_wait(lua_State* L)
             --service->nwaiters;
             p->fiber = nullptr;
             vm_ctx->strand().post([vm_ctx,fiber]() {
-                auto ec = make_error_code(errc::interrupted);
+                auto ec = make_error_code(errc::fiber_canceled);
                 vm_ctx->fiber_resume(
                     fiber,
                     hana::make_set(

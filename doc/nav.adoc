@@ -7,7 +7,7 @@
 ** xref:tutorial:alternatives.adoc[]
 ** xref:tutorial:internals.adoc[]
 ** xref:tutorial:internals-sandboxes.adoc[]
-** xref:tutorial:interruption.adoc[]
+** xref:tutorial:fiber_cancellation.adoc[]
 ** xref:tutorial:lua51.adoc[]
 ** xref:tutorial:modules.adoc[]
 ** xref:tutorial:errors.adoc[]

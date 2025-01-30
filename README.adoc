@@ -8,7 +8,7 @@ flexible threading layout.
 
 Features:
 
-* Complete fiber API (sync primitives, interruption API, clean-up handlers,
+* Complete fiber API (sync primitives, cancellation API, clean-up handlers,
   fiber local storage, assert-like scheduling constraints, ...).
 * TCP, UDP, TLS, file IO, address/service forward/reverse name resolution, UNIX
   domain sockets, SCM_RIGHTS fd-passing, pipes, serial ports, ...

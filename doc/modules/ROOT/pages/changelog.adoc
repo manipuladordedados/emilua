@@ -49,6 +49,60 @@
 === Changed
 
 * `byte_span.slice()` renamed to `byte_span.sub()`.
+
+* `fiber.interrupt()` renamed to `fiber.cancel()`. Originally Emilua adopted the
+  term “interruption” to adhere to Java and Boost.Thread conventions. Java and
+  Boost.Thread seem to be inspired by `EINTR` when defining
+  `InterruptedException` and `thread_interrupted`. The intention isn't bad and
+  there's some logic to it:
++
+--
+* Send signal to a thread (`pthread_sigqueue`) to unblock the thread by
+  interrupting the syscall.
+* `EINTR` is returned from the syscall. If the underlying language has exception
+  support, the error will be translated and communicated in the form of
+  exceptions (so the exception would be ``EINTR``/interrupted).
+* C's thread cancellation does follow the patterns of an exception mechanism and
+  it's natural to translate the thread cancellation protocol into the stack
+  unwinding flow that happens when raising exceptions.
+
+However `EINTR` isn't related to thread-state. `EINTR` is related to an action
+(which may be tried again by the same
+thread{_}footnote:[https://www.gnu.org/software/libc/manual/html_node/Interrupted-Primitives.html[`TEMP_FAILURE_RETRY`]]). `EINTR`
+isn't a sticky state which will come back to bite you in the next action from
+the same thread (Java even got this semantic wrong). Signal handling per se is
+already complex enough and full of tricky details to remember. If one is (trying
+to) studying thread cancellation and stumbles upon signal handling tutorials
+instead (the situation that can happen if thread cancellation insists in using
+the same terminology) then the learning process will be needlessly more
+difficult. It's of my opinion that one should just avoid mixing the terms
+together here and just adopt an entirely new term (the way POSIX done when
+defining thread cancellation... not thread interruption).
+
+One can easily define an exception type whose name is `thread_canceled`. This
+exception (no matter the naming chosen) is created, raised and handled... by a
+different — almost self-contained — subsystem than the one defining and handling
+`EINTR` errors. It's okay for this subsystem define a new error type/name just
+for the thread cancellation process. It'll end up improving the life of new
+programmers learning about thread cancellation (which should be a task much more
+common than handling actual `EINTR` errors{_}footnote:[As another example for
+`EINTR` plumbing with details difficult to grasp for the newcomer... how does
+one handle `EINTR` for `close()`? Should we really be reusing vocabulary that
+might direct the newcomer to such tutorials that have nothing to do with
+thread-cancellation and already established some norms for the the use of the
+term “interrupted”? Why would be wrong to just adopt the alternative proposed
+POSIX terminology instead?]).
+
+Anyways, over the years, I never really got rid of translating{_}footnote:[As
+in... internally... in my mind... automatically/semi-unconsciously.]
+“interruption” as a possibility to interrupt the running code at any step (as in
+kernel interrupt handlers). So I'd always read code such as
+`my_fiber:interrupt()` by superposition both meanings while making some small
+effort to ignore the new “loaded context” from my mind as it had nothing to do
+with the problem at hand. `fiber:cancel()` instead would be really unambiguous
+and avoid context overload.
+--
+
 * If called with a directory argument, `/usr/bin/emilua` will execute the file
   `init.lua` inside this directory.
 * `spawn_vm()`: Passing strings as modules ids to mean a filesystem path in

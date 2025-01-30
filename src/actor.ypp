@@ -1070,7 +1070,7 @@ static int chan_send(lua_State* L)
                 current_fiber,
                 hana::make_set(
                     hana::make_pair(
-                        opt_args, hana::make_tuple(errc::interrupted))));
+                        opt_args, hana::make_tuple(errc::fiber_canceled))));
             return;
         }
         vm_ctx->fiber_resume(
@@ -1162,7 +1162,7 @@ static int chan_receive(lua_State* L)
                         hana::make_set(
                             hana::make_pair(
                                 vm_context::options::arguments,
-                                hana::make_tuple(errc::interrupted))));
+                                hana::make_tuple(errc::fiber_canceled))));
                 },
                 std::allocator<void>{}
             );

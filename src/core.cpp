@@ -420,7 +420,7 @@ void vm_context::fiber_epilogue(int resume_result)
                     lua_pushvalue(current_fiber_, -5);
                     auto err_obj = inspect_errobj(current_fiber_);
                     if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                        !e || *e != errc::interrupted || is_main) {
+                        !e || *e != errc::fiber_canceled || is_main) {
                         print_panic(current_fiber_, is_main,
                                     errobj_to_string(err_obj),
                                     tostringview(current_fiber_, -2));
@@ -474,7 +474,7 @@ void vm_context::fiber_epilogue(int resume_result)
                 try {
                     auto err_obj = inspect_errobj(joiner);
                     if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                        e && *e == errc::interrupted) {
+                        e && *e == errc::fiber_canceled) {
                         lua_pop(joiner, 2);
                         lua_pushboolean(joiner, 1);
                         nret = 0;
@@ -885,8 +885,8 @@ std::string category_impl::message(int value) const noexcept
         return "Interrupt-ability already allowed";
     case static_cast<int>(errc::forbid_suspend_block):
         return "EPERM within a forbid-suspend block";
-    case static_cast<int>(errc::interrupted):
-        return "Fiber interrupted";
+    case static_cast<int>(errc::fiber_canceled):
+        return "Fiber canceled";
     case static_cast<int>(errc::unmatched_scope_cleanup):
         return "scope_cleanup_pop() called w/o a matching scope_cleanup_push()";
     case static_cast<int>(errc::channel_closed):
@@ -978,7 +978,7 @@ bool detail::unsafe_can_suspend(vm_context& vm_ctx, lua_State* L)
     }
     lua_rawgeti(L, -3, FiberDataIndex::INTERRUPTED);
     if (lua_toboolean(L, -1) == 1) {
-        push(L, emilua::errc::interrupted);
+        push(L, emilua::errc::fiber_canceled);
         return false;
     }
     lua_pop(L, 5);

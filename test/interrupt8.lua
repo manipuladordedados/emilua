@@ -1,6 +1,6 @@
--- Read invalid interruption_caught on some fiber
+-- Read invalid cancellation_caught on some fiber
 fib = spawn(function()
     this_fiber.yield()
 end)
 this_fiber.yield()
-print(fib.interruption_caught)
+print(fib.cancellation_caught)

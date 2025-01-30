@@ -953,7 +953,7 @@ enum class errc {
     suspension_already_allowed,
     interruption_already_allowed,
     forbid_suspend_block,
-    interrupted,
+    fiber_canceled,
     unmatched_scope_cleanup,
     channel_closed,
     no_senders,
@@ -1083,14 +1083,14 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
                                 lua_toboolean(new_current_fiber, -1);
                             lua_pop(new_current_fiber, 3);
                             if (interrupted)
-                                std_ec = errc::interrupted;
+                                std_ec = errc::fiber_canceled;
                         }
                     } else if (has_fast_auto_detect_interrupt) {
                         // `fast_auto_detect_interrupt` means there is no other
                         // way but fiber interruption to have
                         // `ec=asio::error::operation_aborted`.
                         if (ec == asio::error::operation_aborted)
-                            std_ec = errc::interrupted;
+                            std_ec = errc::fiber_canceled;
                     }
                     push(new_current_fiber, std_ec);
                 },

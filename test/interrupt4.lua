@@ -1,4 +1,4 @@
--- interrupt() while join()'ing
+-- cancel() while join()'ing
 
 local sleep = require('time').sleep
 
@@ -7,6 +7,6 @@ f = spawn(function()
     print('foo')
 end)
 
-spawn(function() f:interrupt() end):detach()
+spawn(function() f:cancel() end):detach()
 f:join()
-print(f.interruption_caught)
+print(f.cancellation_caught)

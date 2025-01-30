@@ -267,7 +267,7 @@ availability].
 * TLS.
 * Address/service forward/reverse name resolution.
 * IPv6 support (and mostly transparent).
-* Cancellable operations transparently integrated into the fiber interruption
+* Cancellable operations transparently integrated into the fiber cancellation
   API.
 * Several generic algorithms.
 
@@ -292,7 +292,7 @@ availability].
 
 == Misc features
 
-* Complete fiber API (sync primitives, interruption API, clean-up handlers,
+* Complete fiber API (sync primitives, cancellation API, clean-up handlers,
   fiber local storage, assert-like scheduling constraints, ...).
 * Integrates with Lua builtins (i.e. you can mix up fibers and coroutines,
   modules, ...).

@@ -1,5 +1,5 @@
-[id=_tutorial_interruption]
-= Interruption API
+[id=_tutorial_fiber_cancellation]
+= Fiber cancellation API
 
 :cpp: C++
 :_:
@@ -14,12 +14,12 @@ Emilua - Lua execution engine
 
 endif::[]
 
-Emilua also provides an interruption API that you can use to cancel fibers (you
-might use it to free resources from fibers stuck in IO requets that might never
-complete).
+Emilua also provides a fiber cancellation API that you can use to cancel fibers
+(you might use it to free resources from fibers stuck in IO requets that might
+never complete).
 
-The main question that an interruption API needs to answer is how to keep the
-application in a consistent state. A consistent state is a knowledge that is
+The main question that a fiber cancellation API needs to answer is how to keep
+the application in a consistent state. A consistent state is a knowledge that is
 part of the application and the programmer assumptions, not a knowledge encoded
 in emilua source code itself. So it is okay to offload some of the
 responsibility on the application itself.
@@ -38,15 +38,15 @@ local f = spawn(function()
 end)
 
 sleep(1)
-f:interrupt()
+f:cancel()
 m:lock()
 ----
 
-Before a fiber can be discarded at interruption, it needs to restore state
+Before a fiber can be discarded at cancellation, it needs to restore state
 invariants and free resources. The GC would be hopeless in the previous example
 (and many more) because the mutex is shared and still reachable even if we
-collect the interrupted fiber's stack. There are other reasons why we can't rely
-on the GC for the job.
+collect the canceled fiber's stack. There are other reasons why we can't rely on
+the GC for the job.
 
 Windows approach to thread cancellation would be a contract. This contract
 requires the programmer to never call a blocking function directly -- always
@@ -68,16 +68,6 @@ The difference being that Go's `Context` is part of the standard library and a
 contract everybody adopts. The lesson here is that cancellation is part of the
 runtime, or else it just doesn't work. In Emilua, the runtime is extended to
 provide cancellation API inspired by POSIX's thread cancellation.
-
-[NOTE]
---
-I've looked many environments, and the only difference I've observed between the
-terms _cancellation_ and _interruption_ is that interruption is used to convey
-the property of cancellation being implemented in terms of exceptions.
-
-When I refer to fiber cancellation within the Emilua runtime, I'll stick to the
-term interruption.
---
 
 The rest of this document will gloss over many details, but as long as you stay
 on the common case, you won't need to keep most of these details in mind
@@ -149,29 +139,29 @@ end
 -- other code
 ----
 
-In sloppy terms, the interruption API just re-schedules the fiber to be resumed
+In sloppy terms, the cancellation API just re-schedules the fiber to be resumed
 but with the fiber stack slightly modified to throw an exception when execution
 proceeds. This property will trigger stack unwinding to call all the error &
 cleanup handlers in the reverse order that they were registered.
 
-== The interruption protocol
+== The cancellation protocol
 
 The fiber handle returned by the `spawn()` function is the heart to communicate
-intent to interrupt a fiber. To better accommodate support for structured
+intent to cancel a fiber. To better accommodate support for structured
 concurrency and not introduce avoidable co-dependency between them, we follow
 the POSIX thread cancellation model (Java's confusing state machine is
-ignored). Long story short, once a fiber has been interrupted, it cannot be
-un-interrupted.
+ignored). Long story short, once a fiber has been canceled, it cannot be
+un-canceled.
 
-To interrupt a fiber, just call the `interrupt()` function from a fiber handle:
+To cancel a fiber, just call the `cancel()` function from a fiber handle:
 
 [source,lua]
 ----
-fib:interrupt()
+fib:cancel()
 ----
 
-CAUTION: You can only interrupt joinable fibers (but the function is safe to
-call with any handle at any time).
+CAUTION: You can only cancel joinable fibers (but the function is safe to call
+with any handle at any time).
 
 Afterwards, you can safely `join()` or `detach()` the target fiber:
 
@@ -187,36 +177,36 @@ If you don't detach a fiber, the GC will do it for you.
 
 It's that easy. Your fiber doesn't need to know the target fiber's internal
 state and the target fiber doesn't need to know your fiber' internal state. On
-the other end, to handle an interruption request is a little trickier.
+the other end, to handle an cancellation request is a little trickier.
 
-== Handling interruption requests
+== Handling cancellation requests
 
-The key concept required to understand the interruption's flow is the
-_interruption point_. Understand this, and you'll have learnt how to handle
-interruption requests.
+The key concept required to understand the cancellation's flow is the
+_cancellation point_. Understand this, and you'll have learnt how to handle
+cancellation requests.
 
 [NOTE]
 --
 [discrete]
 == Definition
 
-An _interruption point_ configures a point in your application where it is
+An _cancellation point_ configures a point in your application where it is
 allowed for the Emilua runtime to stop normal execution flow and raise an
-exception to trigger stack unwinding if an interruption request from another
+exception to trigger stack unwinding if an cancellation request from another
 fiber has been received.
 --
 
-When the possibility of interruption is added to the table, your mental model
+When the possibility of cancellation is added to the table, your mental model
 has to take into account that calls to certain functions _now_ might throw an
 error for no other reason but rewind the stack before freeing the fiber.
 
-The only places that are allowed to serve as interruption points are calls to
+The only places that are allowed to serve as cancellation points are calls to
 suspending functions (plus the `pcall()` family and `coroutine.resume()` for
 reasons soon to be explained).
 
 [source,lua]
 ----
--- this snippet has no interruption points
+-- this snippet has no cancellation points
 -- exceptions are never raised here
 local i = 0
 while true do
@@ -225,10 +215,10 @@ end
 ----
 
 The following function doesn't need to worry about leaving the object `self` in
-an inconsistent state if the fiber gets interrupted. And the reason for this is
-quite simple: this function doesn't have interruption points (which is usually
-the case for functions that are purely compute-bound). It won't ever be
-interrupted in the middle of its work.
+an inconsistent state if the fiber gets canceled. And the reason for this is
+quite simple: this function doesn't have cancellation points (which is usually
+the case for functions that are purely compute-bound). It won't ever be canceled
+in the middle of its work.
 
 [source,lua]
 ----
@@ -239,8 +229,8 @@ end
 ----
 
 Functions that suspend the fiber (e.g. IO and functions from the
-`condition_variable` module) configure interruption points. The function `echo`
-defined below has interruption points.
+`condition_variable` module) configure cancellation points. The function `echo`
+defined below has cancellation points.
 
 [source,lua]
 ----
@@ -259,36 +249,36 @@ local child_fib = spawn(function()
     echo(global_sock, buf)
 end)
 
-child_fib:interrupt()
+child_fib:cancel()
 ----
 
-The mother-fiber doesn't have interruption points, so it executes til
-the end. The `child_fib` fiber calls `echo()` and `echo()` will in turn act as
-an interruption point (i.e. the property of being an interruption point
-propagates up to the caller functions).
+The mother-fiber doesn't have cancellation points, so it executes til the
+end. The `child_fib` fiber calls `echo()` and `echo()` will in turn act as a
+cancellation point (i.e. the property of being a cancellation point propagates
+up to the caller functions).
 
-NOTE: `this_fiber.yield()` can be used to introduce interruption points for
+NOTE: `this_fiber.yield()` can be used to introduce cancellation points for
 fibers that otherwise would have none.
 
 The mother-fiber doesn't call any suspending function, so it'll run until the
 end and only yields execution back to other fibers when it does end. At the last
-line, an interruption request is sent to the child fiber. The runtime's
-scheduler doesn't guarantee when the interruption request will be delivered and
-can schedule execution of the remaining fibers with plenty of freedom given
-we're not using any synchronization primitives.
+line, a cancellation request is sent to the child fiber. The runtime's scheduler
+doesn't guarantee when the cancellation request will be delivered and can
+schedule execution of the remaining fibers with plenty of freedom given we're
+not using any synchronization primitives.
 
-In this simple scenario, it's quite likely that the interruption request will be
+In this simple scenario, it's quite likely that the cancellation request will be
 delivered pretty quickly and the call to `sock:read()` inside `echo()` will
 suspend `child_fib` just to awake it again but with an exception being raised
 instead of the result being returned. The exception will unwind the whole stack
 and the fiber finishes.
 
-Any of the interruption points can serve for the fiber to act on the
-interruption request. Another possible point where these mechanisms would be
+Any of the cancellation points can serve for the fiber to act on the
+cancellation request. Another possible point where these mechanisms would be
 triggered is the `sock:write()` suspending function.
 
-NOTE: The uncaught-hook isn't called when the exception is `fiber_interrupted`
-so you don't really have to care about trapping interruption exceptions. You're
+NOTE: The uncaught-hook isn't called when the exception is `fiber_canceled` so
+you don't really have to care about trapping cancellation exceptions. You're
 free to just let the stack fully unwind.
 
 [WARNING]
@@ -309,16 +299,16 @@ end)
 ----
 --
 
-To register a cleanup handler in case the fiber gets interrupted, all you need
+To register a cleanup handler in case the fiber gets canceled, all you need
 to do is handle the raised exceptions.
 
-A fiber is always either interrupted or not interrupted. A fiber doesn't go back
-to the un-interrupted state. Once the fiber has been interrupted, it'll stay in
-this state. The task in hand is to rewind the stack calling the cleanup handlers
-to keep the application state consistent after the GC collect the fiber -- all
-done by the Emilua runtime.
+A fiber is always either canceled or not canceled. A fiber doesn't go back to
+the un-canceled state. Once the fiber has been canceled, it'll stay in this
+state. The task in hand is to rewind the stack calling the cleanup handlers to
+keep the application state consistent after the GC collect the fiber -- all done
+by the Emilua runtime.
 
-So you can't call more suspending functions after the fiber gets interrupted:
+So you can't call more suspending functions after the fiber gets canceled:
 
 [source,lua]
 ----
@@ -330,12 +320,12 @@ if not ok then
     error(ex)
 end
 ----
-<1> Lots of interruption points. All swallowed by `pcall()`.
-<2> If fiber gets interrupted at `#1`, it won't init any IO operation here but
-instead throw another `fiber_interrupted` exception.
+<1> Lots of cancellation points. All swallowed by `pcall()`.
+<2> If fiber gets canceled at `#1`, it won't init any IO operation here but
+instead throw another `fiber_canceled` exception.
 
 The previous snippet has an error. To properly achieve the desired behaviour,
-you have to temporally disable interruptions in the cleanup handler like so:
+you have to temporally disable cancellations in the cleanup handler like so:
 
 [source,lua]
 ----
@@ -343,21 +333,21 @@ local ok, ex = pcall(function()
     -- lots of IO ops
 end)
 if not ok then
-    this_fiber.disable_interruption()
+    this_fiber.disable_cancellation()
     pcall(function()
         watchdog_sock:write(errored_msg)
     end)
-    this_fiber.restore_interruption()
+    this_fiber.restore_cancellation()
     error(ex)
 end
 ----
 
-NOTE: `this_fiber.restore_interruption()` has to be called as many times as
-`this_fiber.disable_interruption()` has been called to restore interruptibility.
+NOTE: `this_fiber.restore_cancellation()` has to be called as many times as
+`this_fiber.disable_cancellation()` has been called to restore cancelability.
 
 It looks messy, but this behaviour actually helps the common case to stay
 clean. Were not for these choices, a common fiber that doesn't have to handle
-interruption like the following would accidentally swallow an interruption
+cancellation like the following would accidentally swallow a cancellation
 request and never get collected:
 
 [source,lua]
@@ -370,15 +360,14 @@ while not ok do
 end
 ----
 
-And the `pcall()` family in itself also configures an interruption point exactly
+And the `pcall()` family in itself also configures a cancellation point exactly
 to make sure that loops like this won't prevent the fiber from being properly
-interrupted. `pcall()` family and `coroutine.resume()` are the only functions
-which aren't suspending functions but introduce interruption points
-nevertheless.
+canceled. `pcall()` family and `coroutine.resume()` are the only functions which
+aren't suspending functions but introduce cancellation points nevertheless.
 
 [NOTE]
 --
-It is guaranteed that `fib:interrupt()` will never be an interruption point (and
+It is guaranteed that `fib:cancel()` will never be a cancellation point (and
 neither a suspension point).
 
 This guarantee is useful to build certain concurrency patterns.
@@ -386,7 +375,7 @@ This guarantee is useful to build certain concurrency patterns.
 
 == The `scope()` facility
 
-The control flow for the common case is good, but handling interruptions right
+The control flow for the common case is good, but handling cancellations right
 now is tricky to say the least. To make matters less error-prone, the `scope()`
 family of functions exist.
 
@@ -399,7 +388,7 @@ list of cleanup handlers to be called on the exit path (be it reached by the
 common exit flow or by a raised exception). When you call it, the list of
 cleanup handlers is empty, and you can use `scope_cleanup_push()` to register
 cleanup handlers. They are executed in the reverse order in which they were
-registered. The handlers are called with the interruptions disabled, so you
+registered. The handlers are called with the cancellations disabled, so you
 don't need to disable them yourself.
 
 NOTE: It is safe to have nested ``scope()``s.
@@ -461,7 +450,7 @@ Every fiber has an implicit root scope so you don't need to always create one
 yourself. The standard lua's `pcall()` is also modified to act as a scope which
 is a lot of convenience for you.
 
-IMPORTANT: Given `pcall()` is also an interruption point, examples written
+IMPORTANT: Given `pcall()` is also an cancellation point, examples written
 enclosed in *WARNING* blocks from the previous section had bugs related to
 maintaining invariants and the `scope()` family is the safest way to register
 cleanup handlers.
@@ -518,17 +507,17 @@ while true do
     end
 end
 
-f1:interrupt()
-f2:interrupt()
-this_fiber.disable_interruption()
+f1:cancel()
+f2:cancel()
+this_fiber.disable_cancellation()
 f1:join()
 f2:join()
 ----
 
-A fiber will never be interrupted in the _middle_ (tricky concept to define) of
+A fiber will never be canceled in the _middle_ (tricky concept to define) of
 some IO operation. If a fiber suspended on some IO operation and it was
-successfully interrupted, it means the operation is not delivered at all and can
-be tried again later as if it never happened in the first place. The following
+successfully canceled, it means the operation is not delivered at all and can be
+tried again later as if it never happened in the first place. The following
 artificial example illustrates this guarantee (restricting the IO object to a
 single fiber to keep the code sample small and easy to follow):
 
@@ -544,18 +533,18 @@ while true do
 end
 ----
 
-If the interruption request arrives when the fiber is suspended at
+If the cancellation request arrives when the fiber is suspended at
 `my_sctp_sock:write()`, the runtime will schedule cancellation of the underlying
 IO operation and only resume the fiber when the reply for the cancellation
 request arrives. At this point, if the original IO operation already succeeded,
-`fiber_interrupted` exception won't be raised so you have a chance to examine
-the result and the interruption handling will be postponed to the next
-interruption point.
+`fiber_canceled` exception won't be raised so you have a chance to examine the
+result and the cancellation handling will be postponed to the next cancellation
+point.
 
 IMPORTANT: The `pcall()` family actually provides the same fundamental
 guarantee. Once it starts executing the argument passed, it won't throw any
-`fiber_interrupted` exception so you have a chance to examine the result of the
-executed code. The `pcall()` family only checks for interruption requests before
+`fiber_canceled` exception so you have a chance to examine the result of the
+executed code. The `pcall()` family only checks for cancellation requests before
 executing the argument.
 
 [NOTE]
@@ -572,9 +561,9 @@ either (that would be just bad).
 
 == User-level coroutines
 
-IMPORTANT: Interruptibility is not a property from the coroutine. The coroutine
-can be created in one fiber, started in a second fiber and resumed in a third
-one. Interruptibility is a property from the fiber.
+IMPORTANT: Cancelability is not a property from the coroutine. The coroutine can
+be created in one fiber, started in a second fiber and resumed in a third
+one. Cancelability is a property from the fiber.
 
 [source,lua]
 ----
@@ -591,16 +580,16 @@ end)
 `pcall()`. Therefore, the runtime guarantees `coroutine.resume()` enjoys the
 same properties found in `pcall()`:
 
-* `coroutine.resume()` is an interruption point.
-* `coroutine.resume()` only checks for interruption requests before resuming the
-  coroutine (i.e. the interruption notification is not fully asynchronous).
+* `coroutine.resume()` is a cancellation point.
+* `coroutine.resume()` only checks for cancellation requests before resuming the
+  coroutine (i.e. the cancellation notification is not fully asynchronous).
 * Like `pcall()`, `coroutine.create()` will also create a new `scope()` for the
   closure. However, this scope (and any nested one) is independent from the
   parent fiber and tied not to the enclosing parent fiber's lexical scopes but
   to the coroutine lifetime.
 
 We can't guarantee deterministic resumption of zombie coroutines to (re-)deliver
-interruption requests (nor should). Therefore, if the GC collects any of your
+cancellation requests (nor should). Therefore, if the GC collects any of your
 unreachable coroutines with remaining `scope_cleanup_pop()` to be done, it does
 nothing besides collecting the coroutine stack. You have to prepare your code to
 cope with this non-guarantee otherwise you most likely will have buggy code.
@@ -622,25 +611,25 @@ call `scope_cleanup_push()` within user-created coroutines.
 
 == Recap
 
-The fiber handle returned by `spawn()` has an `interrupt()` member-function that
-can be used to interrupt joinable fibers. The fiber only gets interrupted at
-interruption points. To preserve invariants your app relies on, register cleanup
-handlers with `scope_cleanup_push()`.
+The fiber handle returned by `spawn()` has a `cancel()` member-function that can
+be used to cancel joinable fibers. The fiber only gets canceled at cancellation
+points. To preserve invariants your app relies on, register cleanup handlers
+with `scope_cleanup_push()`.
 
-The relationship between user-created coroutines and interruptions is tricky.
+The relationship between user-created coroutines and cancellations is tricky.
 Therefore, you should avoid creating (either manually or through some
 abstraction) cleanup handlers within them.
 
 [source,lua]
 ----
-this_fiber.disable_interruption()
+this_fiber.disable_cancellation()
 local numbers = {8, 42, 38, 111, 2, 39, 1}
 
 local sleeper = spawn(function()
     local children = {}
     scope_cleanup_push(function()
         for _, f in pairs(children) do
-            f:interrupt()
+            f:cancel()
         end
     end)
     for _, n in pairs(numbers) do
@@ -657,9 +646,9 @@ end)
 local sigwaiter = spawn(function()
     local sigusr1 = signals.new(signals.SIGUSR1)
     sigusr1:wait()
-    sleeper:interrupt()
+    sleeper:cancel()
 end)
 
 sleeper:join()
-sigwaiter:interrupt()
+sigwaiter:cancel()
 ----

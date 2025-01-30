@@ -15,7 +15,7 @@ include::pages/internals.adoc[]
 
 include::pages/internals-sandboxes.adoc[]
 
-include::pages/interruption.adoc[]
+include::pages/fiber_cancellation.adoc[]
 
 include::pages/lua51.adoc[]
 

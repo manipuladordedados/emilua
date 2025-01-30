@@ -775,7 +775,7 @@ static int system_in_read_some(lua_State* L)
                         service->queue.erase(it);
                         vm_ctx->strand().post(
                             [vm_ctx,fiber]() {
-                                auto ec = make_error_code(errc::interrupted);
+                                auto ec = make_error_code(errc::fiber_canceled);
                                 vm_ctx->fiber_resume(
                                     fiber,
                                     hana::make_set(
@@ -851,7 +851,7 @@ static int system_in_read_some(lua_State* L)
             ) {
                 std::error_code ec2 = ec;
                 if (ec2 == std::errc::interrupted)
-                    ec2 = errc::interrupted;
+                    ec2 = errc::fiber_canceled;
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
                     current_fiber,
@@ -910,7 +910,7 @@ static int system_out_write_some(lua_State* L)
             ) {
                 std::error_code ec2 = ec;
                 if (ec2 == std::errc::interrupted)
-                    ec2 = errc::interrupted;
+                    ec2 = errc::fiber_canceled;
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
                     current_fiber,
@@ -969,7 +969,7 @@ static int system_err_write_some(lua_State* L)
             ) {
                 std::error_code ec2 = ec;
                 if (ec2 == std::errc::interrupted)
-                    ec2 = errc::interrupted;
+                    ec2 = errc::fiber_canceled;
                 boost::ignore_unused(buf);
                 vm_ctx->fiber_resume(
                     current_fiber,
