@@ -931,6 +931,9 @@ if get_option('enable_tests')
             'byte_span28',
             'byte_span29',
             'byte_span30',
+
+            # lower/upper
+            'byte_span31',
         ],
         'primserdes' : [
             'primserdes_u16be',

@@ -1001,6 +1001,46 @@ static int byte_span_trimmed(lua_State* L)
     return 1;
 }
 
+static int byte_span_inplace_lower(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    char* it = reinterpret_cast<char*>(bs->data.get());
+    std::use_facet<std::ctype<char>>(std::locale::classic()).tolower(
+        it, it + bs->size);
+
+    return 0;
+}
+
+static int byte_span_inplace_upper(lua_State* L)
+{
+    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
+    if (!bs || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    char* it = reinterpret_cast<char*>(bs->data.get());
+    std::use_facet<std::ctype<char>>(std::locale::classic()).toupper(
+        it, it + bs->size);
+
+    return 0;
+}
+
 static int byte_span_get_u16be(lua_State* L)
 {
     auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
@@ -2382,6 +2422,18 @@ static int byte_span_mt_index(lua_State* L)
             "trimmed",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, byte_span_trimmed);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "inplace_lower",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_inplace_lower);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
+            "inplace_upper",
+            [](lua_State* L) -> int {
+                lua_pushcfunction(L, byte_span_inplace_upper);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

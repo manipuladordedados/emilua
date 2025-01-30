@@ -163,6 +163,14 @@ returns its index, or `nil` if not found.
 Returns a slice from `self` that doesn't start nor ends with any octet from
 `lws`.
 
+=== `inplace_lower(self)`
+
+Converts every upper ASCII character from `self` to its lower version.
+
+=== `inplace_upper(self)`
+
+Converts every lower ASCII character from `self` to its upper version.
+
 == Functions (primitive types serialization)
 
 These functions operate in terms of bytes, and are endianness-aware. They throw
