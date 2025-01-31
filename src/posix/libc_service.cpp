@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 
 #include <emilua/ambient_authority.hpp>
+#include <dirent.h>
 #include <cstdarg>
 #include <cstring>
 #include <cerrno>
@@ -189,6 +190,27 @@ int eaccess(const char* pathname, int amode)
     } else {
         return real_eaccess(pathname, amode);
     }
+}
+
+DIR* opendir(const char* name)
+{
+    if (name[0] == '\0') {
+        errno = ENOENT;
+        return NULL;
+    }
+
+    int fd = open(name, O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
+    if (fd == -1) {
+        return NULL;
+    }
+
+    auto ret = fdopendir(fd);
+    if (!ret) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+    }
+    return ret;
 }
 
 int mkdir(const char* pathname, mode_t mode)

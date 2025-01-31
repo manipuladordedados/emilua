@@ -8,6 +8,7 @@
 #include <emilua/ambient_authority.hpp>
 #include <sys/syscall.h>
 #include <string_view>
+#include <dirent.h>
 #include <unistd.h>
 #include <cstdarg>
 #include <cstring>
@@ -368,6 +369,28 @@ int euidaccess(const char* pathname, int amode)
     } else {
         return __euidaccess(pathname, amode);
     }
+}
+
+DIR* opendir(const char* name)
+{
+    if (name[0] == '\0') {
+        errno = ENOENT;
+        return NULL;
+    }
+
+    int fd = open(
+        name, O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_LARGEFILE | O_CLOEXEC);
+    if (fd == -1) {
+        return NULL;
+    }
+
+    auto ret = fdopendir(fd);
+    if (!ret) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+    }
+    return ret;
 }
 
 // Glibc only provides the alias __mkdir for static builds. On static builds,
