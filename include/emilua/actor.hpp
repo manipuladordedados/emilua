@@ -168,6 +168,9 @@ struct ipc_actor_start_vm_request
 #if BOOST_OS_LINUX
     int clone_flags;
 #endif // BOOST_OS_LINUX
+#if BOOST_OS_BSD_FREE
+    int pdfork_flags;
+#endif // BOOST_OS_BSD_FREE
     action stdin_action;
     action stdout_action;
     action stderr_action;

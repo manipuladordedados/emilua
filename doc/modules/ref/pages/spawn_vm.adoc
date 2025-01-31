@@ -142,6 +142,14 @@ new Linux net namespace.
 `subprocess.newns_mount: boolean = false`:: Whether to create the process within
 a new Linux mount namespace.
 
+`subprocess.pd_daemon: boolean = false`::
+
+Instead of the default terminate-on-close behaviour, allow the process to live
+until it is explicitly killed with kill(2).
++
+
+NOTE: Only available on FreeBSD.
+
 `subprocess.environment: { [string] = string }|nil`:: A table of strings that
 will be used as the created process' `envp`. On `nil`, an empty `envp` will be
 used.

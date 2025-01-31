@@ -10,6 +10,7 @@ ch2:send('success')
 local ch1 = spawn_vm{
     module = fs.path.new('/a.lua'),
     subprocess = {
+        pd_daemon = true,
         source_tree_cache = ch1_src,
         stdout = 'share',
         stderr = 'share'
@@ -25,6 +26,7 @@ print(inbox:receive())
 local ch2 = spawn_vm{
     module = fs.path.new('/a.lua'),
     subprocess = {
+        pd_daemon = true,
         source_tree_cache = ch2_src,
         stdout = 'share',
         stderr = 'share'

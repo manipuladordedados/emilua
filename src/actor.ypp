@@ -1521,6 +1521,30 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
+            lua_getfield(L, -1, "pd_daemon");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg", "subprocess/pd_daemon");
+                return lua_error(L);
+            case LUA_TBOOLEAN:
+# if BOOST_OS_BSD_FREE
+                if (lua_toboolean(L, -1)) {
+                    if (cap_sandboxed()) {
+                        std::error_code ec{ECAPMODE, std::system_category()};
+                        push(L, ec);
+                        return lua_error(L);
+                    }
+
+                    request.pdfork_flags |= PD_DAEMON;
+                }
+# endif // BOOST_OS_BSD_FREE
+                [[fallthrough]];
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                break;
+            }
+
             lua_getfield(L, -1, "stdin");
             switch (lua_type(L, -1)) {
             default:

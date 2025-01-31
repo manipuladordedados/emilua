@@ -1882,7 +1882,7 @@ int app_context::ipc_actor_service_main(int sockfd)
                 /*arg=*/nullptr, &pidfd);
             reply.error = (reply.childpid == -1) ? errno : 0;
 #else
-            pid_t childpid = pdfork(&pidfd, /*flags=*/0);
+            pid_t childpid = pdfork(&pidfd, request.pdfork_flags);
             if (childpid == 0) {
                 return child_main(nullptr);
             }
