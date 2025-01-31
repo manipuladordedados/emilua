@@ -232,8 +232,7 @@ static int path_replace_filename(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -293,8 +292,7 @@ static int path_replace_extension(lua_State* L)
         break;
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -383,8 +381,7 @@ static int path_lexically_relative(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -451,8 +448,7 @@ static int path_lexically_proximate(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -925,8 +921,7 @@ static int path_mt_lt(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{
-                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
+            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -958,8 +953,7 @@ static int path_mt_lt(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -999,8 +993,7 @@ static int path_mt_le(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{
-                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
+            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1032,8 +1025,7 @@ static int path_mt_le(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1075,8 +1067,7 @@ static int path_mt_div(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{
-                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
+            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1108,8 +1099,7 @@ static int path_mt_div(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1156,8 +1146,7 @@ static int path_mt_concat(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{
-                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
+            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1189,8 +1178,7 @@ static int path_mt_concat(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{
-                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
+            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1244,8 +1232,7 @@ static int path_new(lua_State* L)
         break;
     case LUA_TSTRING:
         try {
-            *path = fs::path{
-                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
+            *path = fs::path{tou8stringview(L, 1), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1275,8 +1262,7 @@ static int path_from_generic(lua_State* L)
     new (path) fs::path{};
 
     try {
-        *path = fs::path{
-            widen_on_windows(tostringview(L, 1)), fs::path::generic_format};
+        *path = fs::path{tou8stringview(L, 1), fs::path::generic_format};
         return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());

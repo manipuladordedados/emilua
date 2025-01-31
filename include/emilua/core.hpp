@@ -882,6 +882,13 @@ inline std::string_view tostringview(lua_State* L, int index = -1)
     return std::string_view{buf, len};
 }
 
+inline std::u8string_view tou8stringview(lua_State* L, int index = -1)
+{
+    std::size_t len;
+    const char* buf = lua_tolstring(L, index, &len);
+    return std::u8string_view{reinterpret_cast<const char8_t*>(buf), len};
+}
+
 inline void rawgetp(lua_State* L, int pseudoindex, const void* p)
 {
     lua_pushlightuserdata(L, const_cast<void*>(p));
