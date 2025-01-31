@@ -3199,6 +3199,7 @@ static int emilua_open(lua_State* L)
         auto s = tostringview(L);
         lua_pop(L, 1);
         auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
             EMILUA_GPERF_PARAM(int action)
             EMILUA_GPERF_PAIR("append", O_APPEND)
             EMILUA_GPERF_PAIR("create", O_CREAT)

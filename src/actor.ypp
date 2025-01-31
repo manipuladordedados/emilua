@@ -68,12 +68,12 @@ static char closed_tx_chan_mt_key;
 static char chan_receive_key;
 static char chan_send_key;
 
+std::optional<std::string_view>
+get_builtin_module(const std::filesystem::path&);
+
 #if BOOST_OS_UNIX
 char ipc_actor_chan_mt_key;
 static char ipc_actor_chan_send_key;
-
-std::optional<std::string_view>
-get_builtin_module(const std::filesystem::path&);
 
 struct ipc_actor_send_op
     : public std::enable_shared_from_this<ipc_actor_send_op>

@@ -1015,7 +1015,7 @@ static int on_external_package(
         );
     }
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
+#if EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_UNIX
     {
         native_module* natmod = nullptr;
 
@@ -1053,7 +1053,7 @@ static int on_external_package(
         if (natmod)
             return on_native_module(natmod);
     }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && BOOST_OS_UNIX
 
     push(L, errc::module_not_found, "module", module_id);
     return lua_error(L);

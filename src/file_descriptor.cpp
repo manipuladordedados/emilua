@@ -533,6 +533,7 @@ static int file_descriptor_openat(lua_State* L)
         auto s = tostringview(L);
         lua_pop(L, 1);
         auto f = EMILUA_GPERF_BEGIN(s)
+            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
             EMILUA_GPERF_PARAM(int action)
             EMILUA_GPERF_PAIR("append", O_APPEND)
             EMILUA_GPERF_PAIR("create", O_CREAT)
@@ -557,6 +558,7 @@ static int file_descriptor_openat(lua_State* L)
 #endif // defined(O_TMPFILE)
         } else {
             auto f = EMILUA_GPERF_BEGIN(s)
+                EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
                 EMILUA_GPERF_PARAM(std::uint64_t action)
                 EMILUA_GPERF_PAIR("resolve_beneath", open_how::resolve_beneath)
                 EMILUA_GPERF_PAIR("resolve_in_root", open_how::resolve_in_root)
