@@ -1376,7 +1376,7 @@ static int require(lua_State* L)
                 std::unique_lock wlock{
                     vm_ctx->appctx.modules_cache_registry_mtx};
                 try {
-                    const auto& error_category_module = load_rdf_error_category(
+                    auto& error_category_module = load_rdf_error_category(
                         wlock, vm_ctx->appctx,
                         fs::absolute(std::move(module_path)));
 
