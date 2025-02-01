@@ -121,6 +121,10 @@ and avoid context overload.
   run with `SIGPIPE=SIG_DFL`, but even the internal forker service will enjoy
   the new behavior.
 
+=== Removed
+
+* Remove JSON module. It's now available as a separate plugin.
+
 [id=0.10]
 == 0.10 - 2024-09-01
 
