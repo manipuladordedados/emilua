@@ -428,7 +428,8 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
             buffer = buffer.last(buffer.size() - request.uintargs[0]);
 
             master.last_request.emplace<access_request>(
-                static_cast<std::string>(path), request.intargs[0]);
+                static_cast<std::string>(path),
+                request.intargs[0] & (R_OK | W_OK | X_OK));
             break;
         }
         case request::EACCESS: {
@@ -441,7 +442,8 @@ struct receive_op : public std::enable_shared_from_this<receive_op>
             buffer = buffer.last(buffer.size() - request.uintargs[0]);
 
             master.last_request.emplace<eaccess_request>(
-                static_cast<std::string>(path), request.intargs[0]);
+                static_cast<std::string>(path),
+                request.intargs[0] & (R_OK | W_OK | X_OK));
             break;
         }
         case request::MKDIR: {
