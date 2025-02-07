@@ -61,6 +61,7 @@ static std::array<bool, 7> lowfds {
 static int ipc_actor_service_sockfd = -1;
 #endif // BOOST_OS_UNIX
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
+static std::string emilua_path_env_value;
 
 static inline bool is_suid()
 {
@@ -272,15 +273,39 @@ void set_locales()
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void parse_env(char *envp[])
 {
+    // TODO: Remove VERSION_MINOR from path components once emilua reaches
+    // version 1.0.0 (versions that differ only in minor and patch numbers do
+    // not break API).
+    static constexpr std::string_view default_emilua_path =
+        EMILUA_CONFIG_LIBROOTDIR "/"
+        "emilua-" BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MAJOR)
+        "." BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MINOR);
+
     for (char** rawenv = envp ; *rawenv ; ++rawenv) {
         std::string_view env{*rawenv};
         if (auto i = env.find('=') ; i != env.npos) {
             auto key = env.substr(0, i);
             auto value = env.substr(i + 1);
+            if (key == "EMILUA_PATH") {
+                emilua_path_env_value.reserve(
+                    value.size() + 1 + default_emilua_path.size());
+                emilua_path_env_value = value;
+                emilua_path_env_value +=
+#if BOOST_OS_WINDOWS
+                    ';';
+#else
+                    ':';
+#endif // BOOST_OS_WINDOWS
+                emilua_path_env_value += default_emilua_path;
+                value = emilua_path_env_value;
+            }
             if (!is_suid() || is_safe_emilua_env(key)) {
                 tmp_env.emplace(key, value);
             }
         }
+    }
+    if (tmp_env.find("EMILUA_PATH") == tmp_env.end()) {
+        tmp_env.emplace("EMILUA_PATH", default_emilua_path);
     }
 
     // We want to avoid isatty() in suid binaries, but we must ensure this is
@@ -412,16 +437,6 @@ void fill_emilua_path(app_context& appctx)
             }
         }
     }
-
-    appctx.emilua_path.emplace_back(
-        widen_on_windows(EMILUA_CONFIG_LIBROOTDIR), fs::path::native_format);
-    appctx.emilua_path.back().make_preferred();
-    // TODO: Remove VERSION_MINOR from path components once emilua reaches
-    // version 1.0.0 (versions that differ only in minor and patch numbers do
-    // not break API).
-    appctx.emilua_path.back() /=
-        "emilua-" BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MAJOR)
-        "." BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MINOR);
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
