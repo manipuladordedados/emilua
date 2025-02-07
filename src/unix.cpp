@@ -4057,6 +4057,11 @@ static int unix_stream_listen(lua_State* L)
     }
 
     if (ep.starts_with('@')) {
+        if (has_mode) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
         std::string e{ep};
         e[0] = '\0';
         a->bind(e, ec);
@@ -4067,6 +4072,13 @@ static int unix_stream_listen(lua_State* L)
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
+    }
+
+    if (has_mode) {
+        if (chmod(ep.data(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     a->listen(asio::socket_base::max_listen_connections, ec);
@@ -6109,6 +6121,11 @@ static int unix_seqpacket_listen(lua_State* L)
     }
 
     if (ep.starts_with('@')) {
+        if (has_mode) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
         std::string e{ep};
         e[0] = '\0';
         a->bind(e, ec);
@@ -6119,6 +6136,13 @@ static int unix_seqpacket_listen(lua_State* L)
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
+    }
+
+    if (has_mode) {
+        if (chmod(ep.data(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     a->listen(asio::socket_base::max_listen_connections, ec);
