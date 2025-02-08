@@ -885,6 +885,20 @@ static int child_main(void*)
             return 1;
         auto atfork_parent = [&buffer,&evfd]() -> std::optional<int> {
             explicit_bzero(buffer.data(), buffer.size());
+#if BOOST_OS_LINUX
+            if (prctl(PR_SET_DUMPABLE, 0) == -1) {
+                return 1;
+            }
+#elif BOOST_OS_BSD_FREE
+            if (
+                int val = PROC_TRACE_CTL_DISABLE ;
+                procctl(P_PID, 0, PROC_TRACE_CTL, &val) == -1
+            ) {
+                return 1;
+            }
+#else
+# error "OS not supported"
+#endif // BOOST_OS_LINUX
             if (eventfd_write(evfd, 1) == -1)
                 return 1;
 
