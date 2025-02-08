@@ -1086,7 +1086,9 @@ static int child_main(void*)
         ia >> environ_buffer1;
         environ_buffer2.reserve(environ_buffer1.size() + 1);
         for (auto& s : environ_buffer1) {
-            environ_buffer2.emplace_back(s.data());
+            if (!s.starts_with('\0')) {
+                environ_buffer2.emplace_back(s.data());
+            }
             auto idx = s.find('=');
             std::string_view s2{s};
             appctx.app_env.emplace(s2.substr(0, idx), s2.substr(idx + 1));
