@@ -27,8 +27,10 @@ function(ep: string[, mode: integer]) -> acceptor
 3. If `mode` is given, `fchmod()` the socket to `bit.band(mode,
    filesystem.mode(7,7,7))`.
 4. Binds the socket to `ep`.
-5. Put the socket in the listening state.
-6. Returns the socket.
+5. If `mode` is given, `chmod()` the endpoint to `bit.band(mode,
+   filesystem.mode(7,7,7))`.
+6. Put the socket in the listening state.
+7. Returns the socket.
 
 NOTE: If `ep` starts with `@` then it's assumed to represent an abstract UNIX
 socket.
