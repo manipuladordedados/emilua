@@ -981,6 +981,14 @@ if get_option('enable_tests')
         }
     endif
 
+    if get_option('thread_support_level') >= 1
+        tests +=  {
+            'actor' : tests['actor'] + [
+                'actor32',
+            ]
+        }
+    endif
+
     if host_machine.system() != 'windows' # POSIX systems
         tests +=  {
             'ipc_actor1' : [

@@ -1035,8 +1035,10 @@ static int chan_send(lua_State* L)
     );
     set_interrupter(L, *vm_ctx);
 
+    ++dest_vm_ctx->inbox.nsenders;
     dest_vm_ctx->strand().post(
         [vm_ctx=dest_vm_ctx, sender=std::move(sender)]() mutable {
+            --vm_ctx->inbox.nsenders;
             auto recv_fiber = vm_ctx->inbox.recv_fiber;
             if (!vm_ctx->inbox.open.load(std::memory_order::relaxed))
                 return;
