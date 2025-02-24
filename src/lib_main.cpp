@@ -245,11 +245,14 @@ void register_eintr_rtsigno_handler()
 #endif // BOOST_OS_UNIX
 }
 
-
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*set_locales)() = []()
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void set_locales()
+#endif // BOOST_OS_WINDOWS
 {
     try {
         std::locale native_locale{""};
@@ -267,11 +270,18 @@ void set_locales()
         } catch (const std::ios_base::failure&) {}
     }
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*parse_env)(char *envp[]) = [](char *envp[])
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void parse_env(char *envp[])
+#endif // BOOST_OS_WINDOWS
 {
     // TODO: Remove VERSION_MINOR from path components once emilua reaches
     // version 1.0.0 (versions that differ only in minor and patch numbers do
@@ -355,14 +365,24 @@ void parse_env(char *envp[])
             log_domain<default_log_domain>::log_level = level;
     }
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*fill_env)(app_context& appctx) = [](app_context& appctx)
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void fill_env(app_context& appctx)
+#endif // BOOST_OS_WINDOWS
 {
     appctx.app_env = std::move(tmp_env);
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 [[gnu::weak]]
@@ -388,10 +408,15 @@ void fill_forker_service_socket(app_context& appctx)
 #endif // BOOST_OS_UNIX
 }
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*parse_args)(int argc, char *argv[], app_context& appctx) =
+    [](int argc, char *argv[], app_context& appctx)
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void parse_args(int argc, char *argv[], app_context& appctx)
+#endif // BOOST_OS_WINDOWS
 {
     appctx.app_args.resize(2);
 
@@ -405,11 +430,18 @@ void parse_args(int argc, char *argv[], app_context& appctx)
         appctx.app_args.emplace_back(*cur_arg);
     }
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*fill_emilua_path)(app_context& appctx) = [](app_context& appctx)
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void fill_emilua_path(app_context& appctx)
+#endif // BOOST_OS_WINDOWS
 {
     if (
         auto it = appctx.app_env.find("EMILUA_PATH") ;
@@ -438,11 +470,18 @@ void fill_emilua_path(app_context& appctx)
         }
     }
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+int (*main_ctx_concurrency_hint)() = []()
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 int main_ctx_concurrency_hint()
+#endif // BOOST_OS_WINDOWS
 {
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
     return ASIO_CONCURRENCY_HINT_SAFE;
@@ -450,25 +489,49 @@ int main_ctx_concurrency_hint()
     return BOOST_ASIO_CONCURRENCY_HINT_SAFE;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx) =
+    [](app_context& appctx, asio::io_context& ioctx)
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+#endif // BOOST_OS_WINDOWS
 {}
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+void (*run)(app_context& /*appctx*/, asio::io_context& ioctx) =
+    [](app_context& /*appctx*/, asio::io_context& ioctx)
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 void run(app_context& /*appctx*/, asio::io_context& ioctx)
+#endif // BOOST_OS_WINDOWS
 {
     ioctx.run();
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
-#if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+#if BOOST_OS_WINDOWS
+int (*main)(int argc, char *argv[], char *envp[]) =
+    [](int argc, char *argv[], char *envp[]) -> int
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
-#endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
+# endif // defined(EMILUA_STATIC_BUILD)
 int main(int argc, char *argv[], char *envp[])
+#endif // BOOST_OS_WINDOWS
 {
 #if BOOST_OS_UNIX
     {
@@ -609,5 +672,8 @@ int main(int argc, char *argv[], char *envp[])
 
     return appctx.exit_code;
 }
+#if BOOST_OS_WINDOWS
+;
+#endif // BOOST_OS_WINDOWS
 
 } // namespace emilua::main

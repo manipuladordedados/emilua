@@ -15,11 +15,21 @@ namespace emilua {
 
 // You may override these functions (they're weak symbols in static buidls) to
 // initialize your native modules from subprocess-based actors as well. {{{
+#if BOOST_OS_WINDOWS
+extern
+void (*create_native_modules)(
+    const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+    app_context& appctx);
+
+extern
+void (*destroy_native_modules)();
+#else // BOOST_OS_WINDOWS
 void create_native_modules(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     app_context& appctx);
 
 void destroy_native_modules();
+#endif // BOOST_OS_WINDOWS
 // }}}
 
 std::shared_ptr<vm_context> make_vm(

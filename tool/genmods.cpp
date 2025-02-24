@@ -12,9 +12,15 @@ namespace asio = boost::asio;
 
 namespace emilua {
 
+#if BOOST_OS_WINDOWS
+extern std::optional<std::string_view> (*get_builtin_module)(const fs::path& p);
+static std::optional<std::string_view> get_builtin_module2(const fs::path& p)
+#else // BOOST_OS_WINDOWS
 std::optional<std::string_view> get_builtin_module(const fs::path& p)
+#endif // BOOST_OS_WINDOWS
 {
-    if (p == "/dev/null/app/init.lua") {
+    fs::path target{"/dev/null/app/init.lua", fs::path::generic_format};
+    if (p == fs::absolute(target)) {
         return R"lua(
 local stream = require 'stream'
 local system = require 'system'
@@ -201,9 +207,18 @@ stream.write_all(system.out, byte_span.append(
 
 namespace main {
 
+#if BOOST_OS_WINDOWS
+extern int (*main)(int argc, char *argv[], char *envp[]);
+#else // BOOST_OS_WINDOWS
 int main(int argc, char *argv[], char *envp[]);
+#endif // BOOST_OS_WINDOWS
 
+#if BOOST_OS_WINDOWS
+extern void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx);
+static void make_master_vm2(app_context& appctx, asio::io_context& ioctx)
+#else // BOOST_OS_WINDOWS
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+#endif // BOOST_OS_WINDOWS
 {
     auto vm_ctx = make_vm(
         ioctx, appctx, ContextType::main,
@@ -222,5 +237,9 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 
 int main(int argc, char *argv[], char *envp[])
 {
+#if BOOST_OS_WINDOWS
+    emilua::get_builtin_module = emilua::get_builtin_module2;
+    emilua::main::make_master_vm = emilua::main::make_master_vm2;
+#endif // BOOST_OS_WINDOWS
     return emilua::main::main(argc, argv, envp);
 }

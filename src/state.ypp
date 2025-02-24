@@ -97,6 +97,19 @@ EMILUA_GPERF_NAMESPACE(emilua)
 static char ffi_module_key;
 EMILUA_GPERF_DECLS_END(state)
 
+#if BOOST_OS_WINDOWS
+extern
+std::optional<std::string_view>
+(*get_builtin_module)(const std::filesystem::path&);
+
+extern
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+(*get_builtin_rdf_ec)(const std::filesystem::path&);
+
+extern
+std::optional<std::reference_wrapper<emilua::native_module>>
+(*get_builtin_native_module)(std::string_view);
+#else // BOOST_OS_WINDOWS
 std::optional<std::string_view>
 get_builtin_module(const std::filesystem::path&);
 
@@ -105,6 +118,7 @@ get_builtin_rdf_ec(const std::filesystem::path&);
 
 std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view);
+#endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_WINDOWS
 static int lua_print(lua_State* L)

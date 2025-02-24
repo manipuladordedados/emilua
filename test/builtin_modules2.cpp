@@ -40,10 +40,20 @@ std::optional<native_module> foobar333;
 
 namespace emilua {
 
+#if BOOST_OS_WINDOWS
+extern
+std::optional<std::string_view>
+(*get_builtin_module)(const std::filesystem::path& p);
+static
+std::optional<std::string_view>
+get_builtin_module2(const std::filesystem::path& p)
+#else // BOOST_OS_WINDOWS
 std::optional<std::string_view>
 get_builtin_module(const std::filesystem::path& p)
+#endif // BOOST_OS_WINDOWS
 {
-    if (p == "/app/main.lua") {
+    fs::path target{"/app/main.lua", fs::path::generic_format};
+    if (p == fs::absolute(target)) {
         return "require('foobar333')\n"
             "print('Hello World')\n";
     } else {
@@ -51,8 +61,17 @@ get_builtin_module(const std::filesystem::path& p)
     }
 }
 
+#if BOOST_OS_WINDOWS
+extern
+std::optional<std::reference_wrapper<emilua::native_module>>
+(*get_builtin_native_module)(std::string_view id);
+static
+std::optional<std::reference_wrapper<emilua::native_module>>
+get_builtin_native_module2(std::string_view id)
+#else // BOOST_OS_WINDOWS
 std::optional<std::reference_wrapper<emilua::native_module>>
 get_builtin_native_module(std::string_view id)
+#endif // BOOST_OS_WINDOWS
 {
     if (id == "foobar333") {
         return std::ref(static_cast<emilua::native_module&>(*foobar333));
@@ -61,24 +80,49 @@ get_builtin_native_module(std::string_view id)
     }
 }
 
+#if BOOST_OS_WINDOWS
+extern
+void (*create_native_modules)(
+    const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+    app_context& appctx);
+static
+void create_native_modules2(
+    const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
+    app_context& appctx)
+#else // BOOST_OS_WINDOWS
 void create_native_modules(
     const std::unique_lock<std::shared_mutex>& modules_cache_registry_wlock,
     app_context& appctx)
+#endif // BOOST_OS_WINDOWS
 {
     foobar333.emplace();
     foobar333->init_appctx(modules_cache_registry_wlock, appctx);
 }
 
+#if BOOST_OS_WINDOWS
+extern void (*destroy_native_modules)();
+static void destroy_native_modules2()
+#else // BOOST_OS_WINDOWS
 void destroy_native_modules()
+#endif // BOOST_OS_WINDOWS
 {
     foobar333.reset();
 }
 
 namespace main {
 
+#if BOOST_OS_WINDOWS
+extern int (*main)(int argc, char *argv[], char *envp[]);
+#else // BOOST_OS_WINDOWS
 int main(int argc, char *argv[], char *envp[]);
+#endif // BOOST_OS_WINDOWS
 
+#if BOOST_OS_WINDOWS
+extern void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx);
+static void make_master_vm2(app_context& appctx, asio::io_context& ioctx)
+#else // BOOST_OS_WINDOWS
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+#endif // BOOST_OS_WINDOWS
 {
     auto vm_ctx = make_vm(
         ioctx, appctx, ContextType::main,
@@ -97,6 +141,13 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 
 int main(int argc, char *argv[], char *envp[])
 {
+#if BOOST_OS_WINDOWS
+    emilua::get_builtin_module = emilua::get_builtin_module2;
+    emilua::get_builtin_native_module = emilua::get_builtin_native_module2;
+    emilua::create_native_modules = emilua::create_native_modules2;
+    emilua::destroy_native_modules = emilua::destroy_native_modules2;
+    emilua::main::make_master_vm = emilua::main::make_master_vm2;
+#endif // BOOST_OS_WINDOWS
     std::ignore = emilua::main::main(argc, argv, envp);
     return exit_code;
 }

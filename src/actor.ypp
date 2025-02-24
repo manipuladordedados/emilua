@@ -68,8 +68,14 @@ static char closed_tx_chan_mt_key;
 static char chan_receive_key;
 static char chan_send_key;
 
+#if BOOST_OS_WINDOWS
+extern
+std::optional<std::string_view>
+(*get_builtin_module)(const std::filesystem::path&);
+#else // BOOST_OS_WINDOWS
 std::optional<std::string_view>
 get_builtin_module(const std::filesystem::path&);
+#endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_UNIX
 char ipc_actor_chan_mt_key;
