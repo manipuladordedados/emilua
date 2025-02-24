@@ -3,4 +3,4 @@ if _CONTEXT ~= 'main' then
     return
 end
 
-spawn_vm{ module = _FILE }
+spawn_vm{ module = tostring(_FILE) }
