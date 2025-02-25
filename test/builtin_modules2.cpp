@@ -52,8 +52,8 @@ std::optional<std::string_view>
 get_builtin_module(const std::filesystem::path& p)
 #endif // BOOST_OS_WINDOWS
 {
-    fs::path target{"/app/main.lua", fs::path::generic_format};
-    if (p == fs::absolute(target)) {
+    fs::path target{"/NUL/app/main.lua", fs::path::generic_format};
+    if (p.root_directory() / p.relative_path() == target) {
         return "require('foobar333')\n"
             "print('Hello World')\n";
     } else {
@@ -126,7 +126,7 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {
     auto vm_ctx = make_vm(
         ioctx, appctx, ContextType::main,
-        fs::path{"/app/main.lua", fs::path::generic_format});
+        fs::path{"/NUL/app/main.lua", fs::path::generic_format});
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(

@@ -31,8 +31,8 @@ static std::optional<std::string_view> get_builtin_module2(const fs::path& p)
 std::optional<std::string_view> get_builtin_module(const fs::path& p)
 #endif // BOOST_OS_WINDOWS
 {
-    fs::path target{"/dev/null/app/init.lua", fs::path::generic_format};
-    if (p == fs::absolute(target)) {
+    fs::path target{"/dev/null/NUL/app/init.lua", fs::path::generic_format};
+    if (p.root_directory() / p.relative_path() == target) {
         return R"lua(
 local stream = require 'stream'
 local system = require 'system'
@@ -70,7 +70,7 @@ for entry in fs.recursive_directory_iterator(input) do
         v = ''
     end
 
-    k = fs.path.from_generic('/dev/null/app') / k:lexically_relative(input)
+    k = fs.path.from_generic('/dev/null/NUL/app') / k:lexically_relative(input)
     source_tree[k:to_generic()] = format('{:?}', tostring(v))
 
     ::continue::
@@ -124,7 +124,7 @@ stream.write_all(system.out, byte_span.append(
     [[
     std::optional<std::string_view> get_builtin_module(const fs::path& p)
     {
-        auto k = p.generic_string();
+        auto k = (p.root_directory() / p.relative_path()).generic_string();
         auto v = Perfect_Hash::in_word_set(k.data(), k.size());
         if (!v) {
             return std::nullopt;
@@ -142,7 +142,7 @@ stream.write_all(system.out, byte_span.append(
     {
         auto vm_ctx = make_vm(
             ioctx, appctx, ContextType::main,
-            fs::path{"/dev/null/app/init.lua", fs::path::generic_format});
+            fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
         appctx.master_vm = vm_ctx;
         vm_ctx->strand().post([vm_ctx]() {
             vm_ctx->fiber_resume(
@@ -199,7 +199,7 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {
     auto vm_ctx = make_vm(
         ioctx, appctx, ContextType::main,
-        fs::path{"/dev/null/app/init.lua", fs::path::generic_format});
+        fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(

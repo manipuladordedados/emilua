@@ -19,8 +19,8 @@ static std::optional<std::string_view> get_builtin_module2(const fs::path& p)
 std::optional<std::string_view> get_builtin_module(const fs::path& p)
 #endif // BOOST_OS_WINDOWS
 {
-    fs::path target{"/dev/null/app/init.lua", fs::path::generic_format};
-    if (p == fs::absolute(target)) {
+    fs::path target{"/dev/null/NUL/app/init.lua", fs::path::generic_format};
+    if (p.root_directory() / p.relative_path() == target) {
         return R"lua(
 local stream = require 'stream'
 local system = require 'system'
@@ -222,7 +222,7 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 {
     auto vm_ctx = make_vm(
         ioctx, appctx, ContextType::main,
-        fs::path{"/dev/null/app/init.lua", fs::path::generic_format});
+        fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(
