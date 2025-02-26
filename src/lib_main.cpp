@@ -625,6 +625,24 @@ int main(int argc, char *argv[], char *envp[])
     parse_args(argc, argv, appctx);
     fill_emilua_path(appctx);
 
+#if BOOST_OS_LINUX && (defined(ASIO_DISABLE_EPOLL) || defined(BOOST_ASIO_DISABLE_EPOLL))
+    {
+        struct io_uring_params params;
+        std::memset(&params, 0, sizeof(params));
+        int fd = io_uring_setup(/*ring_size=*/16384, &params);
+        if (fd < 0) {
+            try {
+                fmt::print(
+                    boost::nowide::cerr,
+                    FMT_STRING("Failed to setup io_uring: `{}`\n"),
+                    std::system_category().message(-fd));
+            } catch (const std::ios_base::failure&) {}
+            return 2;
+        }
+        close(fd);
+    }
+#endif // BOOST_OS_LINUX && (defined(ASIO_DISABLE_EPOLL) || defined(BOOST_ASIO_DISABLE_EPOLL))
+
     {
         const std::unique_lock wlock{appctx.modules_cache_registry_mtx};
         create_native_modules(wlock, appctx);
