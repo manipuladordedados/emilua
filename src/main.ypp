@@ -48,7 +48,7 @@ extern void (*parse_args)(int argc, char *argv[], app_context& appctx);
 static void parse_args2(int argc, char *argv[], app_context& appctx)
 #else // BOOST_OS_WINDOWS
 void parse_args(int argc, char *argv[], app_context& appctx)
-#endif BOOST_OS_WINDOWS
+#endif // BOOST_OS_WINDOWS
 {
 #define NEXT_ARG(OPTION, LABEL) do {                           \
         if (YYCURSOR = *++cur_arg ; YYCURSOR != nullptr) {     \
@@ -246,7 +246,7 @@ extern int (*main_ctx_concurrency_hint)();
 static int main_ctx_concurrency_hint2()
 #else // BOOST_OS_WINDOWS
 int main_ctx_concurrency_hint()
-#endif BOOST_OS_WINDOWS
+#endif // BOOST_OS_WINDOWS
 {
     return main_ctx_concurrency_hint_;
 }
@@ -256,7 +256,7 @@ extern void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx);
 static void make_master_vm2(app_context& appctx, asio::io_context& ioctx)
 #else // BOOST_OS_WINDOWS
 void make_master_vm(app_context& appctx, asio::io_context& ioctx)
-#endif BOOST_OS_WINDOWS
+#endif // BOOST_OS_WINDOWS
 {
     auto vm_ctx = make_vm(ioctx, appctx, main_context_type,
                           widen_on_windows(filename));
