@@ -1314,7 +1314,7 @@ if get_option('enable_tests')
             ]
         }
 
-        if get_option('thread_support_level') >= 1 and get_option('enable_file_io')
+        if get_option('thread_support_level') >= 1
             test(
                 'libpsx1', shell, suite : 'libpsx',
                 args : [
