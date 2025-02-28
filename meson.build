@@ -1325,9 +1325,9 @@ if get_option('enable_tests')
                 workdir : meson.current_source_dir() / 'test',
                 env : tests_env,
 
-                # there's a libpsx bug for C++ projects that hasn't been solved
-                # yet: https://bugzilla.kernel.org/show_bug.cgi?id=218607
-                should_fail : true,
+                # there's a libpsx bug for C++ projects that was only solved in
+                # 2.72: https://bugzilla.kernel.org/show_bug.cgi?id=218607
+                should_fail : libcap[1].version().version_compare('<2.72'),
              )
         endif
     endif
