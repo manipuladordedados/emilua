@@ -64,6 +64,14 @@ function mode(user, group, other)
 end
 ----
 
+=== `dev_major(dev: integer) -> integer
+
+See makedev(3).
+
+=== `dev_minor(dev: integer) -> integer
+
+See makedev(3).
+
 === `write_all(fd: integer, buffer: string) -> integer, integer`
 
 Similar to `stream.write_all()`.
@@ -83,9 +91,26 @@ Returns two values:
 1. `sendmsg()` return.
 2. The errno value (or `0` on success).
 
-=== `set_no_new_privs()`
+=== `set_no_new_privs() -> integer, integer`
 
 Set the calling thread's no_new_privs attribute to `true`.
+
+Returns two values:
+
+1. `prctl()`/`procctl()` return.
+2. The errno value (or `0` on success).
+
+=== `bind_unix(fd: integer, path: string) -> integer, integer`
+
+Bind to an UNIX socket address.
+
+On pathname-based addresses, the null byte is automatically appennded to `path`
+so one shouldn't explicitly include it in `path`.
+
+Returns two values:
+
+1. `bind()` return.
+2. The errno value (or `0` on success).
 
 == Functions
 
@@ -117,17 +142,33 @@ returned as the second result.
   Lua table.
 * `fexecve()`. Opposed to the C function, `argv` and `envp` are specified as a
   Lua table.
+* `caph_cache_tzdata()`: Opposed to the C function, it receives an optional
+  string argument that is used to fulfill the role of the environment variable
+  `TZ`. If no argument is given, a null string is used instead and `tzset()`
+  will use UTC as documented in its manpage.
 
 Other exported functions work as usual (except that `errno` or `0` is returned
 as the second result):
 
+* `dup()`.
+* `dup2()`.
+* `close()`.
+* `closefrom()`. Aside from invalid arguments (e.g. passing a string/boolean as
+  argument), this function doesn't report errors (errors are ignored and no
+  value is ever returned). This function is also available on Linux (the
+  implementation emulates the intended behavior using `close_range()`).
 * `open()`.
+* `access()`.
+* `eaccess()`.
 * `mkdir()`.
 * `chdir()`.
 * `mkfifo()`.
+* `socket()`.
+* `listen()`.
 * `mknod()`.
 * `makedev()`.
 * `link()`.
+* `linkat()`.
 * `symlink()`.
 * `chown()`.
 * `chmod()`.
@@ -153,6 +194,7 @@ as the second result):
 * `unshare()`.
 * `setns()`.
 * `cap_enter()`.
+* `caph_limit_stdio()`.
 * `jail_attach()`.
 
 == Constants
@@ -281,11 +323,37 @@ Mode bits for access permission:
 * `S_ISGID`.
 * `S_ISVTX`.
 
+`access()` flags:
+
+* `F_OK`.
+* `R_OK`.
+* `W_OK`.
+* `X_OK`.
+
 `openat()` flags:
 
 * `AT_FDCWD`.
 * `AT_EMPTY_PATH`.
+* `AT_SYMLINK_FOLLOW`.
 * `AT_SYMLINK_NOFOLLOW`.
+
+`socket()` flags:
+
+* `AF_UNIX`.
+* `AF_LOCAL`.
+* `AF_INET`.
+* `AF_INET6`.
+* `AF_UNSPEC`.
+* `SOCK_STREAM`.
+* `SOCK_DGRAM`.
+* `SOCK_SEQPACKET`.
+* `IPPROTO_TCP`.
+* `IPPROTO_UDP`.
+* `IPPROTO_SCTP`.
+
+`listen()` flags:
+
+* `SOMAXCONN`.
 
 `mknod()` flags:
 

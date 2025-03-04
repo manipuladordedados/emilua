@@ -150,6 +150,16 @@ The only resource a sandbox starts with is `inbox` and its only method:
 choose which resources are safe to hand over (e.g. read-only access to a file
 and a pipe).
 
+There's also an optional compatibility layer that interposes key
+functions{_}footnote:[Mostly related to
+https://en.wikipedia.org/wiki/Ambient_authority[ambient authority].] from libc
+to translate such calls as requests to a supervisor so it becomes possible to
+use existing code within sandboxes w/o the need to rewrite them to work on
+tightly sandboxed environments. With some extra work it's even possible to use
+this layer to offer something closer to Capsicum within Linux. A standalone
+library that you can `LD_PRELOAD` into other executables also exists so you can
+use this layer even for applications that have nothing to do with Emilua.
+
 == Container runtime
 
 A generic C-powered & Lua-driven container runtime. Many container runtimes out
@@ -257,7 +267,7 @@ availability].
 * TLS.
 * Address/service forward/reverse name resolution.
 * IPv6 support (and mostly transparent).
-* Cancellable operations transparently integrated into the fiber interruption
+* Cancellable operations transparently integrated into the fiber cancellation
   API.
 * Several generic algorithms.
 
@@ -282,7 +292,7 @@ availability].
 
 == Misc features
 
-* Complete fiber API (sync primitives, interruption API, clean-up handlers,
+* Complete fiber API (sync primitives, cancellation API, clean-up handlers,
   fiber local storage, assert-like scheduling constraints, ...).
 * Integrates with Lua builtins (i.e. you can mix up fibers and coroutines,
   modules, ...).
@@ -292,6 +302,5 @@ availability].
   io_uring.], so the main thread never blocks).
 * Serial ports.
 * A basic regex module.
-* Native JSON module.
 * Portable error code comparison.
 * And much more.

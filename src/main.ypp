@@ -1,58 +1,24 @@
-// Copyright (c) 2020, 2021 Vinícius dos Santos Oliveira
+// Copyright (c) 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
-
-#include <string_view>
-#include <charconv>
-#include <optional>
-
-#include <fmt/ostream.h>
-#include <fmt/format.h>
-
-#include <boost/preprocessor/stringize.hpp>
-#include <boost/nowide/iostream.hpp>
-#include <boost/nowide/args.hpp>
-#include <boost/version.hpp>
 
 #include <emilua/windows.hpp>
 #include <emilua/state.hpp>
 
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-#include <asio/io_context.hpp>
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-#include <boost/asio/io_context.hpp>
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <fmt/ostream.h>
+#include <fmt/format.h>
 
-#if BOOST_OS_LINUX
-#include <boost/context/fixedsize_stack.hpp>
-#endif // BOOST_OS_LINUX
-
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-#include <asio/version.hpp>
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-
-#if EMILUA_CONFIG_ENABLE_COLOR
-#include <cstdlib>
-#include <cstdio>
-
-extern "C" {
-#include <curses.h>
-#include <term.h>
-} // extern "C"
-#endif // EMILUA_CONFIG_ENABLE_COLOR
-
-#if BOOST_OS_UNIX
-#include <emilua/actor.hpp>
-#include <sys/wait.h>
-#endif // BOOST_OS_UNIX
+#include <boost/nowide/iostream.hpp>
 
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
 
-#if !EMILUA_CONFIG_USE_STANDALONE_ASIO
-namespace asio = boost::asio;
-#endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace emilua::main {
 
-extern char** environ;
+#if BOOST_OS_WINDOWS
+extern int (*main)(int argc, char *argv[], char *envp[]);
+#else // BOOST_OS_WINDOWS
+int main(int argc, char *argv[], char *envp[]);
+#endif // BOOST_OS_WINDOWS
 
 static constexpr auto help_text = FMT_STRING(
     "Emilua: Execution engine for luaJIT\n"
@@ -68,207 +34,22 @@ static constexpr auto help_text = FMT_STRING(
     "  --test Run tests\n"
     "  --version                   Output version information and exit\n");
 
-int main(int argc, char *argv[], char *envp[])
-{
-#if BOOST_OS_UNIX
-    {
-        struct sigaction sa;
-        sa.sa_handler = SIG_DFL;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = 0;
-
-        for (int signo = 1 ; signo != NSIG ; ++signo) {
-            sigaction(signo, /*act=*/&sa, /*oldact=*/NULL);
-        }
-
-        sigset_t set;
-        sigfillset(&set);
-        sigprocmask(SIG_UNBLOCK, &set, /*oldset=*/NULL);
-    }
-#endif // BOOST_OS_UNIX
-
-#if BOOST_OS_LINUX
-    boost::context::fixedsize_stack clone_stack_allocator;
-    auto clone_stack = clone_stack_allocator.allocate();
-    emilua::clone_stack_address = clone_stack.sp;
-#endif // BOOST_OS_LINUX
-
-#if BOOST_OS_UNIX
-    emilua::app_context::environp = &environ;
-
-    int ipc_actor_service_pipe[2];
-    if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
-        ipc_actor_service_pipe[0] = -1;
-        ipc_actor_service_pipe[1] = -1;
-        perror("<4>Failed to start subprocess-based actor subsystem");
-    }
-
-    if (ipc_actor_service_pipe[0] != -1) {
-        shutdown(ipc_actor_service_pipe[0], SHUT_WR);
-        shutdown(ipc_actor_service_pipe[1], SHUT_RD);
-
-        switch (fork()) {
-        case -1: {
-            perror("<4>Failed to start subprocess-based actor subsystem");
-            close(ipc_actor_service_pipe[0]);
-            close(ipc_actor_service_pipe[1]);
-            ipc_actor_service_pipe[0] = -1;
-            ipc_actor_service_pipe[1] = -1;
-            break;
-        }
-        case 0:
-            close(ipc_actor_service_pipe[1]);
-            return emilua::app_context::ipc_actor_service_main(
-                ipc_actor_service_pipe[0]);
-        default: {
-            close(ipc_actor_service_pipe[0]);
-            ipc_actor_service_pipe[0] = -1;
-
-            emilua::bzero_region args;
-
-            // These regions are computed from this process so we try (as the
-            // best of our efforts) to avoid loading them into extra
-            // registers/stack of the other process.
-            //
-            // Ideally we'd control the whole chain of executed instructions up
-            // to the point of calling explicit_bzero(), but that means writing
-            // our own libc implementation and writing everything in
-            // assembly. It's not really feasible to do the right thing here so
-            // we just settle for a weaker compromise using portable C + glibc's
-            // explicit_bzero().
-            //
-            // The alternative execve()-based approach provides stronger
-            // isolation by flushing the whole address space, but comes with its
-            // own limitations. By providing both approaches we can attack a
-            // wider range of problems. IOW, there are no plans to remove this
-            // code (the bzero() protection might not be a complete solution,
-            // but it works usually well in practice).
-            for (int i = 1 ; i < argc ; ++i) {
-                std::string_view view = argv[i];
-                args.s = const_cast<char*>(view.data());
-                args.n = view.size();
-                write(ipc_actor_service_pipe[1], &args, sizeof(args));
-            }
-            for (char** rawenv = envp ; *rawenv ; ++rawenv) {
-                std::string_view env{*rawenv};
-                args.s = const_cast<char*>(env.data());
-                args.n = env.size();
-                write(ipc_actor_service_pipe[1], &args, sizeof(args));
-            }
-            args.s = nullptr;
-            args.n = 0;
-            write(ipc_actor_service_pipe[1], &args, sizeof(args));
-        }
-        }
-    }
-
-    if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
-        struct sigaction sa;
-        std::memset(&sa, 0, sizeof(struct sigaction));
-
-        // from SIG_UNBLOCK to SIG_BLOCK, execution MUST only use
-        // async-signal-safe code
-        sigemptyset(&sa.sa_mask);
-        sigaddset(&sa.sa_mask, EMILUA_CONFIG_EINTR_RTSIGNO);
-        sigprocmask(SIG_BLOCK, &sa.sa_mask, /*oldset=*/NULL);
-
-        sa.sa_sigaction = emilua::longjmp_on_rtsigno;
-        sa.sa_flags = SA_RESTART | SA_SIGINFO;
-        sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
-    }
-#endif // BOOST_OS_UNIX
-
-    try {
-        std::locale native_locale{""};
-        std::locale::global(native_locale);
-        boost::nowide::cin.imbue(native_locale);
-        boost::nowide::cout.imbue(native_locale);
-        boost::nowide::cerr.imbue(native_locale);
-        boost::nowide::clog.imbue(native_locale);
-    } catch (const std::exception& e) {
-        try {
-            fmt::print(
-                boost::nowide::cerr,
-                FMT_STRING("<4>Failed to set the native locale: `{}`\n"),
-                e.what());
-        } catch (const std::ios_base::failure&) {}
-    }
-    std::optional<boost::nowide::args> args = std::nullopt;
-    try {
-        args.emplace(argc, argv, envp);
-    } catch (const std::exception& e) {
-        try {
-            fmt::print(
-                boost::nowide::cerr,
-                FMT_STRING("Failed to read args/envp: `{}`\n"),
-                e.what());
-        } catch (const std::ios_base::failure&) {}
-        return 2;
-    }
-
-    std::unordered_map<std::string_view, std::string_view> tmp_env;
-    for (char** rawenv = envp ; *rawenv ; ++rawenv) {
-        std::string_view env{*rawenv};
-        auto i = env.find('=');
-        auto key = env.substr(0, i);
-        auto value = env.substr(i + 1);
-        tmp_env.emplace(key, value);
-    }
-
-#if EMILUA_CONFIG_ENABLE_COLOR
-    emilua::stdout_has_color = [&tmp_env]() {
-        if (auto it = tmp_env.find("EMILUA_COLORS") ; it != tmp_env.end()) {
-            if (it->second == "1") {
-                return true;
-            } else if (it->second == "0") {
-                return false;
-            } else if (it->second.size() > 0) {
-                try {
-                    boost::nowide::cerr <<
-                        "<4>Ignoring unrecognized value for EMILUA_COLORS\n";
-                } catch (const std::ios_base::failure&) {}
-            }
-        }
-
-        // Emilua runtime by itself will only ever dirt stderr
-        if (!isatty(fileno(stderr)))
-            return false;
-
-        int ec = 0;
-        if (setupterm(NULL, fileno(stderr), &ec) == ERR)
-            return false;
-
-        bool ret = tigetnum("colors") > 0;
-        del_curterm(cur_term);
-        return ret;
-    }();
-#else
-    emilua::stdout_has_color = false;
-#endif // EMILUA_CONFIG_ENABLE_COLOR
-
-    if (auto it = tmp_env.find("EMILUA_LOG_LEVELS") ; it != tmp_env.end()) {
-        std::string_view env = it->second;
-        int level;
-        auto res = std::from_chars(
-            env.data(), env.data() + env.size(), level);
-        if (res.ec == std::errc{})
-            emilua::log_domain<emilua::default_log_domain>::log_level = level;
-    }
-
-    std::string_view filename;
+static std::string filename_buffer;
+static std::string_view filename;
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int main_ctx_concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+static int main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
 #else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int main_ctx_concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+static int main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-    emilua::ContextType main_context_type = emilua::ContextType::main;
-    emilua::app_context appctx;
-    appctx.app_env = std::move(tmp_env);
+static ContextType main_context_type = ContextType::main;
 
-#if BOOST_OS_UNIX
-    appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
-#endif // BOOST_OS_UNIX
-
+#if BOOST_OS_WINDOWS
+extern void (*parse_args)(int argc, char *argv[], app_context& appctx);
+static void parse_args2(int argc, char *argv[], app_context& appctx)
+#else // BOOST_OS_WINDOWS
+void parse_args(int argc, char *argv[], app_context& appctx)
+#endif // BOOST_OS_WINDOWS
+{
 #define NEXT_ARG(OPTION, LABEL) do {                           \
         if (YYCURSOR = *++cur_arg ; YYCURSOR != nullptr) {     \
             goto LABEL;                                        \
@@ -277,7 +58,7 @@ int main(int argc, char *argv[], char *envp[])
                 boost::nowide::cerr <<                         \
                     "missing value for option `" OPTION "`\n"; \
             } catch (const std::ios_base::failure&) {}         \
-            return 2;                                          \
+            std::exit(2);                                      \
         }                                                      \
     } while(0)
 
@@ -290,8 +71,15 @@ int main(int argc, char *argv[], char *envp[])
                     "value `{}` not supported for option `" OPTION "`\n"), \
                 *cur_arg);                                                 \
         } catch (const std::ios_base::failure&) {}                         \
-        return 2;                                                          \
+        std::exit(2);                                                      \
     } while(0)
+
+    if (argc <= 0) {
+        try {
+            boost::nowide::cerr << "missing filename\n";
+        } catch (const std::ios_base::failure&) {}
+        std::exit(2);
+    }
 
     /*!re2c
     re2c:define:YYCTYPE = char;
@@ -313,7 +101,7 @@ opt:
             fmt::print(boost::nowide::cerr, FMT_STRING("bad option: `{}`\n"),
                        *cur_arg);
         } catch (const std::ios_base::failure&) {}
-        return 2;
+        std::exit(2);
     }
     "--" {end} {
         appctx.app_args.reserve(2 + ((argv + argc) - (cur_arg + 1)));
@@ -328,7 +116,7 @@ opt:
         try {
             boost::nowide::cerr << "stdin not supported as input file\n";
         } catch (const std::ios_base::failure&) {}
-        return 2;
+        std::exit(2);
     }
     {filename} {end} {
         if (filename.size() > 0) {
@@ -336,9 +124,22 @@ opt:
                 boost::nowide::cerr <<
                     "emilua doesn't support more than one input file\n";
             } catch (const std::ios_base::failure&) {}
-            return 2;
+            std::exit(2);
         }
         filename = *cur_arg;
+        fs::path as_path{widen_on_windows(filename)};
+        std::error_code ignored_ec;
+        if (fs::is_directory(as_path, ignored_ec)) {
+            // Alternatively, we could apply this transformation inside
+            // `make_master_vm()`. However if the user is using
+            // `modules_cache_registry` or `get_builtin_module()` the query
+            // wouldn't make sense inside `make_master_vm()`. Here's the most
+            // appropriate place to perform filesystem queries and apply such
+            // transformations.
+            as_path /= "init.lua";
+            filename_buffer = as_path.string();
+            filename = filename_buffer;
+        }
         goto opt;
     }
     "-" { goto opt_short; }
@@ -352,14 +153,14 @@ opt_short:
             fmt::print(boost::nowide::cerr, FMT_STRING("bad short option: {}\n"),
                        *cur_arg);
         } catch (const std::ios_base::failure&) {}
-        return 2;
+        std::exit(2);
     }
     {end} { goto opt; }
     "h" {
         try {
             fmt::print(boost::nowide::cout, help_text, *argv);
         } catch (const std::ios_base::failure&) {}
-        return 0;
+        std::exit(0);
     }
     %}
 
@@ -370,13 +171,13 @@ opt_long:
             fmt::print(boost::nowide::cerr, FMT_STRING("bad long option: {}\n"),
                        *cur_arg);
         } catch (const std::ios_base::failure&) {}
-        return 2;
+        std::exit(2);
     }
     "help" {end} {
         try {
             fmt::print(boost::nowide::cout, help_text, *argv);
         } catch (const std::ios_base::failure&) {}
-        return 0;
+        std::exit(0);
     }
     "version" {end} {
         try {
@@ -392,7 +193,7 @@ opt_long:
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
                 std::flush;
         } catch (const std::ios_base::failure&) {}
-        return 0;
+        std::exit(0);
     }
     "main-context-concurrency-hint=" {
         *cur_arg = YYCURSOR;
@@ -403,7 +204,7 @@ opt_long:
                  opt_main_context_concurrency_hint);
     }
     "test" {end} {
-        main_context_type = emilua::ContextType::test;
+        main_context_type = ContextType::test;
         goto opt;
     }
     %}
@@ -412,14 +213,14 @@ opt_main_context_concurrency_hint:
     %{
     * { ERRARG("--main-context-concurrency-hint"); }
     "1" {end} {
-        main_ctx_concurrency_hint = 1;
+        main_ctx_concurrency_hint_ = 1;
         goto opt;
     }
     "safe" {end} {
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+        main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
 #else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+        main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
         goto opt;
     }
@@ -430,7 +231,7 @@ end:
         try {
             boost::nowide::cerr << "missing filename\n";
         } catch (const std::ios_base::failure&) {}
-        return 2;
+        std::exit(2);
     }
 
     if (appctx.app_args.size() == 0) {
@@ -438,91 +239,44 @@ end:
         appctx.app_args.emplace_back(argv[0]);
         appctx.app_args.emplace_back(filename);
     }
+}
 
-    if (
-        auto it = appctx.app_env.find("EMILUA_PATH") ;
-        it != appctx.app_env.end()
-    ) {
-        for (std::string_view spec{it->second} ;;) {
-            std::string_view::size_type sepidx = spec.find(
 #if BOOST_OS_WINDOWS
-                ';'
-#else
-                ':'
-#endif
-            );
-            if (sepidx == std::string_view::npos) {
-                appctx.emilua_path.emplace_back(
-                    emilua::widen_on_windows(spec), fs::path::native_format);
-                appctx.emilua_path.back().make_preferred();
-                break;
-            } else {
-                appctx.emilua_path.emplace_back(
-                    emilua::widen_on_windows(spec.substr(0, sepidx)),
-                    fs::path::native_format);
-                appctx.emilua_path.back().make_preferred();
-                spec.remove_prefix(sepidx + 1);
-            }
-        }
-    }
+extern int (*main_ctx_concurrency_hint)();
+static int main_ctx_concurrency_hint2()
+#else // BOOST_OS_WINDOWS
+int main_ctx_concurrency_hint()
+#endif // BOOST_OS_WINDOWS
+{
+    return main_ctx_concurrency_hint_;
+}
 
-    appctx.emilua_path.emplace_back(
-        emilua::widen_on_windows(EMILUA_CONFIG_LIBROOTDIR),
-        fs::path::native_format);
-    appctx.emilua_path.back().make_preferred();
-    // TODO: Remove VERSION_MINOR from path components once emilua reaches
-    // version 1.0.0 (versions that differ only in minor and patch numbers do
-    // not break API).
-    appctx.emilua_path.back() /=
-        "emilua-" BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MAJOR)
-        "." BOOST_PP_STRINGIZE(EMILUA_CONFIG_VERSION_MINOR);
+#if BOOST_OS_WINDOWS
+extern void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx);
+static void make_master_vm2(app_context& appctx, asio::io_context& ioctx)
+#else // BOOST_OS_WINDOWS
+void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+#endif // BOOST_OS_WINDOWS
+{
+    auto vm_ctx = make_vm(ioctx, appctx, main_context_type,
+                          widen_on_windows(filename));
+    appctx.master_vm = vm_ctx;
+    vm_ctx->strand().post([vm_ctx]() {
+        vm_ctx->fiber_resume(
+            vm_ctx->L(),
+            hana::make_set(vm_context::options::skip_clear_interrupter));
+    }, std::allocator<void>{});
+}
 
-    {
-#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-        asio::io_context ioctx{main_ctx_concurrency_hint};
-        asio::make_service<emilua::properties_service>(
-            ioctx, main_ctx_concurrency_hint);
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
-        asio::io_context ioctx{1};
-        asio::make_service<emilua::properties_service>(ioctx, 1);
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{ASIO_CONCURRENCY_HINT_UNSAFE};
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<emilua::properties_service>(ioctx, 1);
-#else
-# error Invalid thread support level
-#endif
+} // namespace emilua::main
 
-        try {
-            auto vm_ctx = emilua::make_vm(ioctx, appctx,
-                                          main_context_type,
-                                          emilua::widen_on_windows(filename));
-            appctx.master_vm = vm_ctx;
-            vm_ctx->strand().post([vm_ctx]() {
-                vm_ctx->fiber_resume(
-                    vm_ctx->L(),
-                    hana::make_set(
-                        emilua::vm_context::options::skip_clear_interrupter));
-            }, std::allocator<void>{});
-        } catch (std::exception& e) {
-            try {
-                boost::nowide::cerr << "Error starting the lua VM: " <<
-                    e.what() << std::endl;
-            } catch (const std::ios_base::failure&) {}
-            return 1;
-        }
-
-        ioctx.run();
-    }
-
-    {
-        std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
-        while (appctx.extra_threads_count > 0)
-            appctx.extra_threads_count_empty_cond.wait(lk);
-    }
-
-    return appctx.exit_code;
+int main(int argc, char *argv[], char *envp[])
+{
+#if BOOST_OS_WINDOWS
+    emilua::main::parse_args = emilua::main::parse_args2;
+    emilua::main::main_ctx_concurrency_hint =
+        emilua::main::main_ctx_concurrency_hint2;
+    emilua::main::make_master_vm = emilua::main::make_master_vm2;
+#endif // BOOST_OS_WINDOWS
+    return emilua::main::main(argc, argv, envp);
 }

@@ -1,5 +1,3 @@
-local json = require('json')
-
 if _CONTEXT == 'main' then
     local ch1 = spawn_vm('.')
     local ch2 = spawn_vm('.')
@@ -13,6 +11,8 @@ else assert(_CONTEXT == 'worker')
     if m.to then
         m.to:send{ body = m.body }
     else
-        print(json.encode(m.body))
+        print(type(m.body), #m.body)
+        print(type(m.body[1]), #m.body[1])
+        print(type(m.body[2]), #m.body[2])
     end
 end

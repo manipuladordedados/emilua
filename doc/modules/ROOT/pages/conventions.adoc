@@ -168,15 +168,15 @@ function will still appear at the start of the body for these sections.
 :_: {example-caption}
 :example-caption:
 
-.`this_fiber.{disable,restore}_interruption()`
+.`this_fiber.{disable,restore}_cancellation()`
 ====
 [source,lua]
 ----
-this_fiber.disable_interruption()
-this_fiber.restore_interruption()
+this_fiber.disable_cancellation()
+this_fiber.restore_cancellation()
 ----
 
-Check the interruption tutorial to see what it does.
+Check the fiber cancellation tutorial to see what it does.
 ====
 
 :example-caption: {_}

@@ -7,7 +7,7 @@ local sleeper = spawn(function()
     local children = {}
     scope_cleanup_push(function()
         for _, f in pairs(children) do
-            f:interrupt()
+            f:cancel()
         end
     end)
     for _, n in pairs(numbers) do
@@ -28,8 +28,8 @@ local sigwaiter = spawn(function()
         set:add(system.signal.SIGUSR1)
     end
     set:wait()
-    sleeper:interrupt()
+    sleeper:cancel()
 end)
 
 sleeper:join()
-sigwaiter:interrupt()
+sigwaiter:cancel()

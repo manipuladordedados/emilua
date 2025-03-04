@@ -61,11 +61,12 @@ for. Do this before you start the first Lua VM. However there's a better way
 
 == Builtin modules
 
-Just use linker args to override some or all of the following 3 functions:
+Just define some or all of the following 3 functions and your module name
+resolution will be favoured over filesystem queries:
 
-* `emilua_get_builtin_module`
-* `emilua_get_builtin_rdf_ec`
-* `emilua_get_builtin_native_module`
+* `emilua::get_builtin_module`
+* `emilua::get_builtin_rdf_ec`
+* `emilua::get_builtin_native_module`
 
 Using this method instead of pre-filling the module cache allows actors spawned
 in subprocesses to import these modules as well. This method may also lead to
@@ -117,25 +118,37 @@ file descriptor for this process is stored in
 `app_context::ipc_actor_service_sockfd`. See `src/main.ypp` for an example on
 how to initialize this variable.
 
-You also need to initialize `emilua::app_context::environp`. This is a pointer
-to `environ`. This step must be done before you fork to create the supervisor
-process. Emilua uses an indirection instead of using `environ` directly because
-FreeBSD is not POSIX-compliant and the usual declaration for `environ` doesn't
-work from shared libraries. Emilua never modifies the environment for the main
-process, so you don't need to worry about what Emilua uses this variable
-for. Its usage is internal to Emilua and won't affect your {cpp} program.
-
-[source,cpp]
-----
-#if BOOST_OS_UNIX
-emilua::app_context::environp = &environ;
-#endif // BOOST_OS_UNIX
-----
-
 On Linux, you also need to initialize `emilua::clone_stack_address`.
 
 If you don't intend to have Lua VMs tied to their own processes triggered by Lua
 programs then you can skip this step.
+
+== Inherited low-numbered file descriptors
+
+After file descriptors are allocated in the process table by some library, it's
+already too late detect whether some arbitrary file descriptor was inherited
+from the parent process. If you're planning to allow Lua-programs to take
+control over these file descriptors (i.e. `system.get_lowfd()`), you must add
+some logic at the program startup (before any new file descriptor is allocated)
+to check which file descriptors were inherited and are allowed to be manipulated
+from Lua programs and store them in the Emilua registry:
+
+[source,cpp]
+----
+std::array<bool, 7> lowfds;
+lowfds.fill(false);
+
+for (int fd = 3 ; fd <= 9 ; ++fd) {
+    if (fcntl(fd, F_GETFD) != -1 || errno != EBADF) {
+        lowfds[fd - 3] = true;
+    }
+}
+
+// ...
+
+emilua::app_context appctx;
+appctx.lowfds = lowfds;
+----
 
 == RT signals
 
@@ -164,3 +177,10 @@ sa.sa_sigaction = emilua::longjmp_on_rtsigno;
 sa.sa_flags = SA_RESTART | SA_SIGINFO;
 sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
 ----
+
+== libemilua-main
+
+If aren't trying to embed Emilua into an existing application and just want to
+create a single-binary application embedding the Lua sources it'll be easier to
+just use libemilua-main. It's a ready to roll implementation for the function
+`main()` with some hooks you may use to customize simple behavior.

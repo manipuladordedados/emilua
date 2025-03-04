@@ -39,6 +39,11 @@ CAUTION: Don't forget to include the name of the program as the first argument.
 
 `environment: { [string]: string }|nil`:: A table of strings that will be used
 as the created process' `envp`. On `nil`, an empty `envp` will be used.
++
+If `"\0pid"` is used as the value for an environment variable, the value will be
+replaced by the pid of the child. This is useful to implement some FD3-based
+protocols that use variables such as `LISTEN_PID` for robustness. Only one
+environment variable may use the value `"\0pid"`.
 
 `stdin,stdout,stderr: "share"|file_descriptor|nil`::
 
@@ -58,7 +63,7 @@ Create and use a closed pipe end as the specified standard handle (`stdin`,
 NOTE: On Windows, it's unspecified (will vary depending on whether any
 redirection is done at all, ``dwCreationFlags``'s value, etc).
 
-`extra_fds: { [integer]: file_descriptor }|nil`::
+`extra_fds: { [integer]: file_descriptor|libc_service.slave }|nil`::
 
 Extra file descriptors for the child to inherit. Parent and child processes
 don't need to share the same numeric value reference for a given file

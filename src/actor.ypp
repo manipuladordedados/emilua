@@ -6,36 +6,53 @@
 
 #include <boost/scope_exit.hpp>
 
+#include <emilua/ambient_authority.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
 #include <emilua/windows.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
 #include <emilua/fiber.hpp>
-#include <emilua/json.hpp>
 
 #include <boost/hana/functional/overload.hpp>
 
 #if BOOST_OS_UNIX
 #include <emilua/file_descriptor.hpp>
+#include <emilua/libc_service.hpp>
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
+#include <cereal/types/unordered_map.hpp>
 #include <cereal/archives/binary.hpp>
 #include <sys/wait.h>
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+#include <boost/dll.hpp>
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
 #endif // BOOST_OS_UNIX
 
-#if !BOOST_OS_WINDOWS
-extern "C" {
-#endif // !BOOST_OS_WINDOWS
+#if BOOST_OS_BSD_FREE
+#include <sys/capsicum.h>
+#endif // BOOST_OS_BSD_FREE
 
-std::optional<std::string_view>
-BOOST_SYMBOL_IMPORT
-emilua_get_builtin_module(const std::filesystem::path&);
+#if BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
+namespace dll = boost::dll;
+#endif // BOOST_OS_UNIX && EMILUA_CONFIG_ENABLE_PLUGINS
 
-#if !BOOST_OS_WINDOWS
-} // extern "C"
-#endif // !BOOST_OS_WINDOWS
+namespace std::filesystem {
+template<class Archive>
+void CEREAL_LOAD_MINIMAL_FUNCTION_NAME(
+    const Archive&, path& out, const std::string& in)
+{
+  out = in;
+}
+
+template<class Archive>
+std::string CEREAL_SAVE_MINIMAL_FUNCTION_NAME(const Archive& ar, const path& p)
+{
+  return p.string();
+}
+} // namespace std::filesystem
 
 namespace emilua {
 
@@ -50,6 +67,15 @@ static char tx_chan_mt_key;
 static char closed_tx_chan_mt_key;
 static char chan_receive_key;
 static char chan_send_key;
+
+#if BOOST_OS_WINDOWS
+extern
+std::optional<std::string_view>
+(*get_builtin_module)(const std::filesystem::path&);
+#else // BOOST_OS_WINDOWS
+std::optional<std::string_view>
+get_builtin_module(const std::filesystem::path&);
+#endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_UNIX
 char ipc_actor_chan_mt_key;
@@ -130,14 +156,15 @@ struct ipc_actor_send_op
 
         alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(
             sizeof(int) * EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER)];
-        msg.msg_control = cmsgbuf;
-        msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
+        if (descriptors_size > 0) {
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int) * descriptors_size);
 
-        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * descriptors_size);
-        {
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int) * descriptors_size);
+
             char* out = (char*)CMSG_DATA(cmsg);
             for (auto& fdlock: descriptors) {
                 std::memcpy(out, &fdlock.value, sizeof(int));
@@ -189,6 +216,215 @@ struct ipc_actor_send_op
     std::uint8_t descriptors_size = 0;
 
     static constexpr auto opt_args = vm_context::options::arguments;
+};
+
+struct send_native_modules_cache_op
+    : public std::enable_shared_from_this<send_native_modules_cache_op>
+{
+    send_native_modules_cache_op(asio::io_context& ioctx) : sock{ioctx} {}
+
+    ~send_native_modules_cache_op()
+    {
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+        for (const auto& [_, fd] : files) {
+            if (fd != -1)
+                close(fd);
+        }
+        for (const auto& [_, fd] : directories) {
+            if (fd != -1)
+                close(fd);
+        }
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+        for (const auto& fd : ld_directories) {
+            if (fd != -1)
+                close(fd);
+        }
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (libc_service != -1)
+            close(libc_service);
+        if (box != -1)
+            close(box);
+    }
+
+    void do_wait()
+    {
+        sock.async_wait(
+            asio::socket_base::wait_write,
+            [self=shared_from_this()](const asio_error_code& ec) {
+                self->on_wait(ec);
+            }
+        );
+    }
+
+    void on_wait(const asio_error_code& ec)
+    {
+        if (ec)
+            return;
+
+        struct msghdr msg;
+        std::memset(&msg, 0, sizeof(msg));
+
+        char request_type;
+
+        struct iovec iov[2];
+        iov[0].iov_base = &request_type;
+        iov[0].iov_len = 1;
+        msg.msg_iov = iov;
+        msg.msg_iovlen = 1;
+
+        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+        if (files.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
+
+            const auto& entry = *files.begin();
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &entry.second, sizeof(int));
+
+            iov[1].iov_base = const_cast<char*>(entry.first.data());
+            iov[1].iov_len = entry.first.size();
+            ++msg.msg_iovlen;
+        } else if (directories.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_DIR;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(
+                CMSG_DATA(cmsg), &directories.begin()->second, sizeof(int));
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+        } else if (ld_directories.size() > 0) {
+            request_type =
+                ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &ld_directories.back(), sizeof(int));
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+# else // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (false) {
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (libc_service != -1) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_LIBC_SERVICE;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &libc_service, sizeof(int));
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (files2.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_FILE;
+
+            const auto& entry = *files2.begin();
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &entry.second, sizeof(int));
+
+            iov[1].iov_base = const_cast<char*>(entry.first.data());
+            iov[1].iov_len = entry.first.size();
+            ++msg.msg_iovlen;
+        } else if (directories2.size() > 0) {
+            request_type = ipc_actor_start_vm_request::PRELOAD_DIR;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cmsg), &*directories2.begin(), sizeof(int));
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        } else {
+            request_type = ipc_actor_start_vm_request::PRELOAD_EOF;
+        }
+
+        auto nwritten = sendmsg(sock.native_handle(), &msg,
+                                MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (nwritten == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                do_wait();
+            }
+            return;
+        }
+
+        if (request_type == ipc_actor_start_vm_request::PRELOAD_EOF)
+            return;
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+        if (files.size() > 0) {
+            auto it = files.begin();
+            close(it->second);
+            files.erase(it);
+        } else if (directories.size() > 0) {
+            auto it = directories.begin();
+            close(it->second);
+            directories.erase(it);
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+        } else if (ld_directories.size() > 0) {
+            close(ld_directories.back());
+            ld_directories.pop_back();
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+# else // EMILUA_CONFIG_ENABLE_PLUGINS
+        if (false) {
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (libc_service != -1) {
+            close(libc_service);
+            libc_service = -1;
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+        } else if (files2.size() > 0) {
+            files2.erase(files2.begin());
+        } else if (directories2.size() > 0) {
+            directories2.erase(directories2.begin());
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+        }
+
+        do_wait();
+    }
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+    std::unordered_map<
+        std::string, int, TransparentStringHash, std::equal_to<>
+    > files;
+    std::unordered_map<fs::path, int> directories;
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+    std::vector<int> ld_directories;
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
+    int libc_service = -1;
+    asio::local::seq_packet_protocol::socket sock;
+    int box = -1;
+
+# if EMILUA_CONFIG_ENABLE_PLUGINS
+    // We don't close these file descriptors. They stay alive for the duration
+    // of the process. {{{
+    std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
+        files2;
+    std::set<int> directories2;
+    // }}}
+# endif // EMILUA_CONFIG_ENABLE_PLUGINS
 };
 #endif // BOOST_OS_UNIX
 
@@ -533,7 +769,7 @@ static int chan_send(lua_State* L)
             inbox_t::value_object_type::iterator obj_it;
             if (cur_node.is_array()) {
                 if (current_array_idx == array_key_max) {
-                    push(L, json_errc::array_too_long);
+                    push(L, std::errc::value_too_large);
                     return lua_error(L);
                 }
 
@@ -688,7 +924,7 @@ static int chan_send(lua_State* L)
                     lua_rawget(L, visited_idx - 1);
                     if (lua_type(L, -1) == LUA_TBOOLEAN) {
                         assert(lua_toboolean(L, -1) == 1);
-                        push(L, json_errc::cycle_exists);
+                        push(L, std::errc::too_many_symbolic_link_levels);
                         return lua_error(L);
                     }
                     assert(lua_type(L, -1) == LUA_TNIL);
@@ -700,7 +936,7 @@ static int chan_send(lua_State* L)
                 }
 
                 if (dom_stack.size() == array_key_max) {
-                    push(L, json_errc::too_many_levels);
+                    push(L, std::errc::value_too_large);
                     return lua_error(L);
                 }
 
@@ -805,8 +1041,10 @@ static int chan_send(lua_State* L)
     );
     set_interrupter(L, *vm_ctx);
 
+    ++dest_vm_ctx->inbox.nsenders;
     dest_vm_ctx->strand().post(
         [vm_ctx=dest_vm_ctx, sender=std::move(sender)]() mutable {
+            --vm_ctx->inbox.nsenders;
             auto recv_fiber = vm_ctx->inbox.recv_fiber;
             if (!vm_ctx->inbox.open.load(std::memory_order::relaxed))
                 return;
@@ -840,7 +1078,7 @@ static int chan_send(lua_State* L)
                 current_fiber,
                 hana::make_set(
                     hana::make_pair(
-                        opt_args, hana::make_tuple(errc::interrupted))));
+                        opt_args, hana::make_tuple(errc::fiber_canceled))));
             return;
         }
         vm_ctx->fiber_resume(
@@ -932,7 +1170,7 @@ static int chan_receive(lua_State* L)
                         hana::make_set(
                             hana::make_pair(
                                 vm_context::options::arguments,
-                                hana::make_tuple(errc::interrupted))));
+                                hana::make_tuple(errc::fiber_canceled))));
                 },
                 std::allocator<void>{}
             );
@@ -1077,10 +1315,20 @@ static int spawn_vm(lua_State* L)
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
     int concurrency_hint = 1;
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #endif
 #if BOOST_OS_UNIX
     bool run_in_subprocess = false;
+    std::string subprocess_module;
     std::vector<std::string> newenv;
+    decltype(vm_ctx.appctx.modules_cache_registry) source_cache;
+    std::shared_ptr<send_native_modules_cache_op> native_modules_cache_op;
+    std::map<int, std::string> libc_service_lua_filters;
     std::optional<std::string> lua_hook;
     int lua_hook_fd = -1;
     int proc_stdin = -1;
@@ -1099,6 +1347,24 @@ static int spawn_vm(lua_State* L)
             break;
         case LUA_TNIL:
             break;
+#if BOOST_OS_UNIX
+        case LUA_TUSERDATA: {
+            if (!lua_getmetatable(L, -1)) {
+                push(L, std::errc::invalid_argument, "arg", "module");
+                return lua_error(L);
+            }
+            rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
+            if (!lua_rawequal(L, -1, -2)) {
+                push(L, std::errc::invalid_argument, "arg", "module");
+                return lua_error(L);
+            }
+            lua_pop(L, 2);
+            auto p = static_cast<fs::path*>(lua_touserdata(L, -1));
+            subprocess_module = p->string();
+            module = subprocess_module;
+            break;
+        }
+#endif // BOOST_OS_UNIX
         default:
             push(L, std::errc::invalid_argument, "arg", "module");
             return lua_error(L);
@@ -1257,6 +1523,30 @@ static int spawn_vm(lua_State* L)
                 push(L, std::errc::not_supported);
                 return lua_error(L);
 # endif // BOOST_OS_LINUX
+                [[fallthrough]];
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                break;
+            }
+
+            lua_getfield(L, -1, "pd_daemon");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg", "subprocess/pd_daemon");
+                return lua_error(L);
+            case LUA_TBOOLEAN:
+# if BOOST_OS_BSD_FREE
+                if (lua_toboolean(L, -1)) {
+                    if (cap_sandboxed()) {
+                        std::error_code ec{ECAPMODE, std::system_category()};
+                        push(L, ec);
+                        return lua_error(L);
+                    }
+
+                    request.pdfork_flags |= PD_DAEMON;
+                }
+# endif // BOOST_OS_BSD_FREE
                 [[fallthrough]];
             case LUA_TNIL:
                 lua_pop(L, 1);
@@ -1422,6 +1712,414 @@ static int spawn_vm(lua_State* L)
                 break;
             }
 
+            lua_getfield(L, -1, "source_tree_cache");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg","subprocess/source_tree_cache");
+                return lua_error(L);
+            case LUA_TTABLE: {
+                fs::path path;
+                path += fs::path::preferred_separator;
+                assert(path.is_absolute());
+                int nlevels = 0;
+                lua_newtable(L);
+                lua_insert(L, -2);
+
+                lua_pushnil(L);
+
+                loop_again:
+                while (lua_next(L, -2) != 0) {
+                    if (lua_type(L, -2) != LUA_TSTRING) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/source_tree_cache");
+                        return lua_error(L);
+                    }
+
+                    auto key = tostringview(L, -2);
+
+                    switch (lua_type(L, -1)) {
+                    default:
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/source_tree_cache");
+                        return lua_error(L);
+                    case LUA_TTABLE:
+                        lua_insert(L, -3);
+                        lua_rawseti(L, -4, 1 + nlevels * 2);
+                        lua_rawseti(L, -3, 1 + nlevels * 2 + 1);
+                        ++nlevels;
+                        path /= key;
+                        lua_pushnil(L);
+                        break;
+                    case LUA_TSTRING:
+                        source_cache.emplace(path / key, tostringview(L));
+                        lua_pop(L, 1);
+                        break;
+                    }
+                }
+
+                if (nlevels > 0) {
+                    lua_pop(L, 1);
+                    path = path.parent_path();
+                    --nlevels;
+                    lua_rawgeti(L, -1, 1 + nlevels * 2 + 1);
+                    lua_rawgeti(L, -2, 1 + nlevels * 2);
+                    goto loop_again;
+                }
+
+                lua_pop(L, 2);
+                break;
+            }
+            case LUA_TNIL:
+                lua_pop(L, 1);
+                break;
+            }
+
+            lua_getfield(L, -1, "native_modules_cache");
+            switch (lua_type(L, -1)) {
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg","subprocess/native_modules_cache");
+                return lua_error(L);
+            case LUA_TSTRING: {
+                if (tostringview(L) != "all") {
+                    push(L, std::errc::invalid_argument,
+                         "arg","subprocess/native_modules_cache");
+                    return lua_error(L);
+                }
+
+                request.has_native_modules_cache = 1;
+
+                native_modules_cache_op =
+                    std::make_shared<send_native_modules_cache_op>(
+                        vm_ctx.strand().context());
+                auto& op = *native_modules_cache_op;
+
+                for (const auto& p : vm_ctx.appctx.emilua_path) {
+                    op.directories.emplace(p, -1);
+                }
+                for (auto& [key, fd] : op.directories) {
+                    fd = open(key.c_str(), O_RDONLY | O_DIRECTORY);
+                    if (fd == -1)
+                        continue;
+
+#if BOOST_OS_BSD_FREE
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_LOOKUP, CAP_FSTAT, CAP_MMAP_RX);
+
+                    if (cap_rights_limit(fd, &rights) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
+                }
+                for (
+                    auto it = op.directories.begin() ;
+                    it != op.directories.end() ;
+                ) {
+                    if (it->second == -1) {
+                        op.directories.erase(it++);
+                    } else {
+                        ++it;
+                    }
+                }
+                op.files2 = vm_ctx.appctx.native_modules_file_preload;
+                for (int dirfd : vm_ctx.appctx.native_modules_dir_preload) {
+                    op.directories2.emplace(dirfd);
+                }
+                break;
+            }
+            case LUA_TTABLE: {
+                request.has_native_modules_cache = 1;
+                native_modules_cache_op =
+                    std::make_shared<send_native_modules_cache_op>(
+                        vm_ctx.strand().context());
+
+                for (int i = 1 ;; ++i) {
+                    lua_rawgeti(L, -1, i);
+                    auto current_element_type = lua_type(L, -1);
+                    if (current_element_type == LUA_TNIL) {
+                        lua_pop(L, 1);
+                        break;
+                    }
+
+                    switch (current_element_type) {
+                    default:
+                        assert(current_element_type != LUA_TNIL);
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/native_modules_cache");
+                        return lua_error(L);
+                    case LUA_TSTRING:
+                        break;
+                    }
+
+                    auto module_id = tostringview(L);
+                    if (
+                        auto it = vm_ctx.appctx.native_modules_file_preload
+                            .find(module_id) ;
+                        it != vm_ctx.appctx.native_modules_file_preload.end()
+                    ) {
+                        native_modules_cache_op->files2.emplace(
+                            module_id, it->second);
+                    } else {
+                        native_modules_cache_op->files.emplace(module_id, -1);
+                    }
+
+                    lua_pop(L, 1);
+                }
+
+                auto& op = *native_modules_cache_op;
+                for (auto it = op.files.begin() ; it != op.files.end() ;) {
+                    std::string_view id = it->first;
+                    bool found = false;
+                    if (id.ends_with(":")) {
+                        id.remove_suffix(1);
+                        if (
+                            const auto& dirfds =
+                                vm_ctx.appctx.native_modules_dir_preload ;
+                            dirfds.size() > 0
+                        ) {
+                            auto p2 = dll::shared_library::decorate(id);
+                            for (int dirfd : dirfds) {
+                                int fd = openat(dirfd, p2.c_str(), O_RDONLY);
+                                if (fd != -1) {
+                                    close(fd);
+                                    op.directories2.emplace(dirfd);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!found) {
+                            for (const auto& p : vm_ctx.appctx.emilua_path) {
+                                auto p2 = dll::shared_library::decorate(p / id);
+                                if (fs::exists(p2)) {
+                                    op.directories.emplace(p, -1);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        op.files.erase(it++);
+                    } else {
+                        int& fd = it->second;
+                        if (
+                            const auto& dirfds =
+                                vm_ctx.appctx.native_modules_dir_preload ;
+                            dirfds.size() > 0
+                        ) {
+                            auto p2 = dll::shared_library::decorate(id);
+                            for (int dirfd : dirfds) {
+                                fd = openat(dirfd, p2.c_str(), O_RDONLY);
+                                if (fd == -1)
+                                    continue;
+
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found) {
+                            for (const auto& p : vm_ctx.appctx.emilua_path) {
+                                auto p2 = dll::shared_library::decorate(p / id);
+                                fd = open(p2.c_str(), O_RDONLY);
+                                if (fd == -1)
+                                    continue;
+
+#if BOOST_OS_BSD_FREE
+                                cap_rights_t rights;
+                                cap_rights_init(
+                                    &rights, CAP_FSTAT, CAP_MMAP_RX);
+
+                                if (cap_rights_limit(fd, &rights) == -1) {
+                                    std::error_code ec{
+                                        errno, std::system_category()};
+                                    push(L, ec);
+                                    return lua_error(L);
+                                }
+#endif // BOOST_OS_BSD_FREE
+
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        ++it;
+                    }
+                    if (!found) {
+                        push(L, errc::module_not_found);
+                        return lua_error(L);
+                    }
+                }
+                for (auto& [key, fd] : op.directories) {
+                    fd = open(key.c_str(), O_RDONLY | O_DIRECTORY);
+                    if (fd == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+#if BOOST_OS_BSD_FREE
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_LOOKUP, CAP_FSTAT, CAP_MMAP_RX);
+
+                    if (cap_rights_limit(fd, &rights) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
+                }
+                break;
+            }
+#else // EMILUA_CONFIG_ENABLE_PLUGINS
+            default:
+                push(L, std::errc::not_supported,
+                     "arg", "subprocess/native_modules_cache");
+                return lua_error(L);
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+            case LUA_TNIL:
+                break;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "ld_library_directories");
+            switch (lua_type(L, -1)) {
+#if EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg","subprocess/ld_library_directories");
+                return lua_error(L);
+            case LUA_TTABLE:
+                request.has_native_modules_cache = 1;
+                if (!native_modules_cache_op) {
+                    native_modules_cache_op =
+                        std::make_shared<send_native_modules_cache_op>(
+                            vm_ctx.strand().context());
+                }
+
+                for (int i = 1 ;; ++i) {
+                    lua_rawgeti(L, -1, i);
+                    auto current_element_type = lua_type(L, -1);
+                    if (current_element_type == LUA_TNIL) {
+                        lua_pop(L, 1);
+                        break;
+                    }
+
+                    switch (current_element_type) {
+                    default:
+                        assert(current_element_type != LUA_TNIL);
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    case LUA_TUSERDATA:
+                        break;
+                    }
+
+                    auto fdhandle = static_cast<file_descriptor_handle*>(
+                        lua_touserdata(L, -1));
+                    if (!lua_getmetatable(L, -1)) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    }
+                    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+                    if (!lua_rawequal(L, -1, -2)) {
+                        push(L, std::errc::invalid_argument,
+                             "arg", "subprocess/ld_library_directories");
+                        return lua_error(L);
+                    }
+
+                    if (*fdhandle == INVALID_FILE_DESCRIPTOR) {
+                        push(L, std::errc::device_or_resource_busy);
+                        return lua_error(L);
+                    }
+
+                    int& fd = native_modules_cache_op->ld_directories
+                        .emplace_back(-1);
+                    fd = dup(*fdhandle);
+                    if (fd == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_LOOKUP, CAP_FSTAT, CAP_MMAP_RX);
+
+                    if (cap_rights_limit(fd, &rights) == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    lua_pop(L, 3);
+                }
+                break;
+#else // EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+            default:
+                push(L, std::errc::not_supported,
+                     "arg", "subprocess/ld_library_directories");
+                return lua_error(L);
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+            case LUA_TNIL:
+                break;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "libc_service");
+            switch (lua_type(L, -1)) {
+            default:
+                push(L, std::errc::invalid_argument,
+                     "arg", "subprocess/libc_service");
+                return lua_error(L);
+            case LUA_TUSERDATA: {
+                auto slave = static_cast<libc_service::slave*>(
+                    lua_touserdata(L, -1));
+                if (!lua_getmetatable(L, -1)) {
+                    push(L, std::errc::invalid_argument,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &libc_service::slave_mt_key);
+                if (!lua_rawequal(L, -1, -2)) {
+                    push(L, std::errc::invalid_argument,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+                lua_pop(L, 2);
+
+                if (!has_libc_service) {
+                    push(L, std::errc::not_supported,
+                         "arg", "subprocess/libc_service");
+                    return lua_error(L);
+                }
+
+                request.has_native_modules_cache = 1;
+                if (!native_modules_cache_op) {
+                    native_modules_cache_op =
+                        std::make_shared<send_native_modules_cache_op>(
+                            vm_ctx.strand().context());
+                }
+
+                asio_error_code ec;
+                int fd = slave->socket.release(ec);
+                if (ec) {
+                    push(L, ec);
+                    return lua_error(L);
+                }
+
+                native_modules_cache_op->libc_service = fd;
+                libc_service_lua_filters = std::move(slave->lua_chunk_filters);
+                lua_pushnil(L);
+                lua_setmetatable(L, -2);
+                slave->~slave();
+            }
+            case LUA_TNIL:
+                break;
+            }
+            lua_pop(L, 1);
+
             lua_getfield(L, -1, "init");
             switch (lua_type(L, -1)) {
             default:
@@ -1483,11 +2181,188 @@ static int spawn_vm(lua_State* L)
             push(L, std::errc::not_supported);
             return lua_error(L);
 #endif // BOOST_OS_UNIX
+        } else {
+#if BOOST_OS_UNIX
+            if (subprocess_module.size() > 0) {
+                module = std::string_view{};
+                subprocess_module.clear();
+            }
+#endif // BOOST_OS_UNIX
         }
+    }
+
+    fs::path module_path;
+    bool is_leaf = vm_ctx.import_tree[importer_path].is_leaf;
+
+    /*!re2c
+    re2c:define:YYCTYPE = char;
+    re2c:yyfill:enable = 0;
+    re2c:indent:string = "    ";
+    */
+    /*!include:re2c "emilua/modules.re" */
+    if (
+#if BOOST_OS_UNIX
+        // module path already resolved
+        (run_in_subprocess && subprocess_module.size() > 0) ||
+
+        // entry_point is intentionally invalid/ignored (most likely the user is
+        // only interested in init.script)
+        (run_in_subprocess && module.size() == 0) ||
+#endif // BOOST_OS_UNIX
+        false
+    ) {
+        // do nothing
+    } else if (module == ".") {
+        module_path = importer_path;
+    } else if (module.starts_with(".")) {
+        if (module.starts_with("./"))
+            module.remove_prefix(2);
+
+        const char* YYCURSOR = module.data();
+        const char* YYMARKER;
+        const char* begin;
+        int nparents = 0;
+    loop_parse_dot:
+        begin = YYCURSOR;
+        %{
+        * {
+            push(L, errc::invalid_module_name, "module", module);
+            return lua_error(L);
+        }
+        {emilua_parentpat} {
+            ++nparents;
+            goto loop_parse_dot;
+        }
+        {emilua_modnamepat} {
+            if (*YYCURSOR != '\0') {
+                push(L, errc::invalid_module_name, "module", module);
+                return lua_error(L);
+            }
+            goto end_parse_dot;
+        }
+        %}
+    end_parse_dot:
+
+        module = std::string_view(begin, YYCURSOR - begin);
+
+        if (nparents == 0 && is_leaf) {
+            push(L, errc::leaf_cannot_import_child);
+            return lua_error(L);
+        }
+
+        module_path = importer_path.parent_path();
+        for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
+            if (!module_path.has_parent_path() || module_path == import_root) {
+                push(L, errc::root_cannot_import_parent);
+                return lua_error(L);
+            }
+
+            module_path = module_path.parent_path();
+        }
+        if (get_builtin_module(module_path / (std::string{module} + ".lua"))) {
+            module_path /= std::string{module} + ".lua";
+        } else if (get_builtin_module(module_path / module / "init.lua")) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else {
+                throw std::system_error{errc::module_not_found};
+            }
+        } catch (const std::system_error& e) {
+            push(L, e.code(), "module", module);
+            return lua_error(L);
+        }
+    } else if (module.starts_with("/")) {
+        const char* YYCURSOR = module.data();
+        const char* YYMARKER;
+        boost::ignore_unused(YYMARKER);
+        const char* begin;
+    loop_parse_slash:
+        begin = YYCURSOR;
+        %{
+        * {
+            push(L, errc::invalid_module_name, "module", module);
+            return lua_error(L);
+        }
+        {emilua_modseppat}{emilua_modnamepat} {
+            std::string_view component(begin + 1, YYCURSOR - begin - 1);
+            if (*YYCURSOR == '\0') {
+                module = component;
+                goto end_parse_slash;
+            } else {
+                module_path /= component;
+                goto loop_parse_slash;
+            }
+        }
+        %}
+    end_parse_slash:
+
+        module_path = import_root;
+        if (get_builtin_module(module_path / (std::string{module} + ".lua"))) {
+            module_path /= std::string{module} + ".lua";
+        } else if (get_builtin_module(module_path / module / "init.lua")) {
+            module_path /= module;
+            module_path /= "init.lua";
+        } else try {
+            std::shared_lock modules_cache_registry_rlock{
+                vm_ctx.appctx.modules_cache_registry_mtx};
+
+            if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / (std::string{module} + ".lua")
+            )) {
+                module_path /= std::string{module} + ".lua";
+            } else if (vm_ctx.appctx.modules_cache_registry.contains(
+                module_path / module / "init.lua"
+            )) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else if (
+                fs::exists(module_path / (std::string{module} + ".lua"))
+            ) {
+                module_path /= std::string{module} + ".lua";
+            } else if (fs::exists(module_path / module / "init.lua")) {
+                module_path /= module;
+                module_path /= "init.lua";
+            } else {
+                throw std::system_error{errc::module_not_found};
+            }
+        } catch (const std::system_error& e) {
+            push(L, e.code(), "module", module);
+            return lua_error(L);
+        }
+    } else {
+        push(L, errc::invalid_module_name);
+        return lua_error(L);
     }
 
 #if BOOST_OS_UNIX
     if (run_in_subprocess) {
+        bool send_import_root = false;
+        if (subprocess_module.size() == 0 && module.size() > 0) {
+            subprocess_module = module_path.string();
+            module = subprocess_module;
+            send_import_root = true;
+        }
+
         if (vm_ctx.appctx.ipc_actor_service_sockfd == -1) {
             push(L, std::errc::no_child_process);
             return lua_error(L);
@@ -1496,8 +2371,17 @@ static int spawn_vm(lua_State* L)
         std::string body;
         {
             std::ostringstream os;
+            os.imbue(std::locale::classic());
             cereal::BinaryOutputArchive oa{os};
-            oa << concurrency_hint << std::string{module} << newenv;
+            oa << concurrency_hint << std::string{module} <<
+                (send_import_root ? import_root.string() : std::string{}) <<
+                newenv << source_cache;
+            if (
+                native_modules_cache_op &&
+                native_modules_cache_op->libc_service != -1
+            ) {
+                oa << libc_service_lua_filters;
+            }
             body = os.str();
         }
 
@@ -1623,6 +2507,26 @@ static int spawn_vm(lua_State* L)
 
         shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+        // We require CAP_FCNTL because Boost.Asio still doesn't use
+        // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+        // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK really is
+        // something we shouldn't be using here as it fits very poorly with the
+        // assumed threat model.
+        cap_rights_t rights;
+        cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+        std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+        if (
+            cap_rights_limit(channel[1], &rights) == -1 ||
+            cap_fcntls_limit(channel[1], fcntlrights) == -1
+        ) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
+#endif // BOOST_OS_BSD_FREE
+
         int pidfd = -1;
         BOOST_SCOPE_EXIT_ALL(&) {
             if (pidfd != -1) close(pidfd);
@@ -1661,6 +2565,53 @@ static int spawn_vm(lua_State* L)
             std::error_code ec{errno, std::system_category()};
             push(L, ec);
             return lua_error(L);
+        }
+
+        if (native_modules_cache_op) {
+            {
+                asio::local::seq_packet_protocol protocol;
+
+                int channel[2];
+                int res = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, channel);
+                if (res != 0) {
+                    push(L, std::error_code{errno, std::system_category()});
+                    return lua_error(L);
+                }
+                native_modules_cache_op->box = channel[0];
+                asio_error_code ignored_ec;
+                native_modules_cache_op->sock.assign(
+                    protocol, channel[1], ignored_ec);
+                assert(!ignored_ec);
+
+                shutdown(channel[0], SHUT_WR);
+                shutdown(channel[1], SHUT_RD);
+            }
+
+            char buf[1] = { 0 };
+
+            std::memset(&msg, 0, sizeof(msg));
+            iov.iov_base = buf;
+            iov.iov_len = 1;
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
+
+            msg.msg_control = cmsgbuf;
+            msg.msg_controllen = CMSG_SPACE(sizeof(int));
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(
+                CMSG_DATA(cmsg), &native_modules_cache_op->box, sizeof(int));
+
+            if (sendmsg(channel[1], &msg, MSG_NOSIGNAL) == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+
+            close(native_modules_cache_op->box);
+            native_modules_cache_op->box = -1;
+            native_modules_cache_op->do_wait();
         }
 
         if (lua_hook) {
@@ -1711,165 +2662,6 @@ static int spawn_vm(lua_State* L)
         return 1;
     }
 #endif // BOOST_OS_UNIX
-
-    fs::path module_path;
-    bool is_leaf = vm_ctx.import_tree[importer_path].is_leaf;
-
-    /*!re2c
-    re2c:define:YYCTYPE = char;
-    re2c:yyfill:enable = 0;
-    re2c:indent:string = "    ";
-    */
-    /*!include:re2c "emilua/modules.re" */
-    if (module == ".") {
-        module_path = importer_path;
-    } else if (module.starts_with(".")) {
-        if (module.starts_with("./"))
-            module.remove_prefix(2);
-
-        const char* YYCURSOR = module.data();
-        const char* YYMARKER;
-        const char* begin;
-        int nparents = 0;
-    loop_parse_dot:
-        begin = YYCURSOR;
-        %{
-        * {
-            push(L, errc::invalid_module_name, "module", module);
-            return lua_error(L);
-        }
-        {emilua_parentpat} {
-            ++nparents;
-            goto loop_parse_dot;
-        }
-        {emilua_modnamepat} {
-            if (*YYCURSOR != '\0') {
-                push(L, errc::invalid_module_name, "module", module);
-                return lua_error(L);
-            }
-            goto end_parse_dot;
-        }
-        %}
-    end_parse_dot:
-
-        module = std::string_view(begin, YYCURSOR - begin);
-
-        if (nparents == 0 && is_leaf) {
-            push(L, errc::leaf_cannot_import_child);
-            return lua_error(L);
-        }
-
-        module_path = importer_path.parent_path();
-        for (int i = (is_leaf ? 1u : 0u) ; i != nparents ; ++i) {
-            if (!module_path.has_parent_path() || module_path == import_root) {
-                push(L, errc::root_cannot_import_parent);
-                return lua_error(L);
-            }
-
-            module_path = module_path.parent_path();
-        }
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
-            module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
-            module_path /= module;
-            module_path /= "init.lua";
-        } else try {
-            std::shared_lock modules_cache_registry_rlock{
-                vm_ctx.appctx.modules_cache_registry_mtx};
-
-            if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / (std::string{module} + ".lua")
-            )) {
-                module_path /= std::string{module} + ".lua";
-            } else if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / module / "init.lua"
-            )) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else if (
-                fs::exists(module_path / (std::string{module} + ".lua"))
-            ) {
-                module_path /= std::string{module} + ".lua";
-            } else if (fs::exists(module_path / module / "init.lua")) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else {
-                throw std::system_error{errc::module_not_found};
-            }
-        } catch (const std::system_error& e) {
-            push(L, e.code(), "module", module);
-            return lua_error(L);
-        }
-    } else if (module.starts_with("/")) {
-        const char* YYCURSOR = module.data();
-        const char* YYMARKER;
-        boost::ignore_unused(YYMARKER);
-        const char* begin;
-    loop_parse_slash:
-        begin = YYCURSOR;
-        %{
-        * {
-            push(L, errc::invalid_module_name, "module", module);
-            return lua_error(L);
-        }
-        {emilua_modseppat}{emilua_modnamepat} {
-            std::string_view component(begin + 1, YYCURSOR - begin - 1);
-            if (*YYCURSOR == '\0') {
-                module = component;
-                goto end_parse_slash;
-            } else {
-                module_path /= component;
-                goto loop_parse_slash;
-            }
-        }
-        %}
-    end_parse_slash:
-
-        module_path = import_root;
-        if (emilua_get_builtin_module(
-            module_path / (std::string{module} + ".lua")
-        )) {
-            module_path /= std::string{module} + ".lua";
-        } else if (emilua_get_builtin_module(
-            module_path / module / "init.lua"
-        )) {
-            module_path /= module;
-            module_path /= "init.lua";
-        } else try {
-            std::shared_lock modules_cache_registry_rlock{
-                vm_ctx.appctx.modules_cache_registry_mtx};
-
-            if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / (std::string{module} + ".lua")
-            )) {
-                module_path /= std::string{module} + ".lua";
-            } else if (vm_ctx.appctx.modules_cache_registry.contains(
-                module_path / module / "init.lua"
-            )) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else if (
-                fs::exists(module_path / (std::string{module} + ".lua"))
-            ) {
-                module_path /= std::string{module} + ".lua";
-            } else if (fs::exists(module_path / module / "init.lua")) {
-                module_path /= module;
-                module_path /= "init.lua";
-            } else {
-                throw std::system_error{errc::module_not_found};
-            }
-        } catch (const std::system_error& e) {
-            push(L, e.code(), "module", module);
-            return lua_error(L);
-        }
-    } else {
-        push(L, errc::invalid_module_name);
-        return lua_error(L);
-    }
 
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
     // * `work_guard` must live until we call strand.post()
@@ -2183,6 +2975,28 @@ static int ipc_actor_chan_send(lua_State* L)
             shutdown(channel[0], SHUT_WR);
             shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+            // We require CAP_FCNTL because Boost.Asio still doesn't use
+            // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+            // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK
+            // really is something we shouldn't be using here as it fits very
+            // poorly with the assumed threat model.
+            cap_rights_t rights;
+            cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+            std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+            if (
+                cap_rights_limit(channel[1], &rights) == -1 ||
+                cap_fcntls_limit(channel[1], fcntlrights) == -1
+            ) {
+                close(channel[0]);
+                close(channel[1]);
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+#endif // BOOST_OS_BSD_FREE
+
             {
                 const auto& msg = *static_cast<const actor_address*>(
                     lua_touserdata(L, 2));
@@ -2229,6 +3043,28 @@ static int ipc_actor_chan_send(lua_State* L)
             shutdown(channel[0], SHUT_WR);
             shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+            // We require CAP_FCNTL because Boost.Asio still doesn't use
+            // MSG_DONTWAIT. As soon as Boost.Asio starts to use MSG_DONTWAIT on
+            // FreeBSD, we can remove this requirement. FIONBIO/O_NONBLOCK
+            // really is something we shouldn't be using here as it fits very
+            // poorly with the assumed threat model.
+            cap_rights_t rights;
+            cap_rights_init(&rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+            std::uint32_t fcntlrights = CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+            if (
+                cap_rights_limit(channel[1], &rights) == -1 ||
+                cap_fcntls_limit(channel[1], fcntlrights) == -1
+            ) {
+                close(channel[0]);
+                close(channel[1]);
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+#endif // BOOST_OS_BSD_FREE
+
             ++vm_ctx.inbox.nsenders;
             auto inbox_service = new ipc_actor_inbox_service{
                 vm_ctx.strand().context(), channel[0]};
@@ -2258,6 +3094,25 @@ static int ipc_actor_chan_send(lua_State* L)
                 ipc_actor_message::file_descriptor;
             op->message_size = sizeof(op->message.members[0]) * 2;
             op->descriptors[0].reference = msg;
+            op->descriptors_size = 1;
+            break;
+        }
+        rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
+        if (lua_rawequal(L, -1, -5)) {
+            auto channel = static_cast<ipc_actor_address*>(
+                lua_touserdata(L, 2));
+            int channelfd = dup(channel->dest.native_handle());
+            if (channelfd == -1) {
+                push(L, std::error_code{errno, std::system_category()});
+                return lua_error(L);
+            }
+
+            op->message.members[0].as_int = EXPONENT_MASK |
+                ipc_actor_message::nil;
+            op->message.members[1].as_int = EXPONENT_MASK |
+                ipc_actor_message::actor_address;
+            op->message_size = sizeof(op->message.members[0]) * 2;
+            op->descriptors[0].value = channelfd;
             op->descriptors_size = 1;
             break;
         }
@@ -2336,6 +3191,31 @@ static int ipc_actor_chan_send(lua_State* L)
                     shutdown(channel[0], SHUT_WR);
                     shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+                    // We require CAP_FCNTL because Boost.Asio still doesn't use
+                    // MSG_DONTWAIT. As soon as Boost.Asio starts to use
+                    // MSG_DONTWAIT on FreeBSD, we can remove this
+                    // requirement. FIONBIO/O_NONBLOCK really is something we
+                    // shouldn't be using here as it fits very poorly with the
+                    // assumed threat model.
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+                    std::uint32_t fcntlrights =
+                        CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+                    if (
+                        cap_rights_limit(channel[1], &rights) == -1 ||
+                        cap_fcntls_limit(channel[1], fcntlrights) == -1
+                    ) {
+                        close(channel[0]);
+                        close(channel[1]);
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
+
                     {
                         const auto& msg = *static_cast<const actor_address*>(
                             lua_touserdata(L, -1));
@@ -2381,6 +3261,31 @@ static int ipc_actor_chan_send(lua_State* L)
                     shutdown(channel[0], SHUT_WR);
                     shutdown(channel[1], SHUT_RD);
 
+#if BOOST_OS_BSD_FREE
+                    // We require CAP_FCNTL because Boost.Asio still doesn't use
+                    // MSG_DONTWAIT. As soon as Boost.Asio starts to use
+                    // MSG_DONTWAIT on FreeBSD, we can remove this
+                    // requirement. FIONBIO/O_NONBLOCK really is something we
+                    // shouldn't be using here as it fits very poorly with the
+                    // assumed threat model.
+                    cap_rights_t rights;
+                    cap_rights_init(
+                        &rights, CAP_EVENT, CAP_FSTAT, CAP_SEND, CAP_FCNTL);
+
+                    std::uint32_t fcntlrights =
+                        CAP_FCNTL_GETFL | CAP_FCNTL_SETFL;
+
+                    if (
+                        cap_rights_limit(channel[1], &rights) == -1 ||
+                        cap_fcntls_limit(channel[1], fcntlrights) == -1
+                    ) {
+                        close(channel[0]);
+                        close(channel[1]);
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+#endif // BOOST_OS_BSD_FREE
+
                     ++vm_ctx.inbox.nsenders;
                     auto inbox_service = new ipc_actor_inbox_service{
                         vm_ctx.strand().context(), channel[0]};
@@ -2404,6 +3309,23 @@ static int ipc_actor_chan_send(lua_State* L)
                     op->message.members[nf].as_int = EXPONENT_MASK |
                         ipc_actor_message::file_descriptor;
                     op->descriptors[op->descriptors_size++].reference = msg;
+                    break;
+                }
+                rawgetp(L, LUA_REGISTRYINDEX, &ipc_actor_chan_mt_key);
+                if (lua_rawequal(L, -1, -5)) {
+                    lua_pop(L, 5);
+                    auto channel = static_cast<ipc_actor_address*>(
+                        lua_touserdata(L, -1));
+                    int channelfd = dup(channel->dest.native_handle());
+                    if (channelfd == -1) {
+                        push(L, std::error_code{errno, std::system_category()});
+                        return lua_error(L);
+                    }
+
+                    op->message.members[nf].as_int = EXPONENT_MASK |
+                        ipc_actor_message::actor_address;
+                    op->descriptors[op->descriptors_size++].value =
+                        channelfd;
                     break;
                 }
                 push(L, std::errc::invalid_argument, "arg", 2);

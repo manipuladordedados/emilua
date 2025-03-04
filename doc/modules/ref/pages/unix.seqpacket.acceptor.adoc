@@ -85,6 +85,24 @@ provided, an implementation defined maximum length will be used.
 Initiate an accept operation and blocks current fiber until it completes or
 errs.
 
+=== `wait(self, wait_type: "read"|"write"|"error")`
+
+Wait for the socket to become ready to read, ready to write, or to have pending
+error conditions.
+
+In short, the reactor model is exposed on top of the proactor model.
+
+IMPORTANT: You shouldn't be using reactor-style operations on Emilua. However if
+you're trying to compete against systemD (or just xinetd) implementing a service
+manager employing socket activation then you'll need the readiness event to
+trigger the managed service startup sequence.
+
+`wait_type` can be one of the following:
+
+`"read"`:: Wait for a socket to become ready to read.
+`"write"`:: Wait for a socket to become ready to write.
+`"error"`:: Wait for a socket to have error conditions pending.
+
 === `close(self)`
 
 Close the acceptor.

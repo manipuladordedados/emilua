@@ -6,7 +6,7 @@ return function(stream, buffer)
     end
     while #buffer > 0 do
         local nwritten = stream:write_some(buffer)
-        buffer = buffer:slice(1 + nwritten)
+        buffer = buffer:sub(1 + nwritten)
     end
     return ret
 end

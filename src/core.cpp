@@ -14,41 +14,9 @@
 #include <boost/hana/plus.hpp>
 
 #include <emilua/detail/core.hpp>
+#include <emilua/native_module.hpp>
 #include <emilua/fiber.hpp>
 #include <emilua/actor.hpp>
-
-#if !BOOST_OS_WINDOWS
-extern "C" {
-#endif // !BOOST_OS_WINDOWS
-
-std::optional<std::string_view>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_module(const std::filesystem::path&)
-{
-    return std::nullopt;
-}
-
-std::optional<std::reference_wrapper<emilua::rdf_error_category>>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_rdf_ec(const std::filesystem::path&)
-{
-    return std::nullopt;
-}
-
-// TODO: We should modularize build such that it becomes possible to enable
-// emilua_builtin_native_module_getter() w/o enabling plugins.
-#if EMILUA_CONFIG_ENABLE_PLUGINS
-std::optional<std::reference_wrapper<emilua::plugin>>
-BOOST_SYMBOL_EXPORT
-emilua_get_builtin_native_module(std::string_view)
-{
-    return std::nullopt;
-}
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
-
-#if !BOOST_OS_WINDOWS
-} // extern "C"
-#endif // !BOOST_OS_WINDOWS
 
 namespace emilua {
 
@@ -69,7 +37,6 @@ void* clone_stack_address;
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_UNIX
-char*** app_context::environp;
 thread_local sigjmp_buf* longjmp_on_rtsigno_env;
 #endif // BOOST_OS_UNIX
 
@@ -84,6 +51,77 @@ char error_code_mt_key;
 char error_category_mt_key;
 char rdf_error_category_module_mt_key;
 } // namespace detail
+
+#if BOOST_OS_WINDOWS
+std::optional<std::string_view>
+(*get_builtin_module)(const std::filesystem::path&) =
+    [](const std::filesystem::path&) -> std::optional<std::string_view> {
+    return std::nullopt;
+};
+
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+(*get_builtin_rdf_ec)(const std::filesystem::path&) =
+    [](const std::filesystem::path&) ->
+    std::optional<std::reference_wrapper<emilua::rdf_error_category>> {
+    return std::nullopt;
+};
+
+std::optional<std::reference_wrapper<emilua::native_module>>
+(*get_builtin_native_module)(std::string_view) =
+    [](std::string_view) ->
+    std::optional<std::reference_wrapper<emilua::native_module>> {
+    return std::nullopt;
+};
+
+void (*create_native_modules)(
+    const std::unique_lock<std::shared_mutex>&,
+    app_context&) =
+    [](const std::unique_lock<std::shared_mutex>&,
+       app_context&) -> void {};
+
+void (*destroy_native_modules)() = []() -> void {};
+#else // BOOST_OS_WINDOWS
+# if defined(EMILUA_STATIC_BUILD)
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD)
+std::optional<std::string_view>
+get_builtin_module(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+# if defined(EMILUA_STATIC_BUILD)
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD)
+std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+get_builtin_rdf_ec(const std::filesystem::path&)
+{
+    return std::nullopt;
+}
+
+# if defined(EMILUA_STATIC_BUILD)
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD)
+std::optional<std::reference_wrapper<emilua::native_module>>
+get_builtin_native_module(std::string_view)
+{
+    return std::nullopt;
+}
+
+# if defined(EMILUA_STATIC_BUILD)
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD)
+void create_native_modules(
+    const std::unique_lock<std::shared_mutex>& /*modules_cache_registry_wlock*/,
+    app_context& /*appctx*/)
+{}
+
+# if defined(EMILUA_STATIC_BUILD)
+[[gnu::weak]]
+# endif // defined(EMILUA_STATIC_BUILD)
+void destroy_native_modules()
+{}
+#endif // BOOST_OS_WINDOWS
 
 const char* rdf_error_category::name() const noexcept
 {
@@ -412,7 +450,7 @@ void vm_context::fiber_epilogue(int resume_result)
                     lua_pushvalue(current_fiber_, -5);
                     auto err_obj = inspect_errobj(current_fiber_);
                     if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                        !e || *e != errc::interrupted || is_main) {
+                        !e || *e != errc::fiber_canceled || is_main) {
                         print_panic(current_fiber_, is_main,
                                     errobj_to_string(err_obj),
                                     tostringview(current_fiber_, -2));
@@ -466,7 +504,7 @@ void vm_context::fiber_epilogue(int resume_result)
                 try {
                     auto err_obj = inspect_errobj(joiner);
                     if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                        e && *e == errc::interrupted) {
+                        e && *e == errc::fiber_canceled) {
                         lua_pop(joiner, 2);
                         lua_pushboolean(joiner, 1);
                         nret = 0;
@@ -877,8 +915,8 @@ std::string category_impl::message(int value) const noexcept
         return "Interrupt-ability already allowed";
     case static_cast<int>(errc::forbid_suspend_block):
         return "EPERM within a forbid-suspend block";
-    case static_cast<int>(errc::interrupted):
-        return "Fiber interrupted";
+    case static_cast<int>(errc::fiber_canceled):
+        return "Fiber canceled";
     case static_cast<int>(errc::unmatched_scope_cleanup):
         return "scope_cleanup_pop() called w/o a matching scope_cleanup_push()";
     case static_cast<int>(errc::channel_closed):
@@ -970,7 +1008,7 @@ bool detail::unsafe_can_suspend(vm_context& vm_ctx, lua_State* L)
     }
     lua_rawgeti(L, -3, FiberDataIndex::INTERRUPTED);
     if (lua_toboolean(L, -1) == 1) {
-        push(L, emilua::errc::interrupted);
+        push(L, emilua::errc::fiber_canceled);
         return false;
     }
     lua_pop(L, 5);

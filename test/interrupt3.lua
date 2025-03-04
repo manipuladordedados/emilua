@@ -4,6 +4,6 @@ fib = spawn(function()
     print('bar')
 end)
 
-fib:interrupt()
+fib:cancel()
 this_fiber.yield()
 fib:detach()

@@ -1,19 +1,19 @@
--- Disable/restore interruption
+-- Disable/restore cancellation
 
 fib = spawn(function()
-    fib:interrupt()
+    fib:cancel()
     print('foo')
-    this_fiber.disable_interruption()
+    this_fiber.disable_cancellation()
     this_fiber.yield()
     print('bar')
-    this_fiber.restore_interruption()
+    this_fiber.restore_cancellation()
     -- Yes, 'baz' will still be printed. We DO have to wait until a new
-    -- interruption is reached before we can raise `fiber_interrupted`. Consider
+    -- cancellation is reached before we can raise `fiber_canceled`. Consider
     -- the following: how would you implement an op whose some critical section
-    -- cannot be interrupted? Right, `disable_interruption()`. But once you
-    -- restore interruption, the result might be ready already, and the proper
+    -- cannot be canceled? Right, `disable_cancellation()`. But once you
+    -- restore cancellation, the result might be ready already, and the proper
     -- behaviour is to deliver it to the user so it can do something with it. If
-    -- `restore_interruption()` itself was an interruption point, this op
+    -- `restore_cancellation()` itself was an cancellation point, this op
     -- function could not be implemented.
     print('baz')
     this_fiber.yield()

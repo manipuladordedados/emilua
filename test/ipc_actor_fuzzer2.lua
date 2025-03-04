@@ -1,7 +1,7 @@
 -- serialization/bad
 local NITER = 35000
 
-local spawn_vm = require('./ipc_actor_libspawn').spawn_vm
+local system = require 'system'
 local badinjector = require 'ipc_actor_badinjector'
 local stream = require 'stream'
 local system = require 'system'
@@ -9,8 +9,6 @@ local inbox = require 'inbox'
 local unix = require 'unix'
 
 if _CONTEXT ~= 'main' then
-    local json = require 'json'
-
     local host = inbox:receive()
     local NITER = inbox:receive()
     local utf8_converter = unix.seqpacket.socket.new(inbox:receive())
@@ -22,7 +20,7 @@ if _CONTEXT ~= 'main' then
         utf8_converter:send(byte_span.append(value))
         local buf = byte_span.new(8192)
         local nread = utf8_converter:receive(buf)
-        return tostring(buf:slice(1, nread))
+        return tostring(buf:first(nread))
     end
 
     local function stringize(value)
@@ -36,7 +34,7 @@ if _CONTEXT ~= 'main' then
                     value[k] = 'actor_address'
                 end
             end
-            return json.encode(value)
+            return 'table' --< TODO: serialization
         elseif type(value) == 'string' then
             return '"' .. to_base64(value) .. '"'
         elseif getmetatable(value) == 'linux_container_channel' then
@@ -87,7 +85,14 @@ else
         end
     end
 
-    local my_channel = spawn_vm()
+    local my_channel = spawn_vm{
+        module = '.',
+        subprocess = {
+            stdout = 'share',
+            stderr = 'share',
+            environment = system.environment
+        }
+    }
     my_channel:send(inbox)
     my_channel:send(NITER)
     do
@@ -103,9 +108,9 @@ else
             while true do
                 local ok = pcall(function()
                     local nread = utf8_converter:receive(buf)
-                    local result = to_base64(tostring(buf:slice(1, nread)))
+                    local result = to_base64(tostring(buf:first(nread)))
                     local size = buf:copy(result)
-                    utf8_converter:send(buf:slice(1, size))
+                    utf8_converter:send(buf:first(size))
                 end)
                 if not ok then
                     return

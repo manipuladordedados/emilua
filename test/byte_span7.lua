@@ -2,19 +2,19 @@ local bs = byte_span.new(1, 5)
 print(#bs)
 print(bs.capacity)
 
-local bs2 = bs:slice()
+local bs2 = bs:sub()
 print(#bs2)
 print(bs2.capacity)
 
-bs2 = bs:slice(2)
+bs2 = bs:sub(2)
 print(#bs2)
 print(bs2.capacity)
 
-bs2 = bs2:slice(1, 4)
+bs2 = bs2:sub(1, 4)
 print(#bs2)
 print(bs2.capacity)
 
-bs2 = bs:slice(1, 5)
+bs2 = bs:sub(1, 5)
 print(#bs2)
 print(bs2.capacity)
 
@@ -30,7 +30,7 @@ bs2[2] = 22
 print(bs2[2])
 print(bs[1])
 
-print(bs == bs2:slice(1, 1))
+print(bs == bs2:sub(1, 1))
 print(bs == bs2)
-print(bs:slice(2) == bs2:slice(2, 1))
-print(bs:slice(1, 2) == bs2:slice(2, 3))
+print(bs:sub(2) == bs2:sub(2, 1))
+print(bs:sub(1, 2) == bs2:sub(2, 3))

@@ -12,7 +12,6 @@ else assert(_CONTEXT == 'worker')
         local ch = table.remove(m, 1)
         ch:send(m)
     else
-        local json = require('json')
-        print(json.encode(m))
+        print(m[1], m[2])
     end
 end

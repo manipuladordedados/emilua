@@ -330,7 +330,7 @@ public:
 };
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-class BOOST_SYMBOL_VISIBLE plugin;
+class BOOST_SYMBOL_VISIBLE native_module;
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 class vm_context;
@@ -372,7 +372,12 @@ private:
     };
 
 public:
-    app_context() = default;
+    app_context()
+    {
+#if BOOST_OS_UNIX
+        lowfds.fill(false);
+#endif // BOOST_OS_UNIX
+    }
     app_context(const app_context&) = delete;
 
     template<class Dom>
@@ -392,6 +397,8 @@ public:
     }
 
 #if BOOST_OS_UNIX
+    static std::optional<int> handle_pid1(
+        std::function<std::optional<int>()> atfork_on_parent = nullptr);
     static int ipc_actor_service_main(int sockfd);
 #endif // BOOST_OS_UNIX
 
@@ -416,9 +423,19 @@ public:
         std::filesystem::path, std::unique_ptr<rdf_error_category>, path_hash
     > rdf_ec_cache_registry;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-    std::unordered_map<std::string, boost::shared_ptr<plugin>>
+    std::unordered_map<std::string, boost::shared_ptr<native_module>>
         native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
+
+# if BOOST_OS_UNIX
+    std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
+        native_modules_file_preload;
+    std::vector<int> native_modules_dir_preload;
+
+#  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+    std::vector<int> ld_library_directories;
+#  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
+# endif // BOOST_OS_UNIX
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_mutex modules_cache_registry_mtx;
 
@@ -432,7 +449,7 @@ public:
 
 #if BOOST_OS_UNIX
     int ipc_actor_service_sockfd = -1;
-    static char*** environp;
+    std::array<bool, 7> lowfds;
 #endif // BOOST_OS_UNIX
 
 private:
@@ -865,6 +882,13 @@ inline std::string_view tostringview(lua_State* L, int index = -1)
     return std::string_view{buf, len};
 }
 
+inline std::u8string_view tou8stringview(lua_State* L, int index = -1)
+{
+    std::size_t len;
+    const char* buf = lua_tolstring(L, index, &len);
+    return std::u8string_view{reinterpret_cast<const char8_t*>(buf), len};
+}
+
 inline void rawgetp(lua_State* L, int pseudoindex, const void* p)
 {
     lua_pushlightuserdata(L, const_cast<void*>(p));
@@ -936,7 +960,7 @@ enum class errc {
     suspension_already_allowed,
     interruption_already_allowed,
     forbid_suspend_block,
-    interrupted,
+    fiber_canceled,
     unmatched_scope_cleanup,
     channel_closed,
     no_senders,
@@ -1066,14 +1090,14 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
                                 lua_toboolean(new_current_fiber, -1);
                             lua_pop(new_current_fiber, 3);
                             if (interrupted)
-                                std_ec = errc::interrupted;
+                                std_ec = errc::fiber_canceled;
                         }
                     } else if (has_fast_auto_detect_interrupt) {
                         // `fast_auto_detect_interrupt` means there is no other
                         // way but fiber interruption to have
                         // `ec=asio::error::operation_aborted`.
                         if (ec == asio::error::operation_aborted)
-                            std_ec = errc::interrupted;
+                            std_ec = errc::fiber_canceled;
                     }
                     push(new_current_fiber, std_ec);
                 },

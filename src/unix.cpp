@@ -51,12 +51,14 @@ static char unix_datagram_socket_receive_from_with_fds_key;
 static char unix_datagram_socket_send_with_fds_key;
 static char unix_datagram_socket_send_to_with_fds_key;
 static char unix_stream_acceptor_accept_key;
+static char unix_stream_acceptor_wait_key;
 static char unix_stream_socket_connect_key;
 static char unix_stream_socket_read_some_key;
 static char unix_stream_socket_write_some_key;
 static char unix_stream_socket_receive_with_fds_key;
 static char unix_stream_socket_send_with_fds_key;
 static char unix_seqpacket_acceptor_accept_key;
+static char unix_seqpacket_acceptor_wait_key;
 static char unix_seqpacket_socket_connect_key;
 static char unix_seqpacket_socket_receive_key;
 static char unix_seqpacket_socket_send_key;
@@ -450,15 +452,16 @@ struct send_with_fds_op
         msg.msg_iovlen = 1;
 
         std::vector<struct cmsghdr> cmsgbuf;
-        msg.msg_controllen = CMSG_SPACE(sizeof(int) * fds.size());
-        cmsgbuf.resize(msg.msg_controllen / sizeof(struct cmsghdr) + 1);
-        msg.msg_control = cmsgbuf.data();
+        if (fds.size() > 0) {
+            msg.msg_controllen = CMSG_SPACE(sizeof(int) * fds.size());
+            cmsgbuf.resize(msg.msg_controllen / sizeof(struct cmsghdr) + 1);
+            msg.msg_control = cmsgbuf.data();
 
-        struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * fds.size());
-        {
+            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+            cmsg->cmsg_level = SOL_SOCKET;
+            cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(int) * fds.size());
+
             char* out = (char*)CMSG_DATA(cmsg);
             for (auto& fdlock: fds) {
                 std::memcpy(out, &fdlock.value, sizeof(int));
@@ -473,11 +476,12 @@ struct send_with_fds_op
             return;
         }
 
+        --sock.nbusy;
+        for (auto& fdlock : fds) {
+            *fdlock.reference = fdlock.value;
+        }
+
         if (nwritten == -1) {
-            --sock.nbusy;
-            for (auto& fdlock: fds) {
-                *fdlock.reference = fdlock.value;
-            }
             std::error_code ec2{errno, std::system_category()};
             vm_ctx->fiber_resume(
                 current_fiber,
@@ -487,10 +491,6 @@ struct send_with_fds_op
             return;
         }
 
-        --sock.nbusy;
-        for (auto& fdlock: fds) {
-            *fdlock.reference = fdlock.value;
-        }
         vm_ctx->fiber_resume(
             current_fiber,
             hana::make_set(
@@ -1605,7 +1605,7 @@ static int unix_datagram_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -1715,7 +1715,7 @@ static int unix_datagram_socket_send_to_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 4);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -2673,7 +2673,7 @@ static int unix_stream_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -3540,6 +3540,63 @@ static int unix_stream_acceptor_accept(lua_State* L)
     return lua_yield(L, 0);
 }
 
+static int unix_stream_acceptor_wait(lua_State* L)
+{
+    luaL_checktype(L, 2, LUA_TSTRING);
+
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
+
+    auto acceptor = static_cast<asio::local::stream_protocol::acceptor*>(
+        lua_touserdata(L, 1));
+    if (!acceptor || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto key = tostringview(L, 2);
+    auto wait_type = EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(
+            asio::local::stream_protocol::acceptor::wait_type action)
+        EMILUA_GPERF_PAIR(
+            "read", asio::local::stream_protocol::acceptor::wait_read)
+        EMILUA_GPERF_PAIR(
+            "write", asio::local::stream_protocol::acceptor::wait_write)
+        EMILUA_GPERF_PAIR(
+            "error", asio::local::stream_protocol::acceptor::wait_error)
+    EMILUA_GPERF_END(key);
+    if (!wait_type) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
+
+    acceptor->async_wait(
+        *wait_type,
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
+            vm_ctx->strand_using_defer(),
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
+                auto opt_args = vm_context::options::arguments;
+                vm_ctx->fiber_resume(
+                    current_fiber,
+                    hana::make_set(
+                        vm_context::options::auto_detect_interrupt,
+                        hana::make_pair(
+                            opt_args, hana::make_tuple(ec))));
+            }
+        ))
+    );
+
+    return lua_yield(L, 0);
+}
+
 EMILUA_GPERF_DECLS_BEGIN(unix_stream_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_stream_acceptor_close(lua_State* L)
@@ -3859,6 +3916,12 @@ static int unix_stream_acceptor_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "wait",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX, &unix_stream_acceptor_wait_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "close",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, unix_stream_acceptor_close);
@@ -3955,7 +4018,7 @@ static int unix_stream_listen(lua_State* L)
 
     auto& vm_ctx = get_vm_context(L);
     std::string_view ep = tostringview(L, 1);
-    mode_t mode, omask;
+    mode_t mode;
     bool has_mode;
 
     switch (lua_type(L, 2)) {
@@ -3966,12 +4029,8 @@ static int unix_stream_listen(lua_State* L)
         has_mode = false;
         break;
     case LUA_TNUMBER:
-        if (!vm_ctx.is_master()) {
-            push(L, std::errc::operation_not_permitted);
-            return lua_error(L);
-        }
-
         mode = lua_tointeger(L, 2);
+        mode &= 0777;
         has_mode = true;
         break;
     }
@@ -3991,11 +4050,18 @@ static int unix_stream_listen(lua_State* L)
     }
 
     if (has_mode) {
-        mode_t mask = (mode ^ 0777) & 0777;
-        omask = umask(mask);
+        if (fchmod(a->native_handle(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     if (ep.starts_with('@')) {
+        if (has_mode) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
         std::string e{ep};
         e[0] = '\0';
         a->bind(e, ec);
@@ -4003,12 +4069,16 @@ static int unix_stream_listen(lua_State* L)
         a->bind(ep, ec);
     }
 
-    if (has_mode)
-        umask(omask);
-
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
+    }
+
+    if (has_mode) {
+        if (chmod(ep.data(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     a->listen(asio::socket_base::max_listen_connections, ec);
@@ -4661,7 +4731,7 @@ static int unix_seqpacket_socket_send_with_fds(lua_State* L)
             return lua_error(L);
         }
         if (!lua_rawequal(L, -1, -3)) {
-            push(L, std::errc::invalid_argument, "arg", 1);
+            push(L, std::errc::invalid_argument, "arg", 3);
             return lua_error(L);
         }
         if (*handle == INVALID_FILE_DESCRIPTOR) {
@@ -5518,6 +5588,63 @@ static int unix_seqpacket_acceptor_accept(lua_State* L)
     return lua_yield(L, 0);
 }
 
+static int unix_seqpacket_acceptor_wait(lua_State* L)
+{
+    luaL_checktype(L, 2, LUA_TSTRING);
+
+    auto vm_ctx = get_vm_context(L).shared_from_this();
+    auto current_fiber = vm_ctx->current_fiber();
+    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
+
+    auto acceptor = static_cast<asio::local::seq_packet_protocol::acceptor*>(
+        lua_touserdata(L, 1));
+    if (!acceptor || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &unix_seqpacket_acceptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    auto key = tostringview(L, 2);
+    auto wait_type = EMILUA_GPERF_BEGIN(key)
+        EMILUA_GPERF_PARAM(
+            asio::local::seq_packet_protocol::acceptor::wait_type action)
+        EMILUA_GPERF_PAIR(
+            "read", asio::local::seq_packet_protocol::acceptor::wait_read)
+        EMILUA_GPERF_PAIR(
+            "write", asio::local::seq_packet_protocol::acceptor::wait_write)
+        EMILUA_GPERF_PAIR(
+            "error", asio::local::seq_packet_protocol::acceptor::wait_error)
+    EMILUA_GPERF_END(key);
+    if (!wait_type) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
+
+    acceptor->async_wait(
+        *wait_type,
+        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
+            vm_ctx->strand_using_defer(),
+            [vm_ctx,current_fiber](const asio_error_code& ec) {
+                auto opt_args = vm_context::options::arguments;
+                vm_ctx->fiber_resume(
+                    current_fiber,
+                    hana::make_set(
+                        vm_context::options::auto_detect_interrupt,
+                        hana::make_pair(
+                            opt_args, hana::make_tuple(ec))));
+            }
+        ))
+    );
+
+    return lua_yield(L, 0);
+}
+
 EMILUA_GPERF_DECLS_BEGIN(unix_seqpacket_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int unix_seqpacket_acceptor_close(lua_State* L)
@@ -5849,6 +5976,13 @@ static int unix_seqpacket_acceptor_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
+            "wait",
+            [](lua_State* L) -> int {
+                rawgetp(L, LUA_REGISTRYINDEX,
+                        &unix_seqpacket_acceptor_wait_key);
+                return 1;
+            })
+        EMILUA_GPERF_PAIR(
             "close",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, unix_seqpacket_acceptor_close);
@@ -5947,7 +6081,7 @@ static int unix_seqpacket_listen(lua_State* L)
 
     auto& vm_ctx = get_vm_context(L);
     std::string_view ep = tostringview(L, 1);
-    mode_t mode, omask;
+    mode_t mode;
     bool has_mode;
 
     switch (lua_type(L, 2)) {
@@ -5958,12 +6092,8 @@ static int unix_seqpacket_listen(lua_State* L)
         has_mode = false;
         break;
     case LUA_TNUMBER:
-        if (!vm_ctx.is_master()) {
-            push(L, std::errc::operation_not_permitted);
-            return lua_error(L);
-        }
-
         mode = lua_tointeger(L, 2);
+        mode &= 0777;
         has_mode = true;
         break;
     }
@@ -5984,11 +6114,18 @@ static int unix_seqpacket_listen(lua_State* L)
     }
 
     if (has_mode) {
-        mode_t mask = (mode ^ 0777) & 0777;
-        omask = umask(mask);
+        if (fchmod(a->native_handle(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     if (ep.starts_with('@')) {
+        if (has_mode) {
+            push(L, std::errc::invalid_argument);
+            return lua_error(L);
+        }
+
         std::string e{ep};
         e[0] = '\0';
         a->bind(e, ec);
@@ -5996,12 +6133,16 @@ static int unix_seqpacket_listen(lua_State* L)
         a->bind(ep, ec);
     }
 
-    if (has_mode)
-        umask(omask);
-
     if (ec) {
         push(L, static_cast<std::error_code>(ec));
         return lua_error(L);
+    }
+
+    if (has_mode) {
+        if (chmod(ep.data(), mode) == -1) {
+            push(L, std::error_code{errno, std::system_category()});
+            return lua_error(L);
+        }
     }
 
     a->listen(asio::socket_base::max_listen_connections, ec);
@@ -6357,6 +6498,13 @@ void init_unix(lua_State* L)
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 
+    lua_pushlightuserdata(L, &unix_stream_acceptor_wait_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
+    rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+    lua_pushcfunction(L, unix_stream_acceptor_wait);
+    lua_call(L, 2, 1);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
     lua_pushlightuserdata(L, &unix_seqpacket_socket_connect_key);
     rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
@@ -6401,6 +6549,13 @@ void init_unix(lua_State* L)
             &var_args__retval1_to_error__fwd_retval2__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
     lua_pushcfunction(L, unix_seqpacket_acceptor_accept);
+    lua_call(L, 2, 1);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+
+    lua_pushlightuserdata(L, &unix_seqpacket_acceptor_wait_key);
+    rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
+    rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
+    lua_pushcfunction(L, unix_seqpacket_acceptor_wait);
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 }

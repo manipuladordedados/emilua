@@ -9,9 +9,9 @@ local fib = spawn(function()
 end)
 
 time.sleep(0.1)
-fib:interrupt()
+fib:cancel()
 time.sleep(0.1)
 p:set_value(44)
 
 fib:join()
-print(fib.interruption_caught)
+print(fib.cancellation_caught)
