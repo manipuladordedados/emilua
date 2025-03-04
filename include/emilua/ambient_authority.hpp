@@ -10,6 +10,7 @@
 
 #if BOOST_OS_UNIX
 # include <sys/socket.h>
+# include <sys/types.h>
 # include <netdb.h>
 #endif // BOOST_OS_UNIX
 
