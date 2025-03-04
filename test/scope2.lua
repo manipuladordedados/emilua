@@ -1,6 +1,6 @@
--- scope() is not an cancellation point
+-- scope() is not an interruption point
 --
--- This test is only here because pcall() is a cancellation point and scope()
+-- This test is only here because pcall() is an interruption point and scope()
 -- is implemented in terms of pcall(). Some silly change could make scope()
 -- inherit this undesired property. This test can prevent such break from going
 -- unnoticed.
@@ -9,4 +9,4 @@ f = spawn(function()
     print('foo')
 end)
 
-f:cancel()
+f:interrupt()

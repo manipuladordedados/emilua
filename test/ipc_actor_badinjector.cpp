@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#include <emilua/native_module.hpp>
+#include <emilua/plugin.hpp>
 #include <emilua/actor.hpp>
 
 #include <boost/archive/iterators/base64_from_binary.hpp>
@@ -11,7 +11,7 @@
 
 namespace emilua {
 
-class ipc_actor_badinjector_plugin : native_module
+class ipc_actor_badinjector_plugin : plugin
 {
 public:
     void init_appctx(
@@ -124,7 +124,6 @@ private:
     unknown_snan_mantissa_dist;
 
     static int pipefds[2];
-    static int socketpairfds[2];
 };
 
 std::mt19937 ipc_actor_badinjector_plugin::prng;
@@ -151,7 +150,6 @@ std::uniform_int_distribution<std::uint64_t>
 ipc_actor_badinjector_plugin::unknown_snan_mantissa_dist;
 
 int ipc_actor_badinjector_plugin::pipefds[2];
-int ipc_actor_badinjector_plugin::socketpairfds[2];
 
 inline void set_as_blocking(int fd)
 {
@@ -183,11 +181,6 @@ void ipc_actor_badinjector_plugin::init_appctx(
 
     if (pipe(pipefds) == -1) {
         perror("badinjector_plugin/init_appctx/pipe");
-        std::abort();
-    }
-
-    if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, socketpairfds) == -1) {
-        perror("badinjector_plugin/init_appctx/socketpair");
         std::abort();
     }
 }
@@ -649,7 +642,7 @@ ipc_actor_badinjector_plugin::generate_good_message(
     }
 
     for (int i = 0 ; i != descriptors_size ; ++i) {
-        descriptors[i] = socketpairfds[1];
+        descriptors[i] = pipefds[1];
     }
 
     return {message_size, descriptors_size};

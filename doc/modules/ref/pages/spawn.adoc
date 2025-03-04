@@ -28,7 +28,7 @@ to increase the concurrency level, just spawn a fiber. Fibers are
 https://en.wikipedia.org/wiki/Cooperative_multitasking[cooperative] and only
 transfer control to other fibers in well-defined points (sync primitives, IO
 functions and any suspending function such as `this_fiber.yield()`). These
-points are also used by the cancellation API.
+points are also used by the interruption API.
 
 No two fibers from the same Lua VM run in parallel (even when the underlying
 VM's thread pool has threads available).
@@ -50,13 +50,13 @@ Read `pthread_detach()`.
 
 If the GC collects the fiber handle, it'll be detached.
 
-=== `cancel(self)`
+=== `interrupt(self)`
 
 Read `pthread_cancel()`.
 
 == `fiber` properties
 
-=== `cancellation_caught: boolean`
+=== `interruption_caught: boolean`
 
 Read `PTHREAD_CANCELED`.
 

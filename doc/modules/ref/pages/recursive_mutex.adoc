@@ -28,7 +28,7 @@ Constructor.
 
 Locks the mutex.
 
-NOTE: This suspending function does *not* act as a cancellation point.
+NOTE: This suspending function does *not* act as an interruption point.
 
 NOTE: This mutex applies dispatch semantics. That means no context switch to
 other ready fibers will take place if it's possible to acquire the mutex

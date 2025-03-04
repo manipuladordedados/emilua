@@ -1,4 +1,4 @@
-// Copyright (c) 2023, 2024 Vinícius dos Santos Oliveira
+// Copyright (c) 2023 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
@@ -14,26 +14,13 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <sched.h>
 
 #include <emilua/file_descriptor.hpp>
-#include <emilua/libc_service.hpp>
 #include <emilua/filesystem.hpp>
-
-#include <cereal/archives/binary.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/map.hpp>
-
-#if !defined(EMILUA_STATIC_BUILD)
-# include <dlfcn.h>
-#endif // !defined(EMILUA_STATIC_BUILD)
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/posix/stream_descriptor.hpp>
 #else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/posix/stream_descriptor.hpp>
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-
-#if defined(EMILUA_STATIC_BUILD)
-extern char** environ;
-#endif // defined(EMILUA_STATIC_BUILD)
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
@@ -42,8 +29,6 @@ EMILUA_GPERF_DECLS_BEGIN(system)
 EMILUA_GPERF_NAMESPACE(emilua)
 static char subprocess_mt_key;
 static char subprocess_wait_key;
-
-using namespace std::string_view_literals;
 
 struct spawn_arguments_t
 {
@@ -59,7 +44,6 @@ struct spawn_arguments_t
     int programfd;
     char** argv;
     char** envp;
-    std::string_view env_with_pid;
     int proc_stdin;
     int proc_stdout;
     int proc_stderr;
@@ -81,10 +65,6 @@ struct spawn_arguments_t
     std::optional<std::string> working_directory;
     int working_directoryfd;
     std::optional<int> pdeathsig;
-
-#if !defined(EMILUA_STATIC_BUILD)
-    char*** environp;
-#endif // !defined(EMILUA_STATIC_BUILD)
 };
 
 struct subprocess
@@ -167,34 +147,6 @@ struct procdesc_service : public pending_operation
     bool running = false;
     std::size_t nwaiters = 0;
     std::vector<struct kevent> tevent;
-};
-
-struct libc_service_send_op
-    : public std::enable_shared_from_this<libc_service_send_op>
-{
-    libc_service_send_op(asio::io_context& ioctx,
-                         const std::map<int, std::string>& lua_filters)
-        : sock{ioctx}
-    {
-        std::ostringstream os;
-        os.imbue(std::locale::classic());
-        cereal::BinaryOutputArchive oa{os};
-
-        oa << lua_filters;
-        buffer = os.str();
-    }
-
-    void do_send()
-    {
-        sock.async_send(
-            asio::buffer(buffer.data(), buffer.size()),
-            /*flags=*/0,
-            [self=shared_from_this()](const asio_error_code&, std::size_t) {}
-        );
-    }
-
-    asio::local::seq_packet_protocol::socket sock;
-    std::string buffer;
 };
 EMILUA_GPERF_DECLS_END(system)
 
@@ -295,7 +247,7 @@ static int subprocess_wait(lua_State* L)
             --service->nwaiters;
             p->fiber = nullptr;
             vm_ctx->strand().post([vm_ctx,fiber]() {
-                auto ec = make_error_code(errc::fiber_canceled);
+                auto ec = make_error_code(errc::interrupted);
                 vm_ctx->fiber_resume(
                     fiber,
                     hana::make_set(
@@ -440,21 +392,6 @@ static int subprocess_mt_index(lua_State* L)
         for (int signo = 1 ; signo != NSIG ; ++signo) {
             sigaction(signo, /*act=*/&sa, /*oldact=*/NULL);
         }
-    }
-
-    if (args->env_with_pid.size() > 0) {
-        char* value;
-        for (char** e = args->envp ;; ++e) {
-            if (*(e + 1) == NULL) {
-                value = *e;
-                break;
-            }
-        }
-        value += args->env_with_pid.size() + 1;
-        auto res = std::to_chars(
-            value, value + std::numeric_limits<pid_t>::digits10, getpid());
-        assert(res.ec == std::errc{});
-        std::ignore = res;
     }
 
     if (args->scheduler_policy) {
@@ -803,11 +740,7 @@ static int subprocess_mt_index(lua_State* L)
     if (args->programfd != -1) {
         fexecve(args->programfd, args->argv, args->envp);
     } else if (args->use_path) {
-#if defined(EMILUA_STATIC_BUILD)
-        environ = args->envp;
-#else // defined(EMILUA_STATIC_BUILD)
-        *args->environp = args->envp;
-#endif // defined(EMILUA_STATIC_BUILD)
+        *app_context::environp = args->envp;
         execvp(args->program, args->argv);
     } else {
         execve(args->program, args->argv, args->envp);
@@ -822,7 +755,6 @@ int system_spawn(lua_State* L)
 {
     lua_settop(L, 1);
     luaL_checktype(L, 1, LUA_TTABLE);
-    auto& vm_ctx = get_vm_context(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
     const int FILE_DESCRIPTOR_MT_INDEX = lua_gettop(L);
 
@@ -914,7 +846,6 @@ int system_spawn(lua_State* L)
     argumentsb.emplace_back(nullptr);
 
     std::vector<std::string> environment;
-    std::string_view env_with_pid;
     lua_getfield(L, 1, "environment");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
@@ -929,39 +860,9 @@ int system_spawn(lua_State* L)
                 return lua_error(L);
             }
 
-            auto key = tostringview(L, -2);
-            auto value = tostringview(L, -1);
-
-            if (value == "\0pid"sv) {
-                if (env_with_pid.size() > 0) {
-                    push(L, std::errc::invalid_argument, "arg", "environment");
-                    return lua_error(L);
-                }
-
-                env_with_pid = key;
-            } else if (key.starts_with('\0')) {
-                // Skip env var. User might have passed
-                // `system.environment`. `system.environment` might contain
-                // extra elements that are only possible when the process was
-                // started through `spawn_vm()`. We intentionally allow such
-                // extra values that are impossible in real environments. The
-                // intent is to allow the first root process to communicate
-                // setup steps that propagate through all descendants in a
-                // tree/subtree (e.g. seccomp filters).
-                //
-                // So much work has gone into making sure that all IPC-based
-                // actors use the same APIs transparently that is now hard to
-                // tell whether some code is running in the root actor or a
-                // subtree. The environment fills this gap as it can be abused
-                // to communicate extra pieces of information to descendants.
-            } else {
-                environment.emplace_back();
-                environment.back().reserve(key.size() + 1 + value.size());
-                environment.back() += key;
-                environment.back() += '=';
-                environment.back() += value;
-            }
-
+            environment.emplace_back(tostringview(L, -2));
+            environment.back() += '=';
+            environment.back() += tostringview(L, -1);
             lua_pop(L, 1);
         }
         break;
@@ -970,15 +871,6 @@ int system_spawn(lua_State* L)
         return lua_error(L);
     }
     lua_pop(L, 1);
-    if (env_with_pid.size() > 0) {
-        std::size_t sz = env_with_pid.size() + /*equals_sign_size=*/1 +
-            std::numeric_limits<pid_t>::digits10;
-        environment.emplace_back();
-        environment.back().reserve(sz);
-        environment.back() += env_with_pid;
-        environment.back() += '=';
-        environment.back().resize(sz, '\0');
-    }
     std::vector<char*> environmentb;
     environmentb.reserve(environment.size() + 1);
     for (auto& e: environment) {
@@ -1098,11 +990,6 @@ int system_spawn(lua_State* L)
     lua_pop(L, 1);
 
     boost::container::small_vector<std::pair<int, int>, 7> extra_fds;
-    boost::container::small_vector<int, 7> to_be_closed_fds;
-    BOOST_SCOPE_EXIT_ALL(&) { for (int fd : to_be_closed_fds) {
-        if (fd != -1) std::ignore = close(fd);
-    }};
-
     lua_getfield(L, 1, "extra_fds");
     switch (lua_type(L, -1)) {
     case LUA_TNIL:
@@ -1115,58 +1002,23 @@ int system_spawn(lua_State* L)
                 lua_pop(L, 1);
                 break;
             case LUA_TUSERDATA: {
+                auto handle = static_cast<file_descriptor_handle*>(
+                    lua_touserdata(L, -1));
                 if (!lua_getmetatable(L, -1)) {
                     push(L, std::errc::invalid_argument, "arg", "extra_fds");
                     return lua_error(L);
                 }
-                if (lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
-                    auto handle = static_cast<file_descriptor_handle*>(
-                        lua_touserdata(L, -2));
-
-                    if (*handle == INVALID_FILE_DESCRIPTOR) {
-                        push(L, std::errc::device_or_resource_busy,
-                             "arg", "extra_fds");
-                        return lua_error(L);
-                    }
-                    extra_fds.emplace_back(i, *handle);
-                    lua_pop(L, 2);
-                    break;
-                }
-                rawgetp(L, LUA_REGISTRYINDEX, &libc_service::slave_mt_key);
-                if (!lua_rawequal(L, -1, -2)) {
+                if (!lua_rawequal(L, -1, FILE_DESCRIPTOR_MT_INDEX)) {
                     push(L, std::errc::invalid_argument, "arg", "extra_fds");
                     return lua_error(L);
                 }
-                auto slave = static_cast<libc_service::slave*>(
-                    lua_touserdata(L, -3));
-                to_be_closed_fds.emplace_back(-1);
-                asio_error_code ec;
-                to_be_closed_fds.back() = slave->socket.release(ec);
-                if (ec) {
-                    push(L, ec);
+                if (*handle == INVALID_FILE_DESCRIPTOR) {
+                    push(L, std::errc::device_or_resource_busy,
+                         "arg", "extra_fds");
                     return lua_error(L);
                 }
-
-                extra_fds.emplace_back(i, to_be_closed_fds.back());
-
-                auto op = std::make_shared<libc_service_send_op>(
-                    vm_ctx.strand().context(), slave->lua_chunk_filters);
-
-                {
-                    asio_error_code ec;
-                    op->sock.assign(
-                        asio::local::seq_packet_protocol{}, slave->masterdupfd,
-                        ec);
-                    assert(!ec);
-                    slave->masterdupfd = -1;
-                }
-
-                lua_pushnil(L);
-                lua_setmetatable(L, -4);
-                slave->~slave();
-                lua_pop(L, 3);
-
-                op->do_send();
+                extra_fds.emplace_back(i, *handle);
+                lua_pop(L, 2);
                 break;
             }
             default:
@@ -1637,7 +1489,6 @@ int system_spawn(lua_State* L)
     args.programfd = programfd;
     args.argv = argumentsb.data();
     args.envp = environmentb.data();
-    args.env_with_pid = env_with_pid;
     args.proc_stdin = proc_stdin;
     args.proc_stdout = proc_stdout;
     args.proc_stderr = proc_stderr;
@@ -1658,9 +1509,6 @@ int system_spawn(lua_State* L)
     args.working_directory = working_directory;
     args.working_directoryfd = working_directoryfd;
     args.pdeathsig = pdeathsig;
-#if !defined(EMILUA_STATIC_BUILD)
-    args.environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
-#endif // !defined(EMILUA_STATIC_BUILD)
 
     int pdfork_flags = 0;
     if (pd_daemon)

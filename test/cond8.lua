@@ -1,4 +1,4 @@
--- Cancel
+-- Interrupt
 
 local mutex = require('mutex')
 local cond = require('condition_variable')
@@ -17,6 +17,6 @@ f = spawn(function()
 end)
 
 this_fiber.yield()
-f:cancel()
+f:interrupt()
 f:join()
-print(f.cancellation_caught)
+print(f.interruption_caught)

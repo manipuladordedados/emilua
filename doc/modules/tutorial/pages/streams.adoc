@@ -59,7 +59,7 @@ a write operation:
 ----
 while #buffer > 0 do
     local nwritten = stream:write_some(buffer)
-    buffer = buffer:sub(1 + nwritten)
+    buffer = buffer:slice(1 + nwritten)
 end
 ----
 
@@ -165,13 +165,13 @@ activate write_all
 write_all -> stream : write_some(buf2)
 
 stream --> write_all : buf1/N1
-write_all -> stream : write_some(buf1:sub(N1))
+write_all -> stream : write_some(buf1:slice(N1))
 
 stream --> write_all : buf2/OK
 write_all --> writer2 : buf2/OK
 deactivate write_all
 
-stream --> write_all : buf1:sub(N1)/OK
+stream --> write_all : buf1:slice(N1)/OK
 write_all --> writer1 : buf1/OK
 deactivate write_all
 @enduml
@@ -180,7 +180,7 @@ deactivate write_all
 In other words, one of the messages didn't fit in the kernel buffer, then
 `stream.write_all()` retried the operation to drain the buffer. However there
 was already another in-flight write operation, and it was scheduled first than
-`buf1:sub(N1))`. The end result will be a stream where the second message is
+`buf1:slice(N1))`. The end result will be a stream where the second message is
 inserted in the middle of another message (a corrupt stream):
 
 [ditaa, corrupt_stream_on_composed_short_reads_result]

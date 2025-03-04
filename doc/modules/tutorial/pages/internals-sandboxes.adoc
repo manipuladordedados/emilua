@@ -258,7 +258,7 @@ revoked anyway).
 The runtime doesn't schedule any read on the socket unless the user calls
 `inbox:receive()`. Upon reading a new message the runtime will either wake the
 receiving fiber directly, or enqueue the result in a buffer if no receiving
-fiber exists at the time (this can happen if the user canceled the fiber, or
+fiber exists at the time (this can happen if the user interrupted the fiber, or
 another result arrived and woke the fiber up already). `inbox:receive()` won't
 schedule any read on the socket if there's some result already enqueued in the
 buffer.

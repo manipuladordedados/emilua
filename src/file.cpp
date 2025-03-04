@@ -599,9 +599,9 @@ static int stream_basic_lock(lua_State* L, int operation)
             // flock is idempotent) here because a file descriptor may be shared
             // among processes and a different process could have triggered
             // op=LOCK_UN. If that has happened, then the second flock() would
-            // return EWOULDBLOCK which triggers ec=errc::fiber_canceled
-            // below. We don't want that because the fiber hasn't been
-            // canceled if we're here.
+            // return EWOULDBLOCK which triggers ec=errc::interrupted below. We
+            // don't want that because the fiber hasn't been interrupted if
+            // we're here.
             if (false) {
         case 1:
                 // It's possible that longjmp() occurred after the previous
@@ -616,7 +616,7 @@ static int stream_basic_lock(lua_State* L, int operation)
             std::error_code ec;
             if (res == -1) {
                 if (last_error == EWOULDBLOCK) {
-                    ec = errc::fiber_canceled;
+                    ec = errc::interrupted;
                 } else {
                     ec = std::error_code{last_error, std::system_category()};
                 }
@@ -1402,9 +1402,9 @@ static int random_access_basic_lock(lua_State* L, int operation)
             // flock is idempotent) here because a file descriptor may be shared
             // among processes and a different process could have triggered
             // op=LOCK_UN. If that has happened, then the second flock() would
-            // return EWOULDBLOCK which triggers ec=errc::fiber_canceled
-            // below. We don't want that because the fiber hasn't been canceled
-            // if we're here.
+            // return EWOULDBLOCK which triggers ec=errc::interrupted below. We
+            // don't want that because the fiber hasn't been interrupted if
+            // we're here.
             if (false) {
         case 1:
                 // It's possible that longjmp() occurred after the previous
@@ -1419,7 +1419,7 @@ static int random_access_basic_lock(lua_State* L, int operation)
             std::error_code ec;
             if (res == -1) {
                 if (last_error == EWOULDBLOCK) {
-                    ec = errc::fiber_canceled;
+                    ec = errc::interrupted;
                 } else {
                     ec = std::error_code{last_error, std::system_category()};
                 }

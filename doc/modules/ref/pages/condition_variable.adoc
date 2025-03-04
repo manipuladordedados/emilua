@@ -41,7 +41,7 @@ Constructor.
 
 Read `pthread_cond_wait()`
 
-`wait()` is a cancellation point. Prior to the delivery of the cancellation
+`wait()` is an interruption point. Prior to the delivery of the interruption
 request, the underlying mutex is re-acquired under the hood.
 
 === `notify_all(self)`

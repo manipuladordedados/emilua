@@ -1,5 +1,5 @@
 -- serialization/bad
-local system = require 'system'
+local spawn_vm = require('./ipc_actor_libspawn').spawn_vm
 local badinjector = require 'ipc_actor_badinjector'
 local sleep = require('time').sleep
 
@@ -11,20 +11,13 @@ if _CONTEXT ~= 'main' then
         inbox:receive()
     end)
     sleep(0.1)
-    f:cancel()
+    f:interrupt()
     f:join()
 
     sleep(0.2)
     print('RECEIVED:', inbox:receive())
 else
-    local my_channel = spawn_vm{
-        module = '.',
-        subprocess = {
-            stdout = 'share',
-            stderr = 'share',
-            environment = system.environment
-        }
-    }
+    local my_channel = spawn_vm()
     sleep(0.2)
     badinjector.send_overflow_dict2(my_channel)
     my_channel:close()

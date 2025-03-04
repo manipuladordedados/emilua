@@ -1,8 +1,8 @@
--- Cancel on join
+-- Interrupt on join
 
 fib = spawn(function()
     local f2 = spawn(function()
-        fib:cancel()
+        fib:interrupt()
     end)
     print('foo')
     local ok = pcall(function()
@@ -10,13 +10,13 @@ fib = spawn(function()
         print('bar')
     end)
     print(ok)
-    this_fiber.disable_cancellation()
+    this_fiber.disable_interruption()
     local ok = pcall(function()
-        this_fiber.restore_cancellation()
+        this_fiber.restore_interruption()
         f2:join()
     end)
     print(ok)
-    this_fiber.disable_cancellation()
+    this_fiber.disable_interruption()
     f2:join()
     print('baz')
     f2:join() --< now invalid

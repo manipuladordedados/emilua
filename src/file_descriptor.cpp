@@ -3,8 +3,6 @@
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/file_descriptor.hpp>
-#include <emilua/ambient_authority.hpp>
-#include <emilua/filesystem.hpp>
 
 #include <charconv>
 
@@ -19,7 +17,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
 #include <emilua/system.hpp>
-#include <linux/kcmp.h>
 #endif // BOOST_OS_LINUX
 
 #if BOOST_OS_BSD_FREE
@@ -41,8 +38,6 @@ char file_descriptor_mt_key;
 EMILUA_GPERF_DECLS_BEGIN(file_descriptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 
-namespace fs = std::filesystem;
-
 static char closed_file_descriptor_mt_key;
 
 #if BOOST_OS_BSD_FREE
@@ -51,26 +46,223 @@ static const cap_rights_t empty_rights = []() {
     cap_rights_init(&ret);
     return ret;
 }();
+#endif // BOOST_OS_BSD_FREE
 
-static std::errc table_to_rights(lua_State* L, int index, cap_rights_t& rights)
+static int file_descriptor_close(lua_State* L)
 {
-    assert(lua_type(L, index) == LUA_TTABLE);
-    assert(cap_rights_is_valid(&rights));
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    rawgetp(L, LUA_REGISTRYINDEX, &closed_file_descriptor_mt_key);
+    setmetatable(L, 1);
+
+#if BOOST_OS_WINDOWS
+    BOOL res = CloseHandle(*handle);
+#else // BOOST_OS_WINDOWS
+    int res = close(*handle);
+#endif // BOOST_OS_WINDOWS
+    boost::ignore_unused(res);
+
+    return 0;
+}
+
+static int file_descriptor_dup(lua_State* L)
+{
+    auto oldhandle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!oldhandle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*oldhandle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
+    int newfd = dup(*oldhandle);
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (newfd != -1) {
+            int res = close(newfd);
+            boost::ignore_unused(res);
+        }
+    };
+    if (newfd == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    auto newhandle = static_cast<file_descriptor_handle*>(
+        lua_newuserdata(L, sizeof(file_descriptor_handle))
+    );
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    setmetatable(L, -2);
+
+    *newhandle = newfd;
+    newfd = -1;
+    return 1;
+#endif // BOOST_OS_WINDOWS
+}
+
+inline int file_descriptor_non_blocking_get(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+#if BOOST_OS_WINDOWS
+    return throw_enosys(L);
+#else // BOOST_OS_WINDOWS
+    int f = fcntl(*handle, F_GETFL, 0);
+
+    // although not always documented, F_GETFL can fail
+    if (f == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+
+    lua_pushboolean(L, (f & O_NONBLOCK) == O_NONBLOCK);
+    return 1;
+#endif // BOOST_OS_WINDOWS
+}
+
+#if BOOST_OS_LINUX
+static int file_descriptor_cap_get(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    cap_t caps = cap_get_fd(*handle);
+    if (caps == NULL) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+    BOOST_SCOPE_EXIT_ALL(&) {
+        if (caps != NULL)
+            cap_free(caps);
+    };
+
+    auto& caps2 = *static_cast<cap_t*>(lua_newuserdata(L, sizeof(cap_t)));
+    rawgetp(L, LUA_REGISTRYINDEX, &linux_capabilities_mt_key);
+    setmetatable(L, -2);
+    caps2 = caps;
+    caps = NULL;
+
+    return 1;
+}
+
+static int file_descriptor_cap_set(lua_State* L)
+{
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    auto caps = static_cast<cap_t*>(lua_touserdata(L, 2));
+    if (!caps || !lua_getmetatable(L, 2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &linux_capabilities_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 2);
+        return lua_error(L);
+    }
+
+    if (cap_set_fd(*handle, *caps) == -1) {
+        push(L, std::error_code{errno, std::system_category()});
+        return lua_error(L);
+    }
+    return 0;
+}
+#endif // BOOST_OS_LINUX
+
+#if BOOST_OS_BSD_FREE
+static int file_descriptor_cap_rights_limit(lua_State* L)
+{
+    lua_settop(L, 2);
+
+    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
+    if (!handle || !lua_getmetatable(L, 1)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
+    if (!lua_rawequal(L, -1, -2)) {
+        push(L, std::errc::invalid_argument, "arg", 1);
+        return lua_error(L);
+    }
+
+    if (*handle == INVALID_FILE_DESCRIPTOR) {
+        push(L, std::errc::device_or_resource_busy);
+        return lua_error(L);
+    }
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    cap_rights_t rights;
+    cap_rights_init(&rights);
 
     cap_rights_t all_rights;
     cap_rights_init(&all_rights);
     CAP_ALL(&all_rights);
 
     for (int i = 0 ;; ++i) {
-        lua_rawgeti(L, index, i + 1);
+        lua_rawgeti(L, 2, i + 1);
         switch (lua_type(L, -1)) {
         case LUA_TNIL:
-            lua_pop(L, 1);
             goto input_ready;
         case LUA_TSTRING:
             break;
         default:
-            return std::errc::invalid_argument;
+            push(L, std::errc::invalid_argument, "arg", 2);
+            return lua_error(L);
         }
 
         auto key = tostringview(L, -1);
@@ -185,7 +377,8 @@ static std::errc table_to_rights(lua_State* L, int index, cap_rights_t& rights)
             cap_rights_t complement = all_rights;
             cap_rights_remove(&complement, &flag);
             if (cap_rights_contains(&complement, &all_rights)) {
-                return std::errc::invalid_argument;
+                push(L, std::errc::invalid_argument, "arg", 2);
+                return lua_error(L);
             }
         }
 
@@ -194,707 +387,7 @@ static std::errc table_to_rights(lua_State* L, int index, cap_rights_t& rights)
     }
 
  input_ready:
-    return std::errc{};
-}
-#endif // BOOST_OS_BSD_FREE
-
-static int file_descriptor_close(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    rawgetp(L, LUA_REGISTRYINDEX, &closed_file_descriptor_mt_key);
-    setmetatable(L, 1);
-
-#if BOOST_OS_WINDOWS
-    BOOL res = CloseHandle(*handle);
-#else // BOOST_OS_WINDOWS
-    int res = close(*handle);
-#endif // BOOST_OS_WINDOWS
-    boost::ignore_unused(res);
-
-    return 0;
-}
-
-static int file_descriptor_dup(lua_State* L)
-{
-    auto oldhandle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!oldhandle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*oldhandle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-#if BOOST_OS_WINDOWS
-    return throw_enosys(L);
-#else // BOOST_OS_WINDOWS
-    int newfd = dup(*oldhandle);
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (newfd != -1) {
-            int res = close(newfd);
-            boost::ignore_unused(res);
-        }
-    };
-    if (newfd == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    auto newhandle = static_cast<file_descriptor_handle*>(
-        lua_newuserdata(L, sizeof(file_descriptor_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    setmetatable(L, -2);
-
-    *newhandle = newfd;
-    newfd = -1;
-    return 1;
-#endif // BOOST_OS_WINDOWS
-}
-
-#if BOOST_OS_LINUX || BOOST_OS_BSD_FREE
-static int file_descriptor_kcmp(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto handle1 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle1 || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle1 == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    auto handle2 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 2));
-    if (!handle2 || !lua_getmetatable(L, 2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-
-    if (*handle2 == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-# if BOOST_OS_LINUX
-    auto res = syscall(
-        SYS_kcmp, getpid(), getpid(), KCMP_FILE, *handle1, *handle2);
-# else
-    auto res = kcmp(getpid(), getpid(), KCMP_FILE, *handle1, *handle2);
-# endif
-    if (res == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    lua_pushinteger(L, res);
-    return 1;
-}
-#endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
-
-#if BOOST_OS_UNIX
-static int file_descriptor_is_socket(lua_State* L)
-{
-    lua_settop(L, 4);
-
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    {
-        struct stat st_fd;
-        if (fstat(*handle, &st_fd) == -1) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-
-        if (!S_ISSOCK(st_fd.st_mode)) {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-    }
-
-    std::optional<int> family;
-    {
-        auto key = tostringview(L, 2);
-        family = EMILUA_GPERF_BEGIN(key)
-            EMILUA_GPERF_PARAM(int action)
-            EMILUA_GPERF_PAIR("unix", AF_UNIX)
-            EMILUA_GPERF_PAIR("inet", AF_INET)
-            EMILUA_GPERF_PAIR("inet6", AF_INET6)
-        EMILUA_GPERF_END(key);
-        if (!family) {
-            push(L, std::errc::invalid_argument, "arg", 2);
-            return lua_error(L);
-        }
-
-        int got = 0;
-        socklen_t l = sizeof(got);
-        if (getsockopt(*handle, SOL_SOCKET, SO_DOMAIN, &got, &l) == -1) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-        if (l != sizeof(got)) {
-            push(L, std::errc::invalid_argument);
-            return lua_error(L);
-        }
-
-        if (*family != got) {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-    }
-
-    std::optional<int> type;
-    switch (lua_type(L, 3)) {
-    default:
-        push(L, std::errc::invalid_argument, "arg", 3);
-        return lua_error(L);
-    case LUA_TNIL:
-        break;
-    case LUA_TSTRING: {
-        auto key = tostringview(L, 3);
-        type = EMILUA_GPERF_BEGIN(key)
-            EMILUA_GPERF_PARAM(int action)
-            EMILUA_GPERF_PAIR("stream", SOCK_STREAM)
-            EMILUA_GPERF_PAIR("datagram", SOCK_DGRAM)
-            EMILUA_GPERF_PAIR("seqpacket", SOCK_SEQPACKET)
-        EMILUA_GPERF_END(key);
-        if (!type) {
-            push(L, std::errc::invalid_argument, "arg", 3);
-            return lua_error(L);
-        }
-
-        int got = 0;
-        socklen_t l = sizeof(got);
-        if (getsockopt(*handle, SOL_SOCKET, SO_TYPE, &got, &l) == -1) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-        if (l != sizeof(got)) {
-            push(L, std::errc::invalid_argument);
-            return lua_error(L);
-        }
-
-        if (*type != got) {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-        break;
-    }
-    }
-
-    switch (lua_type(L, 4)) {
-    default:
-        push(L, std::errc::invalid_argument, "arg", 4);
-        return lua_error(L);
-    case LUA_TNIL:
-        break;
-    case LUA_TSTRING: {
-        if (!type || ((*family != AF_INET) && (*family != AF_INET6))) {
-            push(L, std::errc::invalid_argument, "arg", 4);
-            return lua_error(L);
-        }
-
-        auto key = tostringview(L, 4);
-        auto protocol = EMILUA_GPERF_BEGIN(key)
-            EMILUA_GPERF_PARAM(int action)
-            EMILUA_GPERF_PAIR("tcp", IPPROTO_TCP)
-            EMILUA_GPERF_PAIR("udp", IPPROTO_UDP)
-        EMILUA_GPERF_END(key);
-        if (
-            !protocol ||
-            ((*protocol == IPPROTO_TCP) && (*type != SOCK_STREAM)) ||
-            ((*protocol == IPPROTO_UDP) && (*type != SOCK_DGRAM))
-        ) {
-            push(L, std::errc::invalid_argument, "arg", 4);
-            return lua_error(L);
-        }
-
-        int got = 0;
-        socklen_t l = sizeof(got);
-        if (getsockopt(*handle, SOL_SOCKET, SO_PROTOCOL, &got, &l) == -1) {
-            push(L, std::error_code{errno, std::system_category()});
-            return lua_error(L);
-        }
-        if (l != sizeof(got)) {
-            push(L, std::errc::invalid_argument);
-            return lua_error(L);
-        }
-
-        if ((*protocol != got) && (got != 0)) {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-        break;
-    }
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-static int file_descriptor_openat(lua_State* L)
-{
-    lua_settop(L, 4);
-
-    auto handle1 = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle1 || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle1 == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    auto path = static_cast<fs::path*>(lua_touserdata(L, 2));
-    if (!path || !lua_getmetatable(L, 2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-
-    open_how how;
-    std::memset(&how, 0, sizeof(how));
-#ifdef O_NOCTTY
-    how.flags = O_NOCTTY;
-#endif // O_NOCTTY
-    for (int i = 1 ;; ++i) {
-        lua_rawgeti(L, 3, i);
-        switch (lua_type(L, -1)) {
-        default:
-            push(L, std::errc::invalid_argument, "arg", 3);
-            return lua_error(L);
-        case LUA_TNIL:
-            lua_pop(L, 1);
-            goto end_for;
-        case LUA_TSTRING:
-            break;
-        }
-
-        auto s = tostringview(L);
-        lua_pop(L, 1);
-        auto f = EMILUA_GPERF_BEGIN(s)
-            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
-            EMILUA_GPERF_PARAM(int action)
-            EMILUA_GPERF_PAIR("append", O_APPEND)
-            EMILUA_GPERF_PAIR("create", O_CREAT)
-            EMILUA_GPERF_PAIR("exclusive", O_EXCL)
-            EMILUA_GPERF_PAIR("read_only", O_RDONLY)
-            EMILUA_GPERF_PAIR("read_write", O_RDWR)
-            EMILUA_GPERF_PAIR("sync_all_on_write", O_SYNC)
-            EMILUA_GPERF_PAIR("truncate", O_TRUNC)
-            EMILUA_GPERF_PAIR("write_only", O_WRONLY)
-            EMILUA_GPERF_PAIR("directory", O_DIRECTORY)
-            EMILUA_GPERF_PAIR("no_follow", O_NOFOLLOW)
-            EMILUA_GPERF_PAIR("path", O_PATH)
-        EMILUA_GPERF_END(s);
-        if (f) {
-            how.flags |= *f;
-        } else if (s == "temporary") {
-#ifdef O_TMPFILE
-            how.flags |= O_TMPFILE;
-#else
-            push(L, std::errc::not_supported, "arg", 3);
-            return lua_error(L);
-#endif // defined(O_TMPFILE)
-        } else {
-            auto f = EMILUA_GPERF_BEGIN(s)
-                EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
-                EMILUA_GPERF_PARAM(std::uint64_t action)
-                EMILUA_GPERF_PAIR("resolve_beneath", open_how::resolve_beneath)
-                EMILUA_GPERF_PAIR("resolve_in_root", open_how::resolve_in_root)
-                EMILUA_GPERF_PAIR(
-                    "resolve_no_magiclinks", open_how::resolve_no_magiclinks)
-                EMILUA_GPERF_PAIR(
-                    "resolve_no_symlinks", open_how::resolve_no_symlinks)
-                EMILUA_GPERF_PAIR("resolve_no_xdev", open_how::resolve_no_xdev)
-                EMILUA_GPERF_PAIR("resolve_cached", open_how::resolve_cached)
-            EMILUA_GPERF_END(s);
-            if (f) {
-                how.resolve |= *f;
-            } else {
-                push(L, std::errc::invalid_argument, "arg", 3);
-                return lua_error(L);
-            }
-        }
-    }
- end_for:
-
-    switch (lua_type(L, 4)) {
-    default:
-        push(L, std::errc::invalid_argument, "arg", 4);
-        return lua_error(L);
-    case LUA_TNIL:
-        break;
-    case LUA_TNUMBER:
-        how.mode = lua_tointeger(L, 4);
-        break;
-    }
-
-    int res;
-    if (how.resolve == 0) {
-        if (
-            ((how.flags & O_CREAT) == O_CREAT) ||
-#ifdef O_TMPFILE
-            ((how.flags & O_TMPFILE) == O_TMPFILE) ||
-#endif // defined(O_TMPFILE)
-            false
-        ) {
-            res = openat(*handle1, path->c_str(), how.flags, how.mode);
-        } else {
-            res = openat(*handle1, path->c_str(), how.flags);
-        }
-    } else {
-        res = openat2(*handle1, path->c_str(), &how);
-    }
-    if (res == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    int rawfd = res;
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (rawfd != INVALID_FILE_DESCRIPTOR) {
-            int res = close(rawfd);
-            boost::ignore_unused(res);
-        }
-    };
-
-    auto handle2 = static_cast<file_descriptor_handle*>(
-        lua_newuserdata(L, sizeof(file_descriptor_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    setmetatable(L, -2);
-
-    *handle2 = rawfd;
-    rawfd = INVALID_FILE_DESCRIPTOR;
-    return 1;
-}
-#endif // BOOST_OS_UNIX
-
-inline int file_descriptor_non_blocking_get(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-#if BOOST_OS_WINDOWS
-    return throw_enosys(L);
-#else // BOOST_OS_WINDOWS
-    int f = fcntl(*handle, F_GETFL, 0);
-
-    // although not always documented, F_GETFL can fail
-    if (f == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    lua_pushboolean(L, (f & O_NONBLOCK) == O_NONBLOCK);
-    return 1;
-#endif // BOOST_OS_WINDOWS
-}
-
-inline int file_descriptor_type(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-#if BOOST_OS_WINDOWS
-    return throw_enosys(L);
-#else // BOOST_OS_WINDOWS
-    struct stat st_fd;
-    if (fstat(*handle, &st_fd) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    std::string_view ret;
-    switch (st_fd.st_mode & S_IFMT) {
-    default:
-        ret = "unknown";
-        break;
-    case S_IFSOCK:
-        ret = "socket";
-        break;
-    case S_IFLNK:
-        ret = "symlink";
-        break;
-    case S_IFREG:
-        ret = "regular";
-        break;
-    case S_IFBLK:
-        ret = "block";
-        break;
-    case S_IFDIR:
-        ret = "directory";
-        break;
-    case S_IFCHR:
-        ret = "character";
-        break;
-    case S_IFIFO:
-        ret = "fifo";
-        break;
-    }
-
-    push(L, ret);
-    return 1;
-#endif // BOOST_OS_WINDOWS
-}
-
-#if BOOST_OS_LINUX
-static int file_descriptor_cap_get(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    cap_t caps = cap_get_fd(*handle);
-    if (caps == NULL) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (caps != NULL)
-            cap_free(caps);
-    };
-
-    auto& caps2 = *static_cast<cap_t*>(lua_newuserdata(L, sizeof(cap_t)));
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_capabilities_mt_key);
-    setmetatable(L, -2);
-    caps2 = caps;
-    caps = NULL;
-
-    return 1;
-}
-
-static int file_descriptor_cap_set(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    auto caps = static_cast<cap_t*>(lua_touserdata(L, 2));
-    if (!caps || !lua_getmetatable(L, 2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &linux_capabilities_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-
-    if (cap_set_fd(*handle, *caps) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-    return 0;
-}
-#endif // BOOST_OS_LINUX
-
-#if BOOST_OS_BSD_FREE
-static int file_descriptor_cap_rights_limit(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    luaL_checktype(L, 2, LUA_TTABLE);
-
-    cap_rights_t rights;
-    cap_rights_init(&rights);
-    if (auto ec = table_to_rights(L, 2, rights) ; ec != std::errc{}) {
-        push(L, ec, "arg", 2);
-        return lua_error(L);
-    }
-
     if (cap_rights_limit(*handle, &rights) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    return 0;
-}
-
-static int file_descriptor_cap_rights_contains(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    luaL_checktype(L, 2, LUA_TTABLE);
-
-    cap_rights_t rights;
-    cap_rights_init(&rights);
-    if (auto ec = table_to_rights(L, 2, rights) ; ec != std::errc{}) {
-        push(L, ec, "arg", 2);
-        return lua_error(L);
-    }
-
-    cap_rights_t fdrights;
-    if (cap_rights_get(*handle, &fdrights) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    lua_pushboolean(L, cap_rights_contains(&fdrights, &rights));
-    return 1;
-}
-
-static int file_descriptor_cap_rights_remove(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    luaL_checktype(L, 2, LUA_TTABLE);
-
-    cap_rights_t rights;
-    cap_rights_init(&rights);
-    if (auto ec = table_to_rights(L, 2, rights) ; ec != std::errc{}) {
-        push(L, ec, "arg", 2);
-        return lua_error(L);
-    }
-
-    cap_rights_t fdrights;
-    if (cap_rights_get(*handle, &fdrights) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    cap_rights_remove(&fdrights, &rights);
-
-    if (cap_rights_limit(*handle, &fdrights) == -1) {
         push(L, std::error_code{errno, std::system_category()});
         return lua_error(L);
     }
@@ -946,60 +439,6 @@ static int file_descriptor_cap_ioctls_limit(lua_State* L)
     }
 
     return 0;
-}
-
-static int file_descriptor_cap_ioctls_get(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    std::vector<unsigned long> cmds;
-
-    auto ncmds = cap_ioctls_get(*handle, NULL, 0);
-    switch (ncmds) {
-    case -1:
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    case CAP_IOCTLS_ALL:
-        lua_pushliteral(L, "all");
-        return 1;
-    default:
-        break;
-    }
-
-    cmds.resize(ncmds);
-    ncmds = cap_ioctls_get(*handle, cmds.data(), cmds.size());
-    if (ncmds == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    if (ncmds < cmds.size())
-        cmds.resize(ncmds);
-
-    ncmds = cmds.size();
-
-    lua_createtable(L, /*narr=*/ncmds, /*nrec=*/0);
-
-    for (int i = 0 ; i != ncmds ; ++i) {
-        lua_pushinteger(L, cmds[i]);
-        lua_rawseti(L, -2, i + 1);
-    }
-
-    return 1;
 }
 
 static int file_descriptor_cap_fcntls_limit(lua_State* L)
@@ -1062,65 +501,6 @@ static int file_descriptor_cap_fcntls_limit(lua_State* L)
 
     return 0;
 }
-
-static int file_descriptor_cap_fcntls_get(lua_State* L)
-{
-    auto handle = static_cast<file_descriptor_handle*>(lua_touserdata(L, 1));
-    if (!handle || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    if (*handle == INVALID_FILE_DESCRIPTOR) {
-        push(L, std::errc::device_or_resource_busy);
-        return lua_error(L);
-    }
-
-    std::uint32_t fcntlrights;
-    if (cap_fcntls_get(*handle, &fcntlrights) == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    lua_createtable(L, /*narr=*/4, /*nrec=*/0);
-    int i = 1;
-
-    if ((fcntlrights & CAP_FCNTL_GETFL) == CAP_FCNTL_GETFL) {
-        fcntlrights ^= CAP_FCNTL_GETFL;
-        lua_pushliteral(L, "getfl");
-        lua_rawseti(L, -2, i++);
-    }
-
-    if ((fcntlrights & CAP_FCNTL_SETFL) == CAP_FCNTL_SETFL) {
-        fcntlrights ^= CAP_FCNTL_SETFL;
-        lua_pushliteral(L, "setfl");
-        lua_rawseti(L, -2, i++);
-    }
-
-    if ((fcntlrights & CAP_FCNTL_GETOWN) == CAP_FCNTL_GETOWN) {
-        fcntlrights ^= CAP_FCNTL_GETOWN;
-        lua_pushliteral(L, "getown");
-        lua_rawseti(L, -2, i++);
-    }
-
-    if ((fcntlrights & CAP_FCNTL_SETOWN) == CAP_FCNTL_SETOWN) {
-        fcntlrights ^= CAP_FCNTL_SETOWN;
-        lua_pushliteral(L, "setown");
-        lua_rawseti(L, -2, i++);
-    }
-
-    if (fcntlrights != 0) {
-        push(L, std::errc::not_supported);
-        return lua_error(L);
-    }
-
-    return 1;
-}
 #endif // BOOST_OS_BSD_FREE
 EMILUA_GPERF_DECLS_END(file_descriptor)
 
@@ -1143,36 +523,6 @@ static int file_descriptor_mt_index(lua_State* L)
             "dup",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, file_descriptor_dup);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "kcmp",
-            [](lua_State* L) -> int {
-#if BOOST_OS_LINUX || BOOST_OS_BSD_FREE
-                lua_pushcfunction(L, file_descriptor_kcmp);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_LINUX || BOOST_OS_BSD_FREE
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "is_socket",
-            [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
-                lua_pushcfunction(L, file_descriptor_is_socket);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "openat",
-            [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
-                lua_pushcfunction(L, file_descriptor_openat);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -1206,40 +556,10 @@ static int file_descriptor_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "cap_rights_contains",
-            [](lua_State* L) -> int {
-#if BOOST_OS_BSD_FREE
-                lua_pushcfunction(L, file_descriptor_cap_rights_contains);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_BSD_FREE
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "cap_rights_remove",
-            [](lua_State* L) -> int {
-#if BOOST_OS_BSD_FREE
-                lua_pushcfunction(L, file_descriptor_cap_rights_remove);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_BSD_FREE
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
             "cap_ioctls_limit",
             [](lua_State* L) -> int {
 #if BOOST_OS_BSD_FREE
                 lua_pushcfunction(L, file_descriptor_cap_ioctls_limit);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_BSD_FREE
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "cap_ioctls_get",
-            [](lua_State* L) -> int {
-#if BOOST_OS_BSD_FREE
-                lua_pushcfunction(L, file_descriptor_cap_ioctls_get);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_BSD_FREE
@@ -1255,18 +575,7 @@ static int file_descriptor_mt_index(lua_State* L)
 #endif // BOOST_OS_BSD_FREE
                 return 1;
             })
-        EMILUA_GPERF_PAIR(
-            "cap_fcntls_get",
-            [](lua_State* L) -> int {
-#if BOOST_OS_BSD_FREE
-                lua_pushcfunction(L, file_descriptor_cap_fcntls_get);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_BSD_FREE
-                return 1;
-            })
         EMILUA_GPERF_PAIR("non_blocking", file_descriptor_non_blocking_get)
-        EMILUA_GPERF_PAIR("type", file_descriptor_type)
     EMILUA_GPERF_END(key)(L);
 }
 

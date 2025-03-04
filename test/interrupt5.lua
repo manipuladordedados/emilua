@@ -1,8 +1,8 @@
--- Join on fiber that already reacted to an cancellation request
+-- Join on fiber that already reacted to an interruption request
 fib = spawn(function()
     this_fiber.yield()
 end)
-fib:cancel()
+fib:interrupt()
 this_fiber.yield()
 fib:join()
-print(fib.cancellation_caught)
+print(fib.interruption_caught)

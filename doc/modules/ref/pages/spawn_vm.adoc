@@ -42,16 +42,14 @@ thread. Now use messaging to apply some load-balancing strategy of your choice.
 
 === Parameters
 
-`module: string|filesystem.path`::
+`module: string`::
 
-`string`:::
 The module that will serve as the entry point for the new actor.
 +
+NOTE: For IPC-based actors, this argument no longer means an actual module when
+Linux namespaces are involved. It'll just be passed along to the new process.
++
 TIP: `'.'` is also a valid module to use when you spawn actors.
-
-`filesystem.path`:::
-
-Only valid for IPC-based actors (see parameter `subprocess` below).
 
 `inherit_context: boolean = true`::
 
@@ -126,9 +124,9 @@ runtime will fork if it's running as PID1. This new child will assume the role
 of starting your module (the Lua VM). The PID1 process will perform the
 following jobs:
 
-* Forward `SIGTERM`, `SIGUSR1`, `SIGUSR2`, `SIGHUP`, `SIGINT`, and `SIGRTMIN+4`
-  to the child. There is no point in re-routing every signal, but more may be
-  added to this set if you present a compelling case.
+* Forward `SIGTERM`, `SIGUSR1`, `SIGUSR2`, `SIGHUP`, and `SIGINT` to the
+  child. There is no point in re-routing every signal, but more may be added to
+  this set if you present a compelling case.
 * Reap zombie processes.
 * Exit when the child dies with the same exit code as the child's.
 --
@@ -141,14 +139,6 @@ new Linux net namespace.
 
 `subprocess.newns_mount: boolean = false`:: Whether to create the process within
 a new Linux mount namespace.
-
-`subprocess.pd_daemon: boolean = false`::
-
-Instead of the default terminate-on-close behaviour, allow the process to live
-until it is explicitly killed with kill(2).
-+
-
-NOTE: Only available on FreeBSD.
 
 `subprocess.environment: { [string] = string }|nil`:: A table of strings that
 will be used as the created process' `envp`. On `nil`, an empty `envp` will be
@@ -183,62 +173,6 @@ See also:
 `subprocess.init.arg: file_descriptor|nil`:: A file descriptor that will be sent
 to the `init.script`. The script can access this fd through the variable `arg`
 that is available within the script.
-
-`subprocess.source_tree_cache: table|nil`::
-
-+
---
-The Lua source code cache will be pre-populated with this data. Emilua always
-query the cache before the filesystem when loading Lua modules so you may use
-this cache to bundle the application that will run inside sandboxes w/o
-filesystem access (e.g. Capsicum on FreeBSD, Landlock/seccomp on Linux).
-
-That's a recursive structure (a tree). Each key must be a string with the
-component name and the value might be a string (the Lua source code) or another
-tree.
---
-
-`subprocess.native_modules_cache: string[]|"all"|nil`::
-
-`string[]`:::
-A list of plugins to resolve (but not load) on the host and send as file
-descriptors to be ``fdlopen()``ed on the subprocess. Plugin file descriptors
-will be stored in a special cache on the subprocess, but will only be loaded
-once ``require()``d from Lua code.
-+
-If the character `":"` is appended to a module-id, a file descriptor to the
-containing directory will be sent instead.
-+
-Under FreeBSD, these file descriptors are protected using Capsicum. Under Linux,
-you're pretty much exposing the whole mount namespace, and should be preparing
-for such accordingly.
-
-`"all"`:::
-
-Send file descriptors to all `EMILUA_PATH` directories (and the related builtin
-search paths as well).
-
-`subprocess.ld_library_directories: file_descriptor[]`::
-
-+
---
-1. `dup()` each file descriptor.
-2. For each duplicate, `cap_rights_limit()`.
-3. Send the duplicates to the new subprocess to fill the environment variable
-   `LD_LIBRARY_PATH_FDS`.
-
-NOTE: Only available on FreeBSD.
---
-
-`subprocess.libc_service: libc_service.slave|nil`::
-
-The proxy used to override functions from libc that are used for ambient
-authority access within the new subprocess.
-+
-The object is consumed by the call and cannot be reused elsewhere afterwards.
-+
-TIP: It's wise to combine this with a real syscall firewall (e.g. FreeBSD's
-Capsicum, Linux's seccomp).
 
 == `channel` functions
 

@@ -1,5 +1,5 @@
 -- serialization/good
-local system = require 'system'
+local spawn_vm = require('./ipc_actor_libspawn').spawn_vm
 local inbox = require 'inbox'
 
 if _CONTEXT ~= 'main' then
@@ -10,14 +10,7 @@ if _CONTEXT ~= 'main' then
     sleep(0.1)
     ch:send{ value = msg.value }
 else
-    local my_channel = spawn_vm{
-        module = '.',
-        subprocess = {
-            stdout = 'share',
-            stderr = 'share',
-            environment = system.environment
-        }
-    }
+    local my_channel = spawn_vm()
 
     my_channel:send{ dest = inbox, value = true }
     print(inbox:receive().value)

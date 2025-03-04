@@ -7,7 +7,7 @@ return function(io_obj, offset, buffer)
    while #buffer > 0 do
        local nwritten = io_obj:write_some_at(offset, buffer)
        offset = offset + nwritten
-       buffer = buffer:sub(1 + nwritten)
+       buffer = buffer:slice(1 + nwritten)
    end
    return ret
 end

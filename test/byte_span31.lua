@@ -1,6 +1,0 @@
-local bs = byte_span.append('/AaAa==#')
-bs:inplace_lower()
-print(bs)
-local bs = byte_span.append('/AaAa==#')
-bs:inplace_upper()
-print(bs)

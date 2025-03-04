@@ -288,7 +288,7 @@ static int future_get(lua_State* L)
                     current_fiber,
                     hana::make_set(
                         hana::make_pair(
-                            opt_args, hana::make_tuple(errc::fiber_canceled))));
+                            opt_args, hana::make_tuple(errc::interrupted))));
             }, std::allocator<void>{});
             return 0;
         },

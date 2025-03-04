@@ -22,7 +22,7 @@ s = byte_span.append(s)
 results = regex.search(re, s)
 print('empty', results.empty)
 
-print(s:sub(results[0].start, results[0].end_))
+print(s:slice(results[0].start, results[0].end_))
 for i = 0, re.mark_count do
     if results[i] then
         print(i, results[i].start, results[i].end_)

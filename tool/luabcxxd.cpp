@@ -1,4 +1,3 @@
-#include <string_view>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -29,17 +28,9 @@ std::string load_file(std::string path)
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3 && argc != 4) {
+    if (argc != 3) {
         std::cerr << argv[0] << " <input-file> <output-file>\n";
-        std::cerr << argv[0] << " <input-file> <output-file> <namespace>\n";
         return 1;
-    }
-
-    std::string_view namespace_;
-    if (argc == 4) {
-        namespace_ = argv[3];
-    } else {
-        namespace_ = "emilua";
     }
 
     const std::string id = std::filesystem::path{std::string{argv[1]}}.stem()
@@ -72,7 +63,7 @@ int main(int argc, char *argv[])
     out <<
         "#include <cstddef>\n" <<
         "\n" <<
-        "namespace " << namespace_ << " {\n" <<
+        "namespace emilua {\n" <<
         "unsigned char " << id << "_bytecode[] = {\n";
 
     if (len > 0) {
@@ -86,5 +77,5 @@ int main(int argc, char *argv[])
     out <<
         "\n};\n" <<
         "std::size_t " << id << "_bytecode_size = " << len << ";\n" <<
-        "} // namespace " << namespace_ << "\n";
+        "} // namespace emilua\n";
 }

@@ -245,8 +245,7 @@ The above program will print the numbers in sorted order.
 
 IO operations might never complete, so serious execution engines will expose
 some way to cancel them. There's a huge tutorial just on this topic and you're
-encouraged to read it:
-xref:tutorial:fiber_cancellation.adoc[emilua-cancellation(7)].
+encouraged to read it: xref:tutorial:interruption.adoc[emilua-interruption(7)].
 
 Adding a timeout argument for each operation is a lame way to solve this
 problem{_}footnote:[Latency-oriented frameworks are not part of this

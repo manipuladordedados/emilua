@@ -1,12 +1,11 @@
 project(
     'emilua', 'cpp',
     default_options : ['cpp_std=c++20'],
-    meson_version : '>=1.3.0',
+    meson_version : '>=1.2.0',
     license : 'BSL-1.0 OR MIT',
-    version : '0.11.1',
+    version : '0.10.1',
 )
 
-pkgconfig = import('pkgconfig')
 fs = import('fs')
 
 # https://github.com/mesonbuild/meson/issues/2320
@@ -39,6 +38,7 @@ boost = dependency(
 fmt = dependency('fmt', version : '>=8.0')
 serd = dependency('serd-0')
 sord = dependency('sord-0')
+trial_protocol = dependency('trial-protocol')
 cereal = dependency('cereal')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
@@ -128,18 +128,13 @@ else
     ssl = dependency('openssl', version : '>=1.1.1')
 endif
 
-emiluabcxxd = executable(
-    'luabcxxd',
-    'tool/luabcxxd.cpp',
-    dependencies : [ luajit ],
-    implicit_include_directories : false,
-    install : true,
-    install_dir : get_option('libexecdir') / 'emilua',
-    install_tag : 'devel',
-)
-
 bytecode_gen = generator(
-    emiluabcxxd,
+    executable(
+        'luabcxxd',
+        'tool/luabcxxd.cpp',
+        dependencies : [ luajit ],
+        implicit_include_directories : false,
+    ),
     output: 'bc_@BASENAME@.cpp',
     arguments: ['@INPUT@', '@OUTPUT@']
 )
@@ -231,7 +226,6 @@ src = [
     'src/file_descriptor.cpp',
     'src/recursive_mutex.cpp',
     'src/generic_error.cpp',
-    'src/native_module.cpp',
     'src/scope_cleanup.cpp',
     'src/serial_port.cpp',
     'src/async_base.cpp',
@@ -248,6 +242,7 @@ src = [
     'src/time.cpp',
     'src/condition_variable.cpp',
     'src/core.cpp',
+    'src/json.cpp',
     'src/pipe.cpp',
     'src/tls.cpp',
     'src/ip.cpp',
@@ -307,6 +302,9 @@ bytecode_src = [
     'bytecode/write_all_at.lua',
     'bytecode/write_at_least_at.lua',
 
+    # json
+    'bytecode/json_encode.lua',
+
     # ip
     'bytecode/ip_connect.lua',
     'bytecode/ip_dial.lua',
@@ -329,17 +327,17 @@ re2c_src = [
 if host_machine.system() != 'windows'
     src += [
         'src/unix.cpp',
-        'src/open_posix_libs.cpp',
         'src/ipc_actor.cpp',
-        'src/libc_service.cpp',
-        'src/proc_set_libc_service.cpp',
         'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
-        'src/ambient_authority.cpp',
     ]
 endif
 
 if host_machine.system() == 'linux'
     src += 'src/linux/landlock.cpp'
+endif
+
+if get_option('enable_plugins')
+    src += 'src/plugin.cpp'
 endif
 
 if get_option('enable_file_io')
@@ -360,6 +358,7 @@ libemilua = library(
         fmt,
         serd,
         sord,
+        trial_protocol,
         cereal,
         ssl,
         curses,
@@ -369,7 +368,6 @@ libemilua = library(
     ],
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
-    cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
     version : meson.project_version(),
     install : true,
 )
@@ -399,134 +397,14 @@ libemilua_dep = declare_dependency(
         [] : [libemilua],
 )
 
-libemilua_main = library(
-    'emilua-main',
-    gperf_gen.process(['src/lib_main.cpp']),
-    dependencies : [
-        thread_dep,
-        boost,
-        asio,
-        luajit,
-        fmt,
-        curses,
-        liburing,
-    ],
-    link_with : libemilua,
-    include_directories : include_directories(incdir),
-    implicit_include_directories : false,
-    cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
-    version : meson.project_version(),
-    install : true,
-)
-
-libemilua_main_dep = declare_dependency(
-    dependencies : [ libemilua_dep ],
-    link_with : [libemilua_main],
-)
-
-libc_service_src = []
-
-if host_machine.system() == 'linux'
-    if (
-        meson.get_compiler('cpp').has_define(
-            '__GLIBC__', prefix : '#include <cstddef>') or
-        meson.get_compiler('cpp').has_define(
-            '__GNU_LIBRARY__', prefix : '#include <cstddef>')
-    )
-        libc_service_src += 'src/linux/glibc/libc_service.cpp'
-    endif
-elif host_machine.system() == 'freebsd'
-    libc_service_src += 'src/freebsd/libc_service.cpp'
-elif host_machine.system() != 'windows'
-    libc_service_src += 'src/posix/libc_service.cpp'
-endif
-
-if libc_service_src.length() == 0
-    libemilua_libc_service_dep = dependency('', required : false)
-else
-    libemilua_libc_service = library(
-        'emilua-libc-service',
-        libc_service_src,
-        override_options : ['b_lundef=false'],
-        dependencies : [ boost ],
-        include_directories : include_directories(incdir),
-        implicit_include_directories : false,
-        version : meson.project_version(),
-        install : true,
-    )
-
-    libemilua_libc_service_dep = declare_dependency(
-        dependencies : [ libemilua_dep ],
-        objects : libemilua_libc_service.extract_all_objects(),
-    )
-
-    if not ('-static' in get_option('cpp_link_args'))
-        preload_libc_src = [
-            'src/open_posix_libs.cpp',
-            'src/preload_libc.cpp',
-        ]
-
-        preload_libc_gperf_src = [
-            'src' / host_machine.system() / 'ipc_actor/sys_bindings.cpp',
-        ]
-
-        if host_machine.system() == 'linux'
-            preload_libc_gperf_src += 'src/linux/landlock.cpp'
-        endif
-
-        libemilua_preload_libc = shared_library(
-            'emilua-preload-libc',
-            libc_service_src,
-            preload_libc_src,
-            gperf_gen.process(preload_libc_gperf_src),
-            dependencies : [
-                cereal,
-                libcap,
-                luajit,
-                boost,
-            ],
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-            version : meson.project_version(),
-            install : true,
-        )
-    endif
-endif
-
 emilua_bin = executable(
     'emilua',
     re2c_gen.process('src/main.ypp'),
-    dependencies : [
-        # libc_service must be linked first to override glibc functions
-        libemilua_libc_service_dep,
-
-        libemilua_dep,
-        libemilua_main_dep,
-    ],
+    dependencies : libemilua_dep,
     export_dynamic : get_option('enable_plugins'),
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
     install : true,
-)
-
-genmain_bin = executable(
-    'emilua-genmain' + meson.project_version().split('.')[0],
-    'tool/genmain.cpp',
-    dependencies : [ libemilua_dep, libemilua_main_dep ],
-    include_directories : include_directories(incdir),
-    implicit_include_directories : false,
-    install : true,
-    install_dir : get_option('libexecdir') / 'emilua',
-)
-
-genmods_bin = executable(
-    'emilua-genmods' + meson.project_version().split('.')[0],
-    'tool/genmods.cpp',
-    dependencies : [ libemilua_dep, libemilua_main_dep ],
-    include_directories : include_directories(incdir),
-    implicit_include_directories : false,
-    install : true,
-    install_dir : get_option('libexecdir') / 'emilua',
 )
 
 install_subdir(
@@ -578,53 +456,7 @@ if get_option('use_wolfssl')
     endif
 endif
 
-errno_sed = custom_target(
-    'errnos.awk',
-    build_by_default : true,
-    command : [
-        executable(
-            'errno_sed',
-            'tool/errno_sed.cpp',
-            implicit_include_directories : false,
-        ),
-    ],
-    capture : true,
-    output : 'errnos.awk',
-    install : true,
-    install_dir : get_option('libexecdir') / 'emilua',
-    install_mode : 'rwxr-xr-x',
-    install_tag : 'devel',
-)
-
-normalize_path_bin = executable(
-    'normalize_path',
-    'tool/normalize_path.cpp',
-    dependencies : [
-        boost,
-        asio,
-        luajit,
-    ],
-    implicit_include_directories : false,
-    install : true,
-    install_dir : get_option('libexecdir') / 'emilua',
-    install_tag : 'devel',
-)
-
-install_data(
-    'test' / 'run_test.sh',
-    install_dir : get_option('libexecdir') / 'emilua',
-    install_mode : 'rwxr-xr-x',
-    install_tag : 'devel',
-)
-
-install_data(
-    'test' / 'run_test.awk',
-    install_dir : get_option('libexecdir') / 'emilua',
-    install_mode : 'rwxr-xr-x',
-    install_tag : 'devel',
-)
-
-pkgconfig.generate(
+import('pkgconfig').generate(
     libemilua,
     filebase : 'emilua',
     name : 'Emilua Plugin API',
@@ -642,67 +474,41 @@ pkgconfig.generate(
 
         'emilua_bin=${bindir}' / 'emilua',
         'emilua_gperf=${libexecdir}' / 'emilua' / 'emilua_gperf.awk',
-        'emiluabcxxd=${libexecdir}' / 'emilua' / 'luabcxxd',
-        'emilua_errnos_awk=${libexecdir}' / 'emilua' / 'errnos.awk',
-        'emilua_normalize_path=${libexecdir}' / 'emilua' / 'normalize_path',
-        'emilua_run_test_sh=${libexecdir}' / 'emilua' / 'run_test.sh',
-        'emilua_run_test_awk=${libexecdir}' / 'emilua' / 'run_test.awk',
-        'emilua_genmain=${libexecdir}' / 'emilua' / 'emilua-genmain' +
-            meson.project_version().split('.')[0],
-        'emilua_genmods=${libexecdir}' / 'emilua' / 'emilua-genmods' +
-            meson.project_version().split('.')[0],
     ],
     uninstalled_variables : pc_base_variables + [
         'pluginsdir=' + meson.project_build_root() / 'plugins',
         'emilua_bin=' + emilua_bin.full_path(),
         'emilua_gperf=${srcdir}' / 'src' / 'emilua_gperf.awk',
-        'emiluabcxxd=' + emiluabcxxd.full_path(),
-        'emilua_errnos_awk=' + errno_sed.full_path(),
-        'emilua_normalize_path=' + normalize_path_bin.full_path(),
-        'emilua_run_test_sh=${srcdir}' / 'test' / 'run_test.sh',
-        'emilua_run_test_awk=${srcdir}' / 'test' / 'run_test.awk',
-        'emilua_genmain=' + genmain_bin.full_path(),
-        'emilua_genmods=' + genmods_bin.full_path(),
     ],
     extra_cflags : pc_extra_cflags,
 )
 
-pkgconfig.generate(
-    libemilua_main,
-    filebase : 'emilua_main',
-    name : 'Emilua\'s default main()',
-    description : 'A default main() for the Emilua runtime with some hooks',
-    requires : ['emilua'],
-)
-
-if libc_service_src.length() != 0
-    pkgconfig.generate(
-        libemilua_libc_service,
-        filebase : 'emilua_libc_service',
-        name : 'Emilua\'s default libc overriders for ambient authority',
-        description : 'in sandboxed mode, we forward requests to process ' +
-            'outside the sandbox',
-        requires : ['emilua'],
+if get_option('enable_tests')
+    normalize_path_bin = executable(
+        'normalize_path',
+        'tool/normalize_path.cpp',
+        dependencies : [
+            boost,
+            asio,
+            luajit,
+        ],
+        implicit_include_directories : false,
     )
 
-    if not ('-static' in get_option('cpp_link_args'))
-        pkgconfig.generate(
-            filebase : 'emilua_preload_libc',
-            name : 'Emilua\'s LD_PRELOAD for ambient authority',
-            description : 'in sandboxed mode, we forward requests to process ' +
-                'outside the sandbox',
-            variables : [
-                'libpath=' + get_option('prefix') / get_option('libdir') /
-                    fs.name(libemilua_preload_libc.full_path()),
-            ],
-            uninstalled_variables : [
-                'libpath=' + libemilua_preload_libc.full_path(),
-            ],
-        )
-    endif
-endif
+    errno_sed = custom_target(
+        'errnos.awk',
+        build_by_default : true,
+        command : [
+            executable(
+                'errno_sed',
+                'tool/errno_sed.cpp',
+                implicit_include_directories : false,
+            ),
+        ],
+        capture : true,
+        output : 'errnos.awk',
+    )
 
-if get_option('enable_tests')
     tests_env = [
         # Test must override this env so non-colored terminal output will be
         # auto-detected (this is, in itself, another test)
@@ -722,11 +528,6 @@ if get_option('enable_tests')
     if host_machine.system() == 'windows'
         tests_env += ('APPVEYOR_FIXUP=' +
             meson.current_source_dir() / 'test' / 'force_windows.awk')
-    else
-        if not ('-static' in get_option('cpp_link_args'))
-            tests_env += ('EMILUA_PRELOAD_LIBC_PATH=' +
-                libemilua_preload_libc.full_path())
-        endif
     endif
 
     tests = {
@@ -885,7 +686,22 @@ if get_option('enable_tests')
             'actor27',
             'actor28',
             'actor30',
-            'actor31',
+        ],
+        'json' : [
+            'json1',
+            'json2',
+            'json3',
+            'json4',
+            'json5',
+            'json6',
+            'json7',
+            'json8',
+            'json9',
+            'json10',
+            'json11',
+            'json12',
+            'json13',
+            'json14',
         ],
         'byte_span' : [
             # new(), __len(), capacity
@@ -916,24 +732,6 @@ if get_option('enable_tests')
             'byte_span17',
             'byte_span18',
             'byte_span19',
-
-            # first
-            'byte_span20',
-            'byte_span21',
-            'byte_span22',
-            'byte_span23',
-            'byte_span24',
-
-            # last
-            'byte_span25',
-            'byte_span26',
-            'byte_span27',
-            'byte_span28',
-            'byte_span29',
-            'byte_span30',
-
-            # lower/upper
-            'byte_span31',
         ],
         'primserdes' : [
             'primserdes_u16be',
@@ -977,14 +775,6 @@ if get_option('enable_tests')
         tests +=  {
             'actor' : tests['actor'] + [
                 'actor29',
-            ]
-        }
-    endif
-
-    if get_option('thread_support_level') >= 1
-        tests +=  {
-            'actor' : tests['actor'] + [
-                'actor32',
             ]
         }
     endif
@@ -1053,110 +843,26 @@ if get_option('enable_tests')
 
                 # misc
                 'ipc_actor_1_56',
-                'ipc_actor_1_57',
-                'ipc_actor_1_58',
-            ],
-            'ipc_actor3' : [
-                # module path resolution
-                'ipc_actor_3_1',
-            ],
-            'ipc_actor_cache' : [
-                # Lua source code cache
-                'ipc_actor_cache1',
-                'ipc_actor_cache2',
-                'ipc_actor_cache3',
-            ],
-            'system' : [
-                'get_lowfd1',
-                'get_lowfd2',
-                'get_lowfd3',
-                'get_lowfd4',
-                'get_lowfd5',
-                'get_lowfd6',
-                'spawn_with_pid_on_env',
-            ],
-            'libc_service' : [
-            ] +
-            (('-static' in get_option('cpp_link_args')) ? [] : [
-                'libc_service_cat',
-            ]) +
-            (host_machine.system() == 'freebsd' ? [] : [
-                'libc_service_getaddrinfo',
-                'libc_service_getaddrinfo2',
-                'libc_service_getaddrinfo3',
-                'libc_service_getaddrinfo4',
-                'libc_service_stat1',
-                'libc_service_stat2',
-                'libc_service_stat3',
-                'libc_service_lstat1',
-                'libc_service_lstat2',
-                'libc_service_lstat3',
-            ]) +
-            (get_option('enable_io_uring') ? [] : [
-                'libc_service_connect',
-                'libc_service_connect2',
-                'libc_service_connect3',
-                'libc_service_bind',
-                'libc_service_bind2',
-                'libc_service_bind3',
-            ]),
-            'is_socket' : [
-                'is_socket1',
-                'is_socket2',
-                'is_socket3',
-                'is_socket4',
-                'is_socket5',
-                'is_socket6',
-                'is_socket7',
-                'is_socket8',
-                'is_socket9',
-                'is_socket10',
-                'is_socket11',
-                'is_socket12',
-            ],
+            ]
         }
-
-        test(
-            'libc_service_read_dev_null', executable(
-                'libc_service_read_dev_null',
-                'test/libc_service_read_dev_null.cpp',
-                dependencies : [
-                    # libc_service must be linked first to override glibc
-                    # functions
-                    libemilua_libc_service_dep,
-
-                    libemilua_dep,
-                    libemilua_main_dep,
-                ],
-                include_directories : include_directories(incdir),
-                implicit_include_directories : false,
-            ),
-            suite : 'libc_service',
-            protocol : 'tap',
-        )
     endif
 
-    test(
-        'builtin_modules1', executable(
-            'builtin_modules1',
-            'test/builtin_modules1.cpp',
-            dependencies : [libemilua_dep, libemilua_main_dep],
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-        ),
-        suite : 'builtin_modules',
-    )
-
-    test(
-        'builtin_modules2', executable(
-            'builtin_modules2',
-            'test/builtin_modules2.cpp',
-            dependencies : [libemilua_dep, libemilua_main_dep],
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-        ),
-        suite : 'builtin_modules',
-    )
+    if host_machine.system() != 'windows'
+        test(
+            'builtin_modules1', executable(
+                'builtin_modules1',
+                'test/builtin_modules1.cpp',
+                dependencies : libemilua_dep,
+                include_directories : include_directories(incdir),
+                implicit_include_directories : false,
+                link_args : [
+                    '-Wl,--defsym,emilua_get_builtin_module=' +
+                        '__wrap_emilua_get_builtin_module'
+                ],
+            ),
+            suite : 'builtin_modules',
+        )
+    endif
 
     if host_machine.system() != 'windows' and get_option('enable_plugins')
         ipc_actor_badinjector = shared_module(
@@ -1174,43 +880,8 @@ if get_option('enable_tests')
             gnu_symbol_visibility : 'hidden',
         )
 
-        plugin_hello = shared_module(
-            'hello',
-            ['test/hello.cpp'],
-            dependencies : [
-                thread_dep,
-                boost,
-                asio,
-                luajit,
-                fmt,
-            ],
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-            gnu_symbol_visibility : 'hidden',
-        )
-
-        plugin_hello2 = shared_module(
-            'hello2',
-            ['test/hello2.cpp'],
-            dependencies : [
-                thread_dep,
-                boost,
-                asio,
-                luajit,
-                fmt,
-            ],
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-            gnu_symbol_visibility : 'hidden',
-        )
-
-        # hello and hello2 are probably in the same directory anyway, so we
-        # can't write all tests that we should be writing
         tests_env += (
-            'EMILUA_PATH=' + fs.parent(ipc_actor_badinjector.full_path()) +
-                ':' + fs.parent(plugin_hello.full_path()) +
-                ':' + fs.parent(plugin_hello2.full_path())
-        )
+            'EMILUA_PATH=' + fs.parent(ipc_actor_badinjector.full_path()))
 
         tests +=  {
             'ipc_actor2' : [
@@ -1239,70 +910,7 @@ if get_option('enable_tests')
 
                 'ipc_actor_fuzzer1',
                 'ipc_actor_fuzzer2',
-            ],
-            'ipc_actor4' : [
-                # flat
-                'ipc_actor_4_1',
-                'ipc_actor_4_2',
-                'ipc_actor_4_3',
-                'ipc_actor_4_4',
-                'ipc_actor_4_5',
-                'ipc_actor_4_6',
-
-                # nested
-                'ipc_actor_4_7',
-                'ipc_actor_4_8',
-                'ipc_actor_4_9',
-                'ipc_actor_4_10',
-                'ipc_actor_4_11',
-                'ipc_actor_4_12',
-            ],
-        }
-    endif
-
-    have_rtld_set_var = meson.get_compiler('cpp').compiles('''
-        #include <link.h>
-
-        int main()
-        {
-            int result = rtld_set_var("LIBRARY_PATH_FDS", "10");
-            (void)result;
-        }
-    ''')
-
-    if have_rtld_set_var and get_option('enable_plugins')
-        sample_lib_for_plugin = shared_library(
-            'sample_lib_for_plugin',
-            ['test/sample_lib_for_plugin.cpp'],
-            dependencies : [ boost ],
-            implicit_include_directories : false,
-        )
-        sample_plugin_for_lib = shared_module(
-            'sample_plugin_for_lib',
-            ['test/sample_plugin_for_lib.cpp'],
-            dependencies : [
-                thread_dep,
-                boost,
-                asio,
-                luajit,
-                fmt,
-            ],
-            link_with : sample_lib_for_plugin,
-            include_directories : include_directories(incdir),
-            implicit_include_directories : false,
-            gnu_symbol_visibility : 'hidden',
-        )
-
-        tests_env += (
-            'SAMPLE_LIB_FOR_PLUGIN_PATH=' +
-                fs.parent(sample_lib_for_plugin.full_path())
-        )
-
-        tests +=  {
-            'ipc_actor5' : [
-                'ipc_actor5_1',
-                'ipc_actor5_2',
-            ],
+            ]
         }
     endif
 
@@ -1314,7 +922,7 @@ if get_option('enable_tests')
             ]
         }
 
-        if get_option('thread_support_level') >= 1
+        if get_option('thread_support_level') >= 1 and get_option('enable_file_io')
             test(
                 'libpsx1', shell, suite : 'libpsx',
                 args : [
@@ -1322,12 +930,11 @@ if get_option('enable_tests')
                     meson.current_source_dir() / 'test' / 'run_test.awk',
                     meson.current_source_dir() / 'test' / 'libpsx1',
                 ],
-                workdir : meson.current_source_dir() / 'test',
                 env : tests_env,
 
-                # there's a libpsx bug for C++ projects that was only solved in
-                # 2.72: https://bugzilla.kernel.org/show_bug.cgi?id=218607
-                should_fail : libcap[1].version().version_compare('<2.72'),
+                # there's a libpsx bug for C++ projects that hasn't been solved
+                # yet: https://bugzilla.kernel.org/show_bug.cgi?id=218607
+                should_fail : true,
              )
         endif
     endif
@@ -1340,7 +947,6 @@ if get_option('enable_tests')
                      meson.current_source_dir() / 'test' / 'run_test.awk',
                      meson.current_source_dir() / 'test' / t,
                  ],
-                 workdir : meson.current_source_dir() / 'test',
                  env : tests_env)
         endforeach
     endforeach

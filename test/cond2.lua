@@ -1,4 +1,4 @@
--- Ensure cancellations won't swallow a condition signal that was already sent.
+-- Ensure interruptions won't swallow a condition signal that was already sent.
 -- From IEEE Std 1003.1, 2013 Edition, Standard for Information Technology --
 -- Portable Operating System Interface (POSIX), The Open Group Base
 -- Specifications Issue 7, Copyright (C) 2013 by the Institute of Electrical and
@@ -11,7 +11,7 @@
 -- > variable.
 --
 -- The property ensured by this test case also goes along the mindset described
--- in the section "IO objects" from the "Fiber cancellation API" manual.
+-- in the section "IO objects" from the "Interruption API" manual.
 
 local mutex = require('mutex')
 local cond = require('condition_variable')
@@ -43,5 +43,5 @@ end)
 this_fiber.yield()
 this_fiber.yield()
 print('bar')
-f:cancel()
+f:interrupt()
 c:notify_one()

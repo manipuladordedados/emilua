@@ -2,7 +2,7 @@
 -- https://bugzilla.kernel.org/show_bug.cgi?id=218607
 
 local fs = require 'filesystem'
-local serial_port = require 'serial_port'
+local file = require 'file'
 local stream = require 'stream'
 local system = require 'system'
 local inbox = require 'inbox'
@@ -23,8 +23,8 @@ else
 end
 
 local status = stream.scanner.new{ field_separator = ':\t' }
-status.stream = serial_port.new()
-status.stream:assign(fs.open(fs.path.new('/proc/thread-self/status'), {'read_only'}))
+status.stream = file.stream.new()
+status.stream:open(fs.path.new('/proc/thread-self/status'), {'read_only'})
 while true do
     local fields = status:get_line()
     if tostring(fields[1]) == 'NoNewPrivs' then

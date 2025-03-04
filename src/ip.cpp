@@ -73,7 +73,6 @@ static char tcp_socket_receive_key;
 static char tcp_socket_send_key;
 static char tcp_socket_wait_key;
 static char tcp_acceptor_accept_key;
-static char tcp_acceptor_wait_key;
 static char udp_socket_connect_key;
 static char udp_socket_receive_key;
 static char udp_socket_receive_from_key;
@@ -2376,58 +2375,6 @@ static int tcp_acceptor_accept(lua_State* L)
     return lua_yield(L, 0);
 }
 
-static int tcp_acceptor_wait(lua_State* L)
-{
-    luaL_checktype(L, 2, LUA_TSTRING);
-
-    auto vm_ctx = get_vm_context(L).shared_from_this();
-    auto current_fiber = vm_ctx->current_fiber();
-    EMILUA_CHECK_SUSPEND_ALLOWED(*vm_ctx, L);
-
-    auto acceptor = static_cast<asio::ip::tcp::acceptor*>(lua_touserdata(L, 1));
-    if (!acceptor || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &ip_tcp_acceptor_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    auto key = tostringview(L, 2);
-    auto wait_type = EMILUA_GPERF_BEGIN(key)
-        EMILUA_GPERF_PARAM(asio::ip::tcp::acceptor::wait_type action)
-        EMILUA_GPERF_PAIR("read", asio::ip::tcp::acceptor::wait_read)
-        EMILUA_GPERF_PAIR("write", asio::ip::tcp::acceptor::wait_write)
-        EMILUA_GPERF_PAIR("error", asio::ip::tcp::acceptor::wait_error)
-    EMILUA_GPERF_END(key);
-    if (!wait_type) {
-        push(L, std::errc::invalid_argument, "arg", 2);
-        return lua_error(L);
-    }
-
-    auto cancel_slot = set_default_interrupter(L, *vm_ctx);
-
-    acceptor->async_wait(
-        *wait_type,
-        asio::bind_cancellation_slot(cancel_slot, asio::bind_executor(
-            vm_ctx->strand_using_defer(),
-            [vm_ctx,current_fiber](const asio_error_code& ec) {
-                auto opt_args = vm_context::options::arguments;
-                vm_ctx->fiber_resume(
-                    current_fiber,
-                    hana::make_set(
-                        vm_context::options::auto_detect_interrupt,
-                        hana::make_pair(
-                            opt_args, hana::make_tuple(ec))));
-            }
-        ))
-    );
-
-    return lua_yield(L, 0);
-}
-
 EMILUA_GPERF_DECLS_BEGIN(tcp_acceptor)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int tcp_acceptor_listen(lua_State* L)
@@ -2965,12 +2912,6 @@ static int tcp_acceptor_mt_index(lua_State* L)
             "accept",
             [](lua_State* L) -> int {
                 rawgetp(L, LUA_REGISTRYINDEX, &tcp_acceptor_accept_key);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "wait",
-            [](lua_State* L) -> int {
-                rawgetp(L, LUA_REGISTRYINDEX, &tcp_acceptor_wait_key);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -7254,13 +7195,6 @@ void init_ip(lua_State* L)
             &var_args__retval1_to_error__fwd_retval2__key);
     rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
     lua_pushcfunction(L, tcp_acceptor_accept);
-    lua_call(L, 2, 1);
-    lua_rawset(L, LUA_REGISTRYINDEX);
-
-    lua_pushlightuserdata(L, &tcp_acceptor_wait_key);
-    rawgetp(L, LUA_REGISTRYINDEX, &var_args__retval1_to_error__key);
-    rawgetp(L, LUA_REGISTRYINDEX, &raw_error_key);
-    lua_pushcfunction(L, tcp_acceptor_wait);
     lua_call(L, 2, 1);
     lua_rawset(L, LUA_REGISTRYINDEX);
 

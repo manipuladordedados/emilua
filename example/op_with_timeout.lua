@@ -4,11 +4,11 @@ function op_with_timeout(op, timeout)
     local f_op = spawn(op)
     local f_timer = spawn(function()
         sleep(timeout)
-        f_op:cancel()
+        f_op:interrupt()
     end)
 
     local ret = {f_op:join()}
-    f_timer:cancel()
+    f_timer:interrupt()
     return unpack(ret)
 end
 

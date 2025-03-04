@@ -56,8 +56,8 @@ struct directory_iterator
     static int make(lua_State* L);
 };
 
-char file_clock_time_point_mt_key;
 static char filesystem_path_iterator_mt_key;
+static char file_clock_time_point_mt_key;
 static char file_status_mt_key;
 static char directory_entry_mt_key;
 static char recursive_directory_iterator_mt_key;
@@ -232,7 +232,8 @@ static int path_replace_filename(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -292,7 +293,8 @@ static int path_replace_extension(lua_State* L)
         break;
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -381,7 +383,8 @@ static int path_lexically_relative(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -448,7 +451,8 @@ static int path_lexically_proximate(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -921,7 +925,8 @@ static int path_mt_lt(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
+            path1 = fs::path{
+                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -953,7 +958,8 @@ static int path_mt_lt(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -993,7 +999,8 @@ static int path_mt_le(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
+            path1 = fs::path{
+                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1025,7 +1032,8 @@ static int path_mt_le(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1067,7 +1075,8 @@ static int path_mt_div(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
+            path1 = fs::path{
+                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1099,7 +1108,8 @@ static int path_mt_div(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1146,7 +1156,8 @@ static int path_mt_concat(lua_State* L)
     switch (lua_type(L, 1)) {
     case LUA_TSTRING:
         try {
-            path1 = fs::path{tou8stringview(L, 1), fs::path::native_format};
+            path1 = fs::path{
+                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1178,7 +1189,8 @@ static int path_mt_concat(lua_State* L)
     switch (lua_type(L, 2)) {
     case LUA_TSTRING:
         try {
-            path2 = fs::path{tou8stringview(L, 2), fs::path::native_format};
+            path2 = fs::path{
+                widen_on_windows(tostringview(L, 2)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1232,7 +1244,8 @@ static int path_new(lua_State* L)
         break;
     case LUA_TSTRING:
         try {
-            *path = fs::path{tou8stringview(L, 1), fs::path::native_format};
+            *path = fs::path{
+                widen_on_windows(tostringview(L, 1)), fs::path::native_format};
             break;
         } catch (const std::system_error& e) {
             push(L, e.code());
@@ -1262,7 +1275,8 @@ static int path_from_generic(lua_State* L)
     new (path) fs::path{};
 
     try {
-        *path = fs::path{tou8stringview(L, 1), fs::path::generic_format};
+        *path = fs::path{
+            widen_on_windows(tostringview(L, 1)), fs::path::generic_format};
         return 1;
     } catch (const std::system_error& e) {
         push(L, e.code());
@@ -3163,129 +3177,6 @@ static int create_directory_symlink(lua_State* L)
 }
 
 #if BOOST_OS_UNIX
-static int emilua_open(lua_State* L)
-{
-    lua_settop(L, 3);
-    luaL_checktype(L, 2, LUA_TTABLE);
-
-    auto path = static_cast<std::filesystem::path*>(lua_touserdata(L, 1));
-    if (!path || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    int flags = 0;
-#ifdef O_NOCTTY
-    flags = O_NOCTTY;
-#endif // O_NOCTTY
-    for (int i = 1 ;; ++i) {
-        lua_rawgeti(L, 2, i);
-        switch (lua_type(L, -1)) {
-        default:
-            push(L, std::errc::invalid_argument, "arg", 2);
-            return lua_error(L);
-        case LUA_TNIL:
-            lua_pop(L, 1);
-            goto end_for;
-        case LUA_TSTRING:
-            break;
-        }
-
-        auto s = tostringview(L);
-        lua_pop(L, 1);
-        auto f = EMILUA_GPERF_BEGIN(s)
-            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
-            EMILUA_GPERF_PARAM(int action)
-            EMILUA_GPERF_PAIR("append", O_APPEND)
-            EMILUA_GPERF_PAIR("create", O_CREAT)
-            EMILUA_GPERF_PAIR("exclusive", O_EXCL)
-            EMILUA_GPERF_PAIR("read_only", O_RDONLY)
-            EMILUA_GPERF_PAIR("read_write", O_RDWR)
-            EMILUA_GPERF_PAIR("sync_all_on_write", O_SYNC)
-            EMILUA_GPERF_PAIR("truncate", O_TRUNC)
-            EMILUA_GPERF_PAIR("write_only", O_WRONLY)
-            EMILUA_GPERF_PAIR("directory", O_DIRECTORY)
-            EMILUA_GPERF_PAIR("no_follow", O_NOFOLLOW)
-            EMILUA_GPERF_PAIR("path", O_PATH)
-        EMILUA_GPERF_END(s);
-        if (f) {
-            flags |= *f;
-        } else if (s == "temporary") {
-#ifdef O_TMPFILE
-            flags |= O_TMPFILE;
-#else
-            push(L, std::errc::not_supported, "arg", 2);
-            return lua_error(L);
-#endif // defined(O_TMPFILE)
-        } else {
-            push(L, std::errc::invalid_argument, "arg", 2);
-            return lua_error(L);
-        }
-    }
- end_for:
-
-    bool has_mode =
-        ((flags & O_CREAT) == O_CREAT) ||
-#ifdef O_TMPFILE
-        ((flags & O_TMPFILE) == O_TMPFILE) ||
-#endif // defined(O_TMPFILE)
-        false;
-
-    mode_t mode;
-    switch (lua_type(L, 3)) {
-    default:
-        push(L, std::errc::invalid_argument, "arg", 3);
-        return lua_error(L);
-    case LUA_TNIL:
-        if (has_mode) {
-            push(L, std::errc::invalid_argument, "arg", 3);
-            return lua_error(L);
-        }
-        break;
-    case LUA_TNUMBER:
-        if (!has_mode) {
-            push(L, std::errc::invalid_argument, "arg", 3);
-            return lua_error(L);
-        }
-        mode = lua_tointeger(L, 3);
-        break;
-    }
-
-    int res;
-    if (has_mode) {
-        res = open(path->c_str(), flags, mode);
-    } else {
-        res = open(path->c_str(), flags);
-    }
-    if (res == -1) {
-        push(L, std::error_code{errno, std::system_category()});
-        return lua_error(L);
-    }
-
-    int rawfd = res;
-    BOOST_SCOPE_EXIT_ALL(&) {
-        if (rawfd != INVALID_FILE_DESCRIPTOR) {
-            int res = close(rawfd);
-            boost::ignore_unused(res);
-        }
-    };
-
-    auto handle = static_cast<file_descriptor_handle*>(
-        lua_newuserdata(L, sizeof(file_descriptor_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
-    setmetatable(L, -2);
-
-    *handle = rawfd;
-    rawfd = INVALID_FILE_DESCRIPTOR;
-    return 1;
-}
-
 static int mkdir(lua_State* L)
 {
     lua_settop(L, 2);
@@ -3403,20 +3294,6 @@ static int fs_makedev(lua_State* L)
     int minor = luaL_checkinteger(L, 2);
 
     lua_pushinteger(L, makedev(major, minor));
-    return 1;
-}
-
-static int fs_dev_major(lua_State* L)
-{
-    int dev = luaL_checkinteger(L, 1);
-    lua_pushinteger(L, major(dev));
-    return 1;
-}
-
-static int fs_dev_minor(lua_State* L)
-{
-    int dev = luaL_checkinteger(L, 1);
-    lua_pushinteger(L, minor(dev));
     return 1;
 }
 #endif // BOOST_OS_UNIX
@@ -4751,16 +4628,6 @@ static int filesystem_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "open",
-            [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
-                lua_pushcfunction(L, emilua_open);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
             "mkdir",
             [](lua_State* L) -> int {
 #if BOOST_OS_UNIX
@@ -4795,26 +4662,6 @@ static int filesystem_mt_index(lua_State* L)
             [](lua_State* L) -> int {
 #if BOOST_OS_UNIX
                 lua_pushcfunction(L, fs_makedev);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "dev_major",
-            [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
-                lua_pushcfunction(L, fs_dev_major);
-#else
-                lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "dev_minor",
-            [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
-                lua_pushcfunction(L, fs_dev_minor);
 #else
                 lua_pushcfunction(L, throw_enosys);
 #endif // BOOST_OS_UNIX

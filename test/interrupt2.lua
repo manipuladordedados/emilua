@@ -1,5 +1,5 @@
 fib = spawn(function()
-    fib:cancel()
+    fib:interrupt()
     fib:detach()
     print('foo')
     coroutine.wrap(function() this_fiber.yield() end)()

@@ -66,53 +66,6 @@ int byte_span_new(lua_State* L)
     return 1;
 }
 
-int byte_span_with_zeros(lua_State* L)
-{
-    if (lua_type(L, 1) != LUA_TNUMBER) {
-        push(L, std::errc::invalid_argument);
-        return lua_error(L);
-    }
-    lua_Integer length = lua_tointeger(L, 1);
-
-    lua_Integer capacity;
-    switch (lua_type(L, 2)) {
-    case LUA_TNIL:
-    case LUA_TNONE:
-        capacity = length;
-        break;
-    case LUA_TNUMBER:
-        capacity = lua_tointeger(L, 2);
-        break;
-    default:
-        push(L, std::errc::invalid_argument);
-        return lua_error(L);
-    }
-
-    if (length < 0 || capacity < 0 || length > capacity) {
-        push(L, std::errc::invalid_argument);
-        return lua_error(L);
-    }
-
-    if (capacity == 0) {
-        auto new_bs = static_cast<byte_span_handle*>(
-            lua_newuserdata(L, sizeof(byte_span_handle))
-        );
-        rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-        setmetatable(L, -2);
-        new (new_bs) byte_span_handle{nullptr, 0, 0};
-        return 1;
-    }
-
-    auto bs = static_cast<byte_span_handle*>(
-        lua_newuserdata(L, sizeof(byte_span_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    setmetatable(L, -2);
-    new (bs) byte_span_handle{length, capacity};
-    std::memset(bs->data.get(), 0, bs->capacity);
-    return 1;
-}
-
 static int byte_span_mt_len(lua_State* L)
 {
     auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
@@ -140,7 +93,7 @@ static int byte_span_mt_tostring(lua_State* L)
 
 EMILUA_GPERF_DECLS_BEGIN(byte_span)
 EMILUA_GPERF_NAMESPACE(emilua)
-static int byte_span_sub(lua_State* L)
+static int byte_span_slice(lua_State* L)
 {
     lua_settop(L, 3);
 
@@ -210,98 +163,6 @@ static int byte_span_sub(lua_State* L)
     new (new_bs) byte_span_handle{
         std::move(new_data),
         end - start + 1,
-        new_capacity
-    };
-    return 1;
-}
-
-static int byte_span_first(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
-    if (!bs || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    int count = luaL_checkinteger(L, 2);
-
-    if (count < 0 || count > bs->capacity) {
-        push(L, std::errc::result_out_of_range);
-        return lua_error(L);
-    }
-
-    auto new_bs = static_cast<byte_span_handle*>(
-        lua_newuserdata(L, sizeof(byte_span_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    setmetatable(L, -2);
-    new (new_bs) byte_span_handle{
-        bs->data,
-        count,
-        bs->capacity
-    };
-    return 1;
-}
-
-static int byte_span_last(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
-    if (!bs || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    int count = luaL_checkinteger(L, 2);
-
-    if (count < 0 || count > bs->size) {
-        push(L, std::errc::result_out_of_range);
-        return lua_error(L);
-    }
-
-    auto offset = bs->size - count;
-    if (offset == 0) {
-        lua_pushvalue(L, 1);
-        return 1;
-    }
-
-    lua_Integer new_capacity = bs->capacity - offset;
-    if (new_capacity == 0) {
-        auto new_bs = static_cast<byte_span_handle*>(
-            lua_newuserdata(L, sizeof(byte_span_handle))
-        );
-        rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-        setmetatable(L, -2);
-        new (new_bs) byte_span_handle{nullptr, 0, 0};
-        return 1;
-    }
-
-    std::shared_ptr<unsigned char[]> new_data(
-        bs->data,
-        bs->data.get() + offset
-    );
-
-    auto new_bs = static_cast<byte_span_handle*>(
-        lua_newuserdata(L, sizeof(byte_span_handle))
-    );
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    setmetatable(L, -2);
-    new (new_bs) byte_span_handle{
-        std::move(new_data),
-        bs->size - offset,
         new_capacity
     };
     return 1;
@@ -434,28 +295,6 @@ static int byte_span_member_append(lua_State* L)
         push(L, e.code());
         return lua_error(L);
     }
-}
-
-static int byte_span_fill(lua_State* L)
-{
-    lua_settop(L, 2);
-
-    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
-    if (!bs || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    int c = luaL_checkinteger(L, 2);
-    std::memset(bs->data.get(), c, bs->size);
-
-    lua_pushvalue(L, 1);
-    return 1;
 }
 
 static int byte_span_starts_with(lua_State* L)
@@ -999,46 +838,6 @@ static int byte_span_trimmed(lua_State* L)
     );
 
     return 1;
-}
-
-static int byte_span_inplace_lower(lua_State* L)
-{
-    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
-    if (!bs || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    char* it = reinterpret_cast<char*>(bs->data.get());
-    std::use_facet<std::ctype<char>>(std::locale::classic()).tolower(
-        it, it + bs->size);
-
-    return 0;
-}
-
-static int byte_span_inplace_upper(lua_State* L)
-{
-    auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, 1));
-    if (!bs || !lua_getmetatable(L, 1)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-    rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
-    if (!lua_rawequal(L, -1, -2)) {
-        push(L, std::errc::invalid_argument, "arg", 1);
-        return lua_error(L);
-    }
-
-    char* it = reinterpret_cast<char*>(bs->data.get());
-    std::use_facet<std::ctype<char>>(std::locale::classic()).toupper(
-        it, it + bs->size);
-
-    return 0;
 }
 
 static int byte_span_get_u16be(lua_State* L)
@@ -2335,21 +2134,9 @@ static int byte_span_mt_index(lua_State* L)
             return lua_error(L);
         })
         EMILUA_GPERF_PAIR(
-            "sub",
+            "slice",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_sub);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "first",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_first);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "last",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_last);
+                lua_pushcfunction(L, byte_span_slice);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -2362,12 +2149,6 @@ static int byte_span_mt_index(lua_State* L)
             "append",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, byte_span_member_append);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "fill",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_fill);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -2422,18 +2203,6 @@ static int byte_span_mt_index(lua_State* L)
             "trimmed",
             [](lua_State* L) -> int {
                 lua_pushcfunction(L, byte_span_trimmed);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "inplace_lower",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_inplace_lower);
-                return 1;
-            })
-        EMILUA_GPERF_PAIR(
-            "inplace_upper",
-            [](lua_State* L) -> int {
-                lua_pushcfunction(L, byte_span_inplace_upper);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -2768,7 +2537,7 @@ static int byte_span_mt_newindex(lua_State* L)
 void init_byte_span(lua_State* L)
 {
     lua_pushlightuserdata(L, &byte_span_key);
-    lua_createtable(L, /*narr=*/0, /*nrec=*/3);
+    lua_createtable(L, /*narr=*/0, /*nrec=*/2);
     {
         lua_pushliteral(L, "new");
         lua_pushcfunction(L, byte_span_new);
@@ -2776,10 +2545,6 @@ void init_byte_span(lua_State* L)
 
         lua_pushliteral(L, "append");
         lua_pushcfunction(L, byte_span_non_member_append);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "with_zeros");
-        lua_pushcfunction(L, byte_span_with_zeros);
         lua_rawset(L, -3);
     }
     lua_rawset(L, LUA_REGISTRYINDEX);

@@ -1,7 +1,7 @@
--- Read invalid cancellation_caught on fiber who reacted to request
+-- Read invalid interruption_caught on fiber who reacted to request
 fib = spawn(function()
     this_fiber.yield()
 end)
-fib:cancel()
+fib:interrupt()
 this_fiber.yield()
-print(fib.cancellation_caught)
+print(fib.interruption_caught)

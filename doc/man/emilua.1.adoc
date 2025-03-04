@@ -23,9 +23,6 @@ execution context and to communicate with each other through actor-inspired
 APIs. Threading capabilities are also exposed. In short, Emilua is a complete
 execution engine for Lua.
 
-If _SCRIPT_FILE_ is a directory, the file *init.lua* inside this directory is
-executed.
-
 == OPTIONS
 
 *--main-context-concurrency-hint* _HINT_::

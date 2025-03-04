@@ -108,7 +108,7 @@ static int fiber_join(lua_State* L)
                                 hana::make_pair(
                                     vm_context::options::arguments,
                                     hana::make_tuple(
-                                        false, errc::fiber_canceled))));
+                                        false, errc::interrupted))));
                     },
                     std::allocator<void>{}
                 );
@@ -150,7 +150,7 @@ static int fiber_join(lua_State* L)
             handle->fiber = nullptr;
             auto err_obj = inspect_errobj(L);
             if (auto e = std::get_if<std::error_code>(&err_obj) ; e) {
-                handle->interruption_caught = *e == errc::fiber_canceled;
+                handle->interruption_caught = *e == errc::interrupted;
             } else {
                 handle->interruption_caught = false;
             }
@@ -207,7 +207,7 @@ static int fiber_detach(lua_State* L)
             auto err_obj = inspect_errobj(handle->fiber);
             lua_pop(handle->fiber, 1);
             if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                !e || *e != errc::fiber_canceled) {
+                !e || *e != errc::interrupted) {
                 print_panic(handle->fiber, /*is_main=*/false,
                             errobj_to_string(err_obj), tostringview(L, -1));
             }
@@ -221,7 +221,7 @@ static int fiber_detach(lua_State* L)
     return 0;
 }
 
-static int fiber_cancel(lua_State* L)
+static int fiber_interrupt(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
     auto handle = static_cast<fiber_handle*>(lua_touserdata(L, 1));
@@ -261,7 +261,7 @@ static int fiber_cancel(lua_State* L)
     return 0;
 }
 
-inline int fiber_cancellation_caught(lua_State* L)
+inline int fiber_interruption_caught(lua_State* L)
 {
     auto handle = static_cast<fiber_handle*>(lua_touserdata(L, 1));
     assert(handle);
@@ -304,12 +304,12 @@ static int fiber_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "cancel",
+            "interrupt",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, fiber_cancel);
+                lua_pushcfunction(L, fiber_interrupt);
                 return 1;
             })
-        EMILUA_GPERF_PAIR("cancellation_caught", fiber_cancellation_caught)
+        EMILUA_GPERF_PAIR("interruption_caught", fiber_interruption_caught)
         EMILUA_GPERF_PAIR("joinable", fiber_joinable)
     EMILUA_GPERF_END(key)(L);
 }
@@ -362,7 +362,7 @@ static int fiber_mt_gc(lua_State* L)
             auto err_obj = inspect_errobj(handle->fiber);
             lua_pop(handle->fiber, 1);
             if (auto e = std::get_if<std::error_code>(&err_obj) ;
-                !e || *e != errc::fiber_canceled) {
+                !e || *e != errc::interrupted) {
                 print_panic(handle->fiber, /*is_main=*/false,
                             errobj_to_string(err_obj), tostringview(L, -1));
             }
@@ -507,13 +507,13 @@ inline int decrement_this_fiber_counter(lua_State* L, FiberDataIndex counter,
     return 0;
 }
 
-static int this_fiber_disable_cancellation(lua_State* L)
+static int this_fiber_disable_interruption(lua_State* L)
 {
     return increment_this_fiber_counter(
         L, FiberDataIndex::INTERRUPTION_DISABLED);
 }
 
-static int this_fiber_restore_cancellation(lua_State* L)
+static int this_fiber_restore_interruption(lua_State* L)
 {
     return decrement_this_fiber_counter(
         L, FiberDataIndex::INTERRUPTION_DISABLED,
@@ -598,15 +598,15 @@ static int this_fiber_mt_index(lua_State* L)
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "restore_cancellation",
+            "restore_interruption",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, this_fiber_restore_cancellation);
+                lua_pushcfunction(L, this_fiber_restore_interruption);
                 return 1;
             })
         EMILUA_GPERF_PAIR(
-            "disable_cancellation",
+            "disable_interruption",
             [](lua_State* L) -> int {
-                lua_pushcfunction(L, this_fiber_disable_cancellation);
+                lua_pushcfunction(L, this_fiber_disable_interruption);
                 return 1;
             })
         EMILUA_GPERF_PAIR(

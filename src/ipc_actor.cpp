@@ -1,7 +1,3 @@
-// Copyright (c) 2023, 2024 Vinícius dos Santos Oliveira
-// SPDX-License-Identifier: MIT OR BSL-1.0
-
-#include <sys/eventfd.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
@@ -19,12 +15,9 @@
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
-#include <cereal/types/unordered_map.hpp>
 #include <cereal/archives/binary.hpp>
 
-#include <emilua/proc_set_libc_service.hpp>
 #include <emilua/file_descriptor.hpp>
-#include <emilua/open_posix_libs.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
 
@@ -44,44 +37,22 @@
 
 #if BOOST_OS_BSD_FREE
 #include <sys/procdesc.h>
-
-# if !defined(EMILUA_STATIC_BUILD)
-#  include <dlfcn.h>
-# endif // !defined(EMILUA_STATIC_BUILD)
 #endif // BOOST_OS_BSD_FREE
 
 #define EMILUA_LUA_HOOK_BUFFER_SIZE (1024 * 1024)
 static_assert(EMILUA_LUA_HOOK_BUFFER_SIZE % alignof(std::max_align_t) == 0);
 
-#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-extern char** environ;
-#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-
-namespace std::filesystem {
-template<class Archive>
-void CEREAL_LOAD_MINIMAL_FUNCTION_NAME(
-    const Archive&, path& out, const std::string& in)
-{
-  out = in;
-}
-
-template<class Archive>
-std::string CEREAL_SAVE_MINIMAL_FUNCTION_NAME(const Archive& ar, const path& p)
-{
-  return p.string();
-}
-} // namespace std::filesystem
-
 namespace emilua {
 
 namespace fs = std::filesystem;
+
+int posix_mt_index(lua_State* L);
 
 static int inboxfd;
 static int proc_stdin;
 static int proc_stdout;
 static int proc_stderr;
 static bool proc_stderr_has_color;
-static bool has_native_modules_cache;
 static bool has_lua_hook;
 
 static std::vector<std::string> environ_buffer1;
@@ -137,14 +108,187 @@ struct monotonic_allocator
     }
 };
 
-// may report false negative (e.g. ENOTCAPABLE preventing fstat())
-static inline bool is_socket(int fd)
+static int receive_with_fd(lua_State* L)
 {
-    struct stat stfd;
-    if (fstat(fd, &stfd) == -1)
-        return false;
+    int fd = luaL_checkinteger(L, 1);
+    int nbyte = luaL_checkinteger(L, 2);
+    void* ud;
+    lua_Alloc a = lua_getallocf(L, &ud);
+    char* buf = static_cast<char*>(a(ud, NULL, 0, nbyte));
 
-    return S_ISSOCK(stfd.st_mode);
+    struct msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+
+    struct iovec iov;
+    iov.iov_base = buf;
+    iov.iov_len = nbyte;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = sizeof(cmsgbuf);
+
+    int res = recvmsg(fd, &msg, MSG_CMSG_CLOEXEC);
+    int last_error = (res == -1) ? errno : 0;
+    if (last_error != 0) {
+        lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+        if (lua_toboolean(L, -1)) {
+            errno = last_error;
+            perror("<3>ipc_actor/init");
+            std::exit(1);
+        }
+    }
+    if (last_error == 0) {
+        lua_pushlstring(L, buf, res);
+    } else {
+        lua_pushnil(L);
+    }
+
+    int fd_received = -1;
+    for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
+         cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+            continue;
+
+        std::memcpy(&fd_received, CMSG_DATA(cmsg), sizeof(int));
+        break;
+    }
+    lua_pushinteger(L, fd_received);
+
+    lua_pushinteger(L, last_error);
+
+    return 3;
+}
+
+static int send_with_fd(lua_State* L)
+{
+    int fd = luaL_checkinteger(L, 1);
+    std::size_t len;
+    const char* str = lua_tolstring(L, 2, &len);
+    int fd_to_send = luaL_checkinteger(L, 3);
+
+    struct msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+
+    struct iovec iov;
+    iov.iov_base = const_cast<char*>(str);
+    iov.iov_len = len;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
+    msg.msg_control = cmsgbuf;
+    msg.msg_controllen = CMSG_SPACE(sizeof(int));
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    std::memcpy(CMSG_DATA(cmsg), &fd_to_send, sizeof(int));
+
+    int res = sendmsg(fd, &msg, MSG_NOSIGNAL);
+    int last_error = (res == -1) ? errno : 0;
+    if (last_error != 0) {
+        lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+        if (lua_toboolean(L, -1)) {
+            errno = last_error;
+            perror("<3>ipc_actor/init");
+            std::exit(1);
+        }
+    }
+    lua_pushinteger(L, res);
+    lua_pushinteger(L, last_error);
+    return 2;
+}
+
+static void init_hookstate(lua_State* L)
+{
+    lua_pushboolean(L, 1);
+    lua_setglobal(L, "errexit");
+
+    lua_newtable(L);
+    {
+        lua_createtable(L, /*narr=*/0, /*nrec=*/1);
+
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, posix_mt_index);
+        lua_rawset(L, -3);
+
+        lua_setmetatable(L, -2);
+    }
+    lua_setglobal(L, "C");
+
+    lua_pushcfunction(L, receive_with_fd);
+    lua_setglobal(L, "receive_with_fd");
+
+    lua_pushcfunction(L, send_with_fd);
+    lua_setglobal(L, "send_with_fd");
+
+    lua_pushcfunction(
+        L,
+        [](lua_State* L) -> int {
+            mode_t u = luaL_checkinteger(L, 1);
+            mode_t g = luaL_checkinteger(L, 2);
+            mode_t o = luaL_checkinteger(L, 3);
+            lua_pushinteger(L, (u << 6) | (g << 3) | o);
+            return 1;
+        });
+    lua_setglobal(L, "mode");
+
+    lua_pushcfunction(
+        L,
+        [](lua_State* L) -> int {
+            int fd = luaL_checkinteger(L, 1);
+            std::size_t len;
+            const char* str = lua_tolstring(L, 2, &len);
+            std::size_t nwritten = 0;
+            while (nwritten < len) {
+                int res = write(fd, str + nwritten, len - nwritten);
+                int last_error = (res == -1) ? errno : 0;
+                if (last_error != 0) {
+                    lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+                    if (lua_toboolean(L, -1)) {
+                        errno = last_error;
+                        perror("<3>ipc_actor/init/write_all");
+                        std::exit(1);
+                    } else {
+                        lua_pushinteger(L, nwritten);
+                        lua_pushinteger(L, last_error);
+                        return 2;
+                    }
+                }
+                nwritten += res;
+            }
+            lua_pushinteger(L, nwritten);
+            lua_pushinteger(L, 0);
+            return 2;
+        });
+    lua_setglobal(L, "write_all");
+
+    lua_pushcfunction(L, [](lua_State* L) -> int {
+#if BOOST_OS_LINUX
+        int res = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+#elif BOOST_OS_BSD_FREE
+        int data = PROC_NO_NEW_PRIVS_ENABLE;
+        int res = procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &data);
+#else
+        int res = -1;
+        errno = ENOSYS;
+#endif // BOOST_OS_LINUX
+        int last_error = (res == -1) ? errno : 0;
+        if (last_error != 0) {
+            lua_getfield(L, LUA_GLOBALSINDEX, "errexit");
+            if (lua_toboolean(L, -1)) {
+                errno = last_error;
+                perror("<3>ipc_actor/init");
+                std::exit(1);
+            }
+        }
+        lua_pushinteger(L, res);
+        lua_pushinteger(L, last_error);
+        return 2;
+    });
+    lua_setglobal(L, "set_no_new_privs");
 }
 
 void ipc_actor_inbox_op::do_wait()
@@ -352,7 +496,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fds.size() != 1 || !is_socket(fds[0])) {
+                if (fds.size() != 1) {
                     remove_service();
                     queue.pop_back();
                     return;
@@ -442,7 +586,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 fds[fdsidx++] = -1;
                 break;
             case ipc_actor_message::actor_address:
-                if (fdsidx == fds.size() || !is_socket(fds[fdsidx])) {
+                if (fdsidx == fds.size()) {
                     remove_service();
                     queue.pop_back();
                     return;
@@ -511,7 +655,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fds.size() != 1 || !is_socket(fds[0])) {
+                if (fds.size() != 1) {
                     throw bad_message_t{};
                 }
 
@@ -596,7 +740,7 @@ void ipc_actor_inbox_op::on_wait(const asio_error_code& ec)
                 break;
             }
             case ipc_actor_message::actor_address:
-                if (fdsidx == fds.size() || !is_socket(fds[fdsidx])) {
+                if (fdsidx == fds.size()) {
                     throw bad_message_t{};
                 }
 
@@ -715,7 +859,6 @@ static int child_main(void*)
         // buggy CLONE_CLEAR_SIGHAND won't clear sa_flags so we do it manually
         sa.sa_flags = 0;
         sigaction(SIGCHLD, /*act=*/&sa, /*oldact=*/NULL);
-        sigaction(SIGPIPE, /*act=*/&sa, /*oldact=*/NULL);
 
         sigset_t set;
         sigfillset(&set);
@@ -756,42 +899,6 @@ static int child_main(void*)
             return 1;
 
         buffer.resize(nread);
-    }
-
-    if (has_native_modules_cache) {
-        struct msghdr msg;
-        std::memset(&msg, 0, sizeof(msg));
-
-        char buf[1];
-
-        struct iovec iov;
-        iov.iov_base = buf;
-        iov.iov_len = 1;
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
-        msg.msg_control = cmsgbuf;
-        msg.msg_controllen = sizeof(cmsgbuf);
-
-        auto nread = recvmsg(inboxfd, &msg, MSG_CMSG_CLOEXEC);
-        if (
-            nread == -1 || nread == 0 ||
-            (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
-        ) {
-            return 1;
-        }
-
-        int fdarg = -1;
-        for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
-                continue;
-
-            std::memcpy(&fdarg, CMSG_DATA(cmsg), sizeof(int));
-            break;
-        }
-        assert(fdarg == 4);
     }
 
     if (has_lua_hook) {
@@ -839,7 +946,7 @@ static int child_main(void*)
         BOOST_SCOPE_EXIT_ALL(&) { lua_close(L); };
         lua_gc(L, LUA_GCSTOP, /*unused_data=*/0);
         luaL_openlibs(L);
-        open_posix_libs(L);
+        init_hookstate(L);
 
         if (fdarg != -1) {
             lua_pushinteger(L, fdarg);
@@ -870,58 +977,69 @@ static int child_main(void*)
             return 1;
         }
 
-        if (has_native_modules_cache) {
-            if (close_range(5, UINT_MAX, /*flags=*/0) == -1)
-                return 1;
-        } else {
-            if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
-                return 1;
-        }
+        if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
+            return 1;
     }
 
     if (getpid() == 1) {
-        int evfd = eventfd(0, EFD_SEMAPHORE);
-        if (evfd == -1)
-            return 1;
-        auto atfork_parent = [&buffer,&evfd]() -> std::optional<int> {
-            explicit_bzero(buffer.data(), buffer.size());
-#if BOOST_OS_LINUX
-            if (prctl(PR_SET_DUMPABLE, 0) == -1) {
-                return 1;
-            }
-#elif BOOST_OS_BSD_FREE
-            if (
-                int val = PROC_TRACE_CTL_DISABLE ;
-                procctl(P_PID, 0, PROC_TRACE_CTL, &val) == -1
-            ) {
-                return 1;
-            }
-#else
-# error "OS not supported"
-#endif // BOOST_OS_LINUX
-            if (eventfd_write(evfd, 1) == -1)
-                return 1;
+        static pid_t childpid;
 
-            return std::nullopt;
+        static constexpr auto sighandler = [](int signo) {
+            // upon reaping childpid, there's a small window for an ESRCH
+            // race... and that doesn't matter because as soon as child finishes
+            // the whole pidns is going down
+            kill(childpid, signo);
         };
 
-        auto exit_code = app_context::handle_pid1(atfork_parent);
-        if (exit_code)
-            return *exit_code;
-
-        eventfd_t evval;
-        if (eventfd_read(evfd, &evval) == -1)
+        switch (childpid = fork()) {
+        case -1:
             return 1;
-        close(evfd);
-    }
+        case 0:
+            break;
+        default: {
+            struct sigaction sa;
+            sa.sa_handler = sighandler;
+            sigemptyset(&sa.sa_mask);
+            sa.sa_flags = SA_RESTART;
 
-    {
-        struct sigaction sa;
-        sa.sa_handler = SIG_IGN;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = 0;
+            // It'd be futile to re-route every signal (e.g. SIGSTOP) so we
+            // don't even try it. Only re-route signals that are useful for
+            // parent-child communication.
+            sigaction(SIGTERM, /*act=*/&sa, /*oldact=*/NULL);
+            sigaction(SIGUSR1, /*act=*/&sa, /*oldact=*/NULL);
+            sigaction(SIGUSR2, /*act=*/&sa, /*oldact=*/NULL);
 
-        sigaction(SIGPIPE, /*act=*/&sa, /*oldact=*/NULL);
+            // Applications that don't require a controlling terminal, such as
+            // daemons, usually re-purpose SIGHUP as a signal to re-read
+            // configuration files.
+            sigaction(SIGHUP, /*act=*/&sa, /*oldact=*/NULL);
+
+            // SIGINT shouldn't be the first choice for parent-child
+            // communication. SIGINT is generated by the TTY driver itself and
+            // as such means UI running in the interested process communicated
+            // an UI-initiated interruption request (e.g. confirmation dialogues
+            // are allowed). However we also re-route SIGINT because
+            // LINUX_REBOOT_CMD_CAD_OFF (again: an UI interaction) will send
+            // SIGINT to PID1.
+            sigaction(SIGINT, /*act=*/&sa, /*oldact=*/NULL);
+
+            // Allow EPIPE to propagate if child process closes standard file
+            // descriptors.
+            close_range(0, UINT_MAX, /*flags=*/0);
+
+            for (siginfo_t info ;;) {
+                waitid(P_ALL, /*ignored_id=*/0, &info, WEXITED);
+                if (info.si_pid == childpid) {
+                    if (info.si_code == CLD_EXITED) {
+                        return info.si_status;
+                    } else {
+                        // as in bash, add 128 to the signal number
+                        return 128 + info.si_status;
+                    }
+                }
+            }
+        }
+        }
     }
 
     int ipc_actor_service_pipe[2];
@@ -980,106 +1098,15 @@ static int child_main(void*)
 
     int main_ctx_concurrency_hint;
     fs::path entry_point;
-    fs::path import_root;
 
     app_context appctx;
     appctx.app_args.reserve(2);
     appctx.app_args.emplace_back();
+    appctx.app_args.emplace_back(entry_point.string());
     appctx.ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
-
-    int libc_service_sockfd = -1;
-
-    while (has_native_modules_cache) {
-        struct msghdr msg;
-        std::memset(&msg, 0, sizeof(msg));
-
-        std::array<char, 256 + /*sentinel_sz=*/1> buf;
-
-        struct iovec iov;
-        iov.iov_base = buf.data();
-        iov.iov_len = buf.size() - 1; //< the extra byte will be used for '\0'
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-        alignas(cmsghdr) char cmsgbuf[CMSG_SPACE(sizeof(int))];
-        msg.msg_control = cmsgbuf;
-        msg.msg_controllen = sizeof(cmsgbuf);
-
-        auto nread = recvmsg(4, &msg, MSG_CMSG_CLOEXEC);
-        if (
-            nread == -1 || nread == 0 ||
-            (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
-        ) {
-            return 1;
-        }
-        buf[nread] = '\0'; //< doesn't overflow because extraneous alloc'ed byte
-
-        int fdarg = -1;
-        for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-             cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
-                continue;
-
-            std::memcpy(&fdarg, CMSG_DATA(cmsg), sizeof(int));
-            break;
-        }
-
-        switch (buf[0]) {
-        default:
-            assert(false);
-        case ipc_actor_start_vm_request::PRELOAD_EOF:
-            assert(fdarg == -1);
-            close(4);
-            has_native_modules_cache = false;
-            break;
-#if EMILUA_CONFIG_ENABLE_PLUGINS
-        case ipc_actor_start_vm_request::PRELOAD_FILE:
-            assert(fdarg != -1);
-            appctx.native_modules_file_preload.emplace(buf.data() + 1, fdarg);
-            break;
-        case ipc_actor_start_vm_request::PRELOAD_DIR:
-            assert(fdarg != -1);
-            appctx.native_modules_dir_preload.emplace_back(fdarg);
-            break;
-# if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
-        case ipc_actor_start_vm_request::PRELOAD_LD_LIBRARY_DIRECTORY:
-            assert(fdarg != -1);
-            appctx.ld_library_directories.emplace_back(fdarg);
-            break;
-# endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
-        case ipc_actor_start_vm_request::PRELOAD_LIBC_SERVICE:
-            assert(fdarg != -1);
-            assert(libc_service_sockfd == -1);
-            libc_service_sockfd = fdarg;
-            break;
-        }
-    }
-
-#if EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
-    if (appctx.ld_library_directories.size() > 0) {
-        // rtld_set_var() calls xstrdup() on our value so it's safe to dealloc
-        // this buffer after we're done
-        std::string value;
-
-        auto it = appctx.ld_library_directories.begin();
-        value += std::to_string(*it);
-        for (++it ; it != appctx.ld_library_directories.end() ; ++it) {
-            value += ':' + std::to_string(*it);
-        }
-
-        if (rtld_set_var("LIBRARY_PATH_FDS", value.c_str()) != 0) {
-            for (int fd : appctx.ld_library_directories) {
-                std::ignore = close(fd);
-            }
-            appctx.ld_library_directories.clear();
-        }
-    }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS && EMILUA_CONFIG_HAVE_RTLD_SET_VAR
 
     {
         std::istringstream is{buffer};
-        is.imbue(std::locale::classic());
         cereal::BinaryInputArchive ia{is};
 
         std::string str;
@@ -1088,41 +1115,18 @@ static int child_main(void*)
 
         ia >> str;
         entry_point = fs::path{str, fs::path::native_format};
-        appctx.app_args.emplace_back(entry_point.c_str());
-        str.clear();
-
-        ia >> str;
-        if (str.size() > 0) {
-            import_root = fs::path{str, fs::path::native_format};
-        }
         str.clear();
 
         ia >> environ_buffer1;
         environ_buffer2.reserve(environ_buffer1.size() + 1);
         for (auto& s : environ_buffer1) {
-            if (!s.starts_with('\0')) {
-                environ_buffer2.emplace_back(s.data());
-            }
+            environ_buffer2.emplace_back(s.data());
             auto idx = s.find('=');
             std::string_view s2{s};
             appctx.app_env.emplace(s2.substr(0, idx), s2.substr(idx + 1));
         }
         environ_buffer2.emplace_back(nullptr);
-#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-        environ = environ_buffer2.data();
-#else // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-        char*** environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
-        *environp = environ_buffer2.data();
-#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-
-        ia >> appctx.modules_cache_registry;
-
-        if (libc_service_sockfd != -1) {
-            std::map<int, std::string> libc_service_lua_filters;
-            ia >> libc_service_lua_filters;
-            libc_service::proc_set(
-                libc_service_sockfd, std::move(libc_service_lua_filters));
-        }
+        *app_context::environp = environ_buffer2.data();
     }
     buffer.clear();
     buffer.shrink_to_fit();
@@ -1178,6 +1182,9 @@ static int child_main(void*)
             emilua::log_domain<emilua::default_log_domain>::log_level = level;
     }
 
+    asio::io_context ioctx{main_ctx_concurrency_hint};
+    asio::make_service<properties_service>(ioctx, main_ctx_concurrency_hint);
+
     if (
         auto it = appctx.app_env.find("EMILUA_PATH") ;
         it != appctx.app_env.end()
@@ -1195,49 +1202,33 @@ static int child_main(void*)
         }
     }
 
-    {
-        const std::unique_lock wlock{appctx.modules_cache_registry_mtx};
-        create_native_modules(wlock, appctx);
-    }
+    try {
+        auto vm_ctx = make_vm(ioctx, appctx, ContextType::worker, entry_point);
+        appctx.master_vm = vm_ctx;
 
-    {
-        asio::io_context ioctx{main_ctx_concurrency_hint};
-        asio::make_service<properties_service>(
-            ioctx, main_ctx_concurrency_hint);
+        ++vm_ctx->inbox.nsenders;
+        auto inbox_service = new ipc_actor_inbox_service{ioctx, inboxfd};
+        vm_ctx->pending_operations.push_back(*inbox_service);
 
+        vm_ctx->strand().post([vm_ctx]() {
+            vm_ctx->fiber_resume(
+                vm_ctx->L(),
+                hana::make_set(vm_context::options::skip_clear_interrupter));
+        }, std::allocator<void>{});
+    } catch (const std::exception& e) {
         try {
-            auto vm_ctx = make_vm(
-                ioctx, appctx, ContextType::worker, entry_point, import_root);
-            appctx.master_vm = vm_ctx;
-
-            ++vm_ctx->inbox.nsenders;
-            auto inbox_service = new ipc_actor_inbox_service{ioctx, inboxfd};
-            vm_ctx->pending_operations.push_back(*inbox_service);
-
-            vm_ctx->strand().post([vm_ctx]() {
-                vm_ctx->fiber_resume(
-                    vm_ctx->L(),
-                    hana::make_set(
-                        vm_context::options::skip_clear_interrupter));
-            }, std::allocator<void>{});
-        } catch (const std::exception& e) {
-            try {
-                std::cerr << "Error starting the lua VM: " << e.what() <<
-                    std::endl;
-            } catch (const std::ios_base::failure&) {}
-            return 1;
-        }
-
-        ioctx.run();
+            std::cerr << "Error starting the lua VM: " << e.what() << std::endl;
+        } catch (const std::ios_base::failure&) {}
+        return 1;
     }
+
+    ioctx.run();
 
     {
         std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
         while (appctx.extra_threads_count > 0)
             appctx.extra_threads_count_empty_cond.wait(lk);
     }
-
-    destroy_native_modules();
 
     try {
         // The glibc runtime won't flush `stdout` on clone()d processes because
@@ -1250,92 +1241,6 @@ static int child_main(void*)
     } catch (const std::ios_base::failure&) {}
 
     return appctx.exit_code;
-}
-
-std::optional<int> app_context::handle_pid1(
-    std::function<std::optional<int>()> atfork_on_parent)
-{
-    assert(getpid() == 1);
-
-    static pid_t childpid;
-
-    static constexpr auto sighandler = [](int signo) {
-        // upon reaping childpid, there's a small window for an ESRCH
-        // race... and that doesn't matter because as soon as child finishes the
-        // whole pidns is going down
-        kill(childpid, signo);
-    };
-
-    switch (childpid = fork()) {
-    case -1:
-        return 1;
-    case 0:
-        return std::nullopt;
-    default: {
-        struct sigaction sa;
-        sa.sa_handler = sighandler;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART;
-
-        // It'd be futile to re-route every signal (e.g. SIGSTOP) so we don't
-        // even try it. Only re-route signals that are useful for parent-child
-        // communication.
-        sigaction(SIGTERM, /*act=*/&sa, /*oldact=*/NULL);
-        sigaction(SIGUSR1, /*act=*/&sa, /*oldact=*/NULL);
-        sigaction(SIGUSR2, /*act=*/&sa, /*oldact=*/NULL);
-
-        // Applications that don't require a controlling terminal, such as
-        // daemons, usually re-purpose SIGHUP as a signal to re-read
-        // configuration files.
-        sigaction(SIGHUP, /*act=*/&sa, /*oldact=*/NULL);
-
-        // SIGINT shouldn't be the first choice for parent-child
-        // communication. SIGINT is generated by the TTY driver itself and as
-        // such means UI running in the interested process communicated an
-        // UI-initiated interruption request (e.g. confirmation dialogues are
-        // allowed). However we also re-route SIGINT because
-        // LINUX_REBOOT_CMD_CAD_OFF (again: an UI interaction) will send SIGINT
-        // to PID1.
-        sigaction(SIGINT, /*act=*/&sa, /*oldact=*/NULL);
-
-        // SysVinit 3.10 was released with a change to handle SIGRTMIN+4. The
-        // change was motivated by systemD's machinectl behavior. Here we just
-        // follow the same trend.
-        //
-        // Given SIGRTMIN+4 is a RT signal, we should in theory be using
-        // sigqueue() instead of kill() in the sighandler and handle EAGAIN to
-        // avoid signal coalescing. However it's acceptable for the behavior
-        // desired here (poweroff.target) to coalesce as it's an one-time action
-        // anyway.
-        sigaction(SIGRTMIN+4, /*act=*/&sa, /*oldact=*/NULL);
-
-        // We only call atfork_on_parent after sighandling registration finishes
-        // so it's possible to synchronize child actions that depend on
-        // sighandling being ready. An example of such sync needs may be found
-        // in systemD's sd_notify()/X_SYSTEMD_SIGNALS_LEVEL=2.
-        if (atfork_on_parent) {
-            if (auto exit_code = atfork_on_parent() ; exit_code)
-                return *exit_code;
-            atfork_on_parent = nullptr;
-        }
-
-        // Allow EPIPE to propagate if child process closes standard file
-        // descriptors.
-        close_range(0, UINT_MAX, /*flags=*/0);
-
-        for (siginfo_t info ;;) {
-            waitid(P_ALL, /*ignored_id=*/0, &info, WEXITED);
-            if (info.si_pid == childpid) {
-                if (info.si_code == CLD_EXITED) {
-                    return info.si_status;
-                } else {
-                    // as in bash, add 128 to the signal number
-                    return 128 + info.si_status;
-                }
-            }
-        }
-    }
-    }
 }
 
 int app_context::ipc_actor_service_main(int sockfd)
@@ -1356,12 +1261,7 @@ int app_context::ipc_actor_service_main(int sockfd)
         // we don't use clearenv() because it's unsafe when we manipulate
         // environ directly
         static char* emptyenv[1] = { NULL };
-#if !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-        environ = emptyenv;
-#else // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
-        char*** environp = static_cast<char***>(dlsym(RTLD_DEFAULT, "environ"));
-        *environp = emptyenv;
-#endif // !BOOST_OS_BSD_FREE || defined(EMILUA_STATIC_BUILD)
+        *app_context::environp = emptyenv;
     }
 
     if (dup2(sockfd, 3) == -1) {
@@ -1729,75 +1629,6 @@ int app_context::ipc_actor_service_main(int sockfd)
             munmap(path, request.chroot_mfd_size);
             continue;
         }
-        case ipc_actor_start_vm_request::REPLACE_STDIN: {
-            int fds[2] = { -1, -1 };
-            char buf[1];
-
-            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                if (cmsg->cmsg_level != SOL_SOCKET ||
-                    cmsg->cmsg_type != SCM_RIGHTS) {
-                    continue;
-                }
-
-                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
-                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
-                break;
-            }
-
-            if (dup2(fds[1], STDIN_FILENO) == -1)
-                goto out_cleanup_and_return_failure;
-            close(fds[1]);
-            write(fds[0], buf, 1);
-            close(fds[0]);
-            continue;
-        }
-        case ipc_actor_start_vm_request::REPLACE_STDOUT: {
-            int fds[2] = { -1, -1 };
-            char buf[1];
-
-            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                if (cmsg->cmsg_level != SOL_SOCKET ||
-                    cmsg->cmsg_type != SCM_RIGHTS) {
-                    continue;
-                }
-
-                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
-                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
-                break;
-            }
-
-            if (dup2(fds[1], STDOUT_FILENO) == -1)
-                goto out_cleanup_and_return_failure;
-            close(fds[1]);
-            write(fds[0], buf, 1);
-            close(fds[0]);
-            continue;
-        }
-        case ipc_actor_start_vm_request::REPLACE_STDERR: {
-            int fds[2] = { -1, -1 };
-            char buf[1];
-
-            for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
-                 cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                if (cmsg->cmsg_level != SOL_SOCKET ||
-                    cmsg->cmsg_type != SCM_RIGHTS) {
-                    continue;
-                }
-
-                assert(sizeof(fds) >= cmsg->cmsg_len - CMSG_LEN(0));
-                std::memcpy(fds, CMSG_DATA(cmsg), cmsg->cmsg_len - CMSG_LEN(0));
-                break;
-            }
-
-            if (dup2(fds[1], STDERR_FILENO) == -1)
-                goto out_cleanup_and_return_failure;
-            close(fds[1]);
-            write(fds[0], buf, 1);
-            close(fds[0]);
-            continue;
-        }
         case ipc_actor_start_vm_request::CREATE_PROCESS: {
             int fds[4] = {-1, -1, -1, -1};
             for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg) ; cmsg != NULL ;
@@ -1886,7 +1717,6 @@ int app_context::ipc_actor_service_main(int sockfd)
             assert(fds[2] == -1);
             assert(fds[3] == -1);
 
-            has_native_modules_cache = request.has_native_modules_cache;
             has_lua_hook = request.has_lua_hook;
 
             ipc_actor_start_vm_reply reply;
@@ -1898,7 +1728,7 @@ int app_context::ipc_actor_service_main(int sockfd)
                 /*arg=*/nullptr, &pidfd);
             reply.error = (reply.childpid == -1) ? errno : 0;
 #else
-            pid_t childpid = pdfork(&pidfd, request.pdfork_flags);
+            pid_t childpid = pdfork(&pidfd, /*flags=*/0);
             if (childpid == 0) {
                 return child_main(nullptr);
             }

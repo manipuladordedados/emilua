@@ -42,20 +42,6 @@ else
     conf.set10('HAVE_PTHREAD_SIGQUEUE', false)
 endif
 
-if meson.get_compiler('cpp').compiles('''
-    #include <link.h>
-
-    int main()
-    {
-        int result = rtld_set_var("LIBRARY_PATH_FDS", "10");
-        (void)result;
-    }
-''')
-    conf.set10('HAVE_RTLD_SET_VAR', true)
-else
-    conf.set10('HAVE_RTLD_SET_VAR', false)
-endif
-
 configure_file(
     input : 'config.h.in',
     output : 'config.h',

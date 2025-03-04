@@ -143,7 +143,7 @@ static int check_not_interrupted(lua_State* L)
 
     lua_rawgeti(L, -2, FiberDataIndex::INTERRUPTED);
     if (lua_toboolean(L, -1) == 1) {
-        push(L, emilua::errc::fiber_canceled);
+        push(L, emilua::errc::interrupted);
         return lua_error(L);
     }
     return 0;

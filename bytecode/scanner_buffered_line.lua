@@ -1,2 +1,2 @@
 local self = ...
-return self.buffer_:first(self.record_size - #self.record_terminator)
+return self.buffer_:slice(1, self.record_size - #self.record_terminator)
