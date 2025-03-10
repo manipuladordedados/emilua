@@ -261,7 +261,7 @@ static int read_file(lua_State* L)
     );
     rawgetp(L, LUA_REGISTRYINDEX, &emilua::byte_span_mt_key);
     setmetatable(L, -2);
-    new (bs) byte_span_handle{std::move(contents), sz, sz};
+    new (bs) byte_span_handle(std::move(contents), sz, sz);
     return 1;
 }
 
