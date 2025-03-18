@@ -12,10 +12,7 @@ Emilua - Lua execution engine
 
 endif::[]
 
-[source,lua]
-----
-local byte_span = require 'byte_span'
-----
+NOTE: `byte_span` is a global so it doesn't need to be ``require()``d.
 
 A span of bytes. In Emilua, they're used as network buffers.
 
