@@ -17,9 +17,9 @@
 
 namespace emilua {
 
-extern char unix_key;
-extern char unix_datagram_socket_mt_key;
-extern char unix_stream_socket_mt_key;
+EMILUA_API extern char unix_key;
+EMILUA_API extern char unix_datagram_socket_mt_key;
+EMILUA_API extern char unix_stream_socket_mt_key;
 
 using unix_datagram_socket = Socket<asio::local::datagram_protocol::socket>;
 using unix_stream_socket = Socket<asio::local::stream_protocol::socket>;

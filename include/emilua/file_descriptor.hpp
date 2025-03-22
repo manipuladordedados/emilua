@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char file_descriptor_mt_key;
+EMILUA_API extern char file_descriptor_mt_key;
 
 #if BOOST_OS_WINDOWS
 // When *this == INVALID_FILE_DESCRIPTOR: raise EBUSY

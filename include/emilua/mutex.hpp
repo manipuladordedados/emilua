@@ -9,10 +9,10 @@
 
 namespace emilua {
 
-extern char mutex_key;
-extern char mutex_mt_key;
+EMILUA_API extern char mutex_key;
+EMILUA_API extern char mutex_mt_key;
 
-struct mutex_handle
+struct EMILUA_API mutex_handle
 {
     mutex_handle(vm_context& vm_ctx);
     ~mutex_handle();

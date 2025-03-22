@@ -7,10 +7,10 @@
 
 namespace emilua {
 
-extern char generic_error_key;
+EMILUA_API extern char generic_error_key;
 
 // returns 0 on error
-int posix_errno_code_from_name(std::string_view name);
+EMILUA_API int posix_errno_code_from_name(std::string_view name);
 
 void init_generic_error(lua_State* L);
 

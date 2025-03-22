@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char yield_reason_is_native_key;
+EMILUA_API extern char yield_reason_is_native_key;
 
 enum FiberStatus: lua_Integer
 {
@@ -16,7 +16,7 @@ enum FiberStatus: lua_Integer
     FINISHED_WITH_ERROR,
 };
 
-struct fiber_handle
+struct EMILUA_API fiber_handle
 {
     fiber_handle(lua_State* fiber)
         : fiber{fiber}
@@ -29,9 +29,11 @@ struct fiber_handle
 };
 
 void init_fiber_module(lua_State* L);
+
+EMILUA_API
 void print_panic(const lua_State* L, bool is_main, std::string_view error,
                  std::string_view stacktrace);
 
-int set_current_traceback(lua_State* L);
+EMILUA_API int set_current_traceback(lua_State* L);
 
 } // namespace emilua

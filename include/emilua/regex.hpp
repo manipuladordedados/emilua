@@ -7,10 +7,10 @@
 
 namespace emilua {
 
-extern char regex_key;
-extern char regex_mt_key;
+EMILUA_API extern char regex_key;
+EMILUA_API extern char regex_mt_key;
 
 void init_regex(lua_State* L);
-const std::error_category& regex_category() noexcept;
+EMILUA_API const std::error_category& regex_category() noexcept;
 
 } // namespace emilua

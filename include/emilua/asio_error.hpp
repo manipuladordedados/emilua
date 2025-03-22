@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char asio_error_key;
+EMILUA_API extern char asio_error_key;
 
 void init_asio_error(lua_State* L);
 

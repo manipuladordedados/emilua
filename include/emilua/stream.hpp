@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char stream_key;
+EMILUA_API extern char stream_key;
 
 void init_stream(lua_State* L);
 

@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char recursive_mutex_key;
+EMILUA_API extern char recursive_mutex_key;
 
 void init_recursive_mutex_module(lua_State* L);
 

@@ -7,10 +7,10 @@
 
 namespace emilua {
 
-extern char var_args__retval1_to_error__fwd_retval2__key;
-extern char var_args__retval1_to_error__key;
-extern char var_args__retval1_to_error__fwd_retval234__key;
-extern char var_args__retval1_to_error__fwd_retval23__key;
+EMILUA_API extern char var_args__retval1_to_error__fwd_retval2__key;
+EMILUA_API extern char var_args__retval1_to_error__key;
+EMILUA_API extern char var_args__retval1_to_error__fwd_retval234__key;
+EMILUA_API extern char var_args__retval1_to_error__fwd_retval23__key;
 
 void init_async_base(lua_State* L);
 

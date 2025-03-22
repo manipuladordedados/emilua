@@ -7,6 +7,7 @@
 
 #include <boost/predef/os/unix.h>
 #include <boost/predef/os/linux.h>
+#include <boost/config.hpp>
 
 #if BOOST_OS_UNIX
 # include <sys/socket.h>
@@ -21,7 +22,7 @@
 namespace emilua {
 
 #if BOOST_OS_UNIX
-extern bool has_libc_service;
+BOOST_SYMBOL_VISIBLE extern bool has_libc_service;
 
 struct open_how
 {
@@ -59,6 +60,7 @@ struct open_how
 // interposeable. Therefore we create this wrapper and never call the syscall
 // directly. It won't work for 3rd party code, but it'll work for our internals
 // at least.
+BOOST_SYMBOL_VISIBLE
 int openat2(int dirfd, const char* pathname, open_how* how);
 
 struct ambient_authority
@@ -90,7 +92,7 @@ struct ambient_authority
         int, const char*, open_how*);
 };
 
-extern struct ambient_authority ambient_authority;
+BOOST_SYMBOL_VISIBLE extern struct ambient_authority ambient_authority;
 #endif // BOOST_OS_UNIX
 
 } // namespace emilua

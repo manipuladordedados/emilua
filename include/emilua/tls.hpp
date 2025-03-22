@@ -17,11 +17,11 @@
 
 namespace emilua {
 
-extern char tls_key;
-extern char tls_context_mt_key;
-extern char tls_socket_mt_key;
+EMILUA_API extern char tls_key;
+EMILUA_API extern char tls_context_mt_key;
+EMILUA_API extern char tls_socket_mt_key;
 
-class TlsSocket
+class EMILUA_API TlsSocket
     : private std::shared_ptr<asio::ssl::context>
     , public asio::ssl::stream<asio::ip::tcp::socket>
 {

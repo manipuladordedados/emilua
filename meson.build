@@ -370,6 +370,8 @@ libemilua = library(
     ],
     include_directories : include_directories(incdir),
     implicit_include_directories : false,
+    gnu_symbol_visibility : 'hidden',
+    cpp_args : ['-DEMILUA_API=BOOST_SYMBOL_EXPORT'],
     cpp_static_args : ['-DEMILUA_STATIC_BUILD'],
     version : meson.project_version(),
     install : true,

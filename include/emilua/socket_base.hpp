@@ -8,7 +8,7 @@
 namespace emilua {
 
 template<class T>
-struct Socket
+struct EMILUA_API Socket
 {
     template<class... Args>
     Socket(Args&&... args) : socket{std::forward<Args>(args)...} {}

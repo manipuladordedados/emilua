@@ -7,10 +7,10 @@
 
 namespace emilua {
 
-extern char system_key;
+EMILUA_API extern char system_key;
 
 #if BOOST_OS_LINUX
-extern char linux_capabilities_mt_key;
+EMILUA_API extern char linux_capabilities_mt_key;
 #endif // BOOST_OS_LINUX
 
 void init_system(lua_State* L);

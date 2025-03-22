@@ -24,7 +24,7 @@
 
 namespace emilua {
 
-extern char inbox_key;
+EMILUA_API extern char inbox_key;
 
 void init_actor_module(lua_State* L);
 
@@ -34,11 +34,11 @@ static constexpr std::uint64_t EXPONENT_MASK   = UINT64_C(0x7FF0000000000000);
 static constexpr std::uint64_t MANTISSA_MASK   = UINT64_C(0x000FFFFFFFFFFFFF);
 static constexpr std::uint64_t QNAN_BIT        = UINT64_C(0x0008000000000000);
 
-extern char ipc_actor_chan_mt_key;
+EMILUA_API extern char ipc_actor_chan_mt_key;
 
 // If members[0]'s type is nil then it means the message is flat (i.e. a sole
 // root non-composite value) and its value is that of members[1].
-struct ipc_actor_message
+struct EMILUA_API ipc_actor_message
 {
     enum kind : std::uint64_t
     {
@@ -65,7 +65,7 @@ static_assert(EMILUA_CONFIG_IPC_ACTOR_MESSAGE_MAX_MEMBERS_NUMBER > 2);
 
 struct ipc_actor_inbox_service;
 
-struct ipc_actor_inbox_op
+struct EMILUA_API ipc_actor_inbox_op
     : public std::enable_shared_from_this<ipc_actor_inbox_op>
 {
     ipc_actor_inbox_op(vm_context& vm_ctx, ipc_actor_inbox_service* service)
@@ -83,7 +83,7 @@ private:
     ipc_actor_inbox_service* service;
 };
 
-struct ipc_actor_inbox_service : public pending_operation
+struct EMILUA_API ipc_actor_inbox_service : public pending_operation
 {
     ipc_actor_inbox_service(asio::io_context& ioctx, int inboxfd)
         : pending_operation{/*shared_ownership=*/false}
@@ -112,13 +112,13 @@ struct ipc_actor_inbox_service : public pending_operation
     bool running = false;
 };
 
-struct bzero_region
+struct EMILUA_API bzero_region
 {
     void *s;
     size_t n;
 };
 
-struct ipc_actor_start_vm_request
+struct EMILUA_API ipc_actor_start_vm_request
 {
     enum action : std::uint8_t
     {
@@ -192,7 +192,7 @@ struct ipc_actor_start_vm_request
     std::string::size_type chroot_mfd_size;
 };
 
-struct ipc_actor_start_vm_reply
+struct EMILUA_API ipc_actor_start_vm_reply
 {
 #if BOOST_OS_LINUX
     pid_t childpid;
@@ -207,7 +207,7 @@ inline bool is_snan(std::uint64_t as_i)
       (as_i & QNAN_BIT) == 0;
 }
 
-struct ipc_actor_reaper : public pending_operation
+struct EMILUA_API ipc_actor_reaper : public pending_operation
 {
 #if BOOST_OS_LINUX
     ipc_actor_reaper(int childpidfd, pid_t childpid)
@@ -243,7 +243,7 @@ struct ipc_actor_reaper : public pending_operation
 #endif // BOOST_OS_LINUX
 };
 
-struct ipc_actor_address
+struct EMILUA_API ipc_actor_address
 {
     ipc_actor_address(asio::io_context& ioctx)
         : dest{ioctx}

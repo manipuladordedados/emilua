@@ -13,6 +13,7 @@ namespace emilua {
 
 #if BOOST_OS_WINDOWS
 template<class... Args>
+inline
 auto widen_on_windows(Args&&... args)
     -> decltype(nowide::widen(std::forward<Args>(args)...))
 {
@@ -20,6 +21,7 @@ auto widen_on_windows(Args&&... args)
 }
 
 template<class... Args>
+inline
 auto narrow_on_windows(Args&&... args)
     -> decltype(nowide::narrow(std::forward<Args>(args)...))
 {
@@ -27,12 +29,14 @@ auto narrow_on_windows(Args&&... args)
 }
 #else
 template<class T>
+inline
 auto widen_on_windows(T&& t) -> decltype(std::forward<T>(t))
 {
     return std::forward<T>(t);
 }
 
 template<class... Args>
+inline
 std::string narrow_on_windows(Args&&... args)
 {
     return std::string(std::forward<Args>(args)...);

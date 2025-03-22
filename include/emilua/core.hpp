@@ -78,6 +78,10 @@ extern "C" {
 #include <boost/shared_ptr.hpp>
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
+#ifndef EMILUA_API
+#define EMILUA_API BOOST_SYMBOL_IMPORT
+#endif // EMILUA_API
+
 #define EMILUA_GPERF_BEGIN(ID)
 #define EMILUA_GPERF_END(ID) {}
 #define EMILUA_GPERF_PARAM(...)
@@ -114,6 +118,7 @@ namespace emilua {
 
 namespace gperf::detail {
 template<class T>
+inline
 auto value_or(const T* p, decltype(std::declval<T>().action) default_value)
     -> decltype(default_value)
 {
@@ -121,6 +126,7 @@ auto value_or(const T* p, decltype(std::declval<T>().action) default_value)
 }
 
 template<class T>
+inline
 auto make_optional(const T* p)
     -> std::optional<decltype(std::declval<T>().action)>
 {
@@ -148,21 +154,21 @@ using asio_error_code = boost::system::error_code;
 using asio_system_error = boost::system::system_error;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
-extern bool stdout_has_color;
-extern char raw_unpack_key;
-extern char raw_xpcall_key;
-extern char raw_pcall_key;
-extern char raw_error_key;
-extern char raw_type_key;
-extern char raw_pairs_key;
-extern char raw_ipairs_key;
-extern char raw_next_key;
-extern char raw_setmetatable_key;
-extern char raw_getmetatable_key;
-extern char fiber_list_key;
+EMILUA_API extern bool stdout_has_color;
+EMILUA_API extern char raw_unpack_key;
+EMILUA_API extern char raw_xpcall_key;
+EMILUA_API extern char raw_pcall_key;
+EMILUA_API extern char raw_error_key;
+EMILUA_API extern char raw_type_key;
+EMILUA_API extern char raw_pairs_key;
+EMILUA_API extern char raw_ipairs_key;
+EMILUA_API extern char raw_next_key;
+EMILUA_API extern char raw_setmetatable_key;
+EMILUA_API extern char raw_getmetatable_key;
+EMILUA_API extern char fiber_list_key;
 
 #if BOOST_OS_LINUX
-extern void* clone_stack_address;
+EMILUA_API extern void* clone_stack_address;
 #endif // BOOST_OS_LINUX
 
 enum class ContextType : char
@@ -220,13 +226,13 @@ struct log_domain;
 struct default_log_domain;
 
 template<>
-struct log_domain<default_log_domain>
+struct EMILUA_API log_domain<default_log_domain>
 {
     static std::string_view name;
     static int log_level;
 };
 
-struct TransparentStringComp
+struct EMILUA_API TransparentStringComp
 {
     using is_transparent = void;
 
@@ -256,7 +262,7 @@ struct TransparentStringComp
     }
 };
 
-struct TransparentStringHash : private std::hash<std::string_view>
+struct EMILUA_API TransparentStringHash : private std::hash<std::string_view>
 {
     using is_transparent = void;
 
@@ -335,7 +341,7 @@ class BOOST_SYMBOL_VISIBLE native_module;
 
 class vm_context;
 
-struct rdf_error_category : public std::error_category
+struct EMILUA_API rdf_error_category : public std::error_category
 {
     const char* name() const noexcept override;
     std::string message(int value) const noexcept override;
@@ -360,7 +366,7 @@ struct rdf_error_category : public std::error_category
     > generic_errors;
 };
 
-class app_context
+class EMILUA_API app_context
 {
 private:
     struct path_hash
@@ -459,7 +465,7 @@ private:
               fmt::string_view format_str, fmt::format_args args);
 };
 
-class properties_service : public asio::execution_context::service
+class EMILUA_API properties_service : public asio::execution_context::service
 {
 public:
     using key_type = properties_service;
@@ -474,11 +480,12 @@ public:
     static asio::io_context::id id;
 };
 
-void set_interrupter(lua_State* L, vm_context& vm_ctx);
+EMILUA_API void set_interrupter(lua_State* L, vm_context& vm_ctx);
+EMILUA_API
 asio::cancellation_slot
 set_default_interrupter(lua_State* L, vm_context& vm_ctx);
 
-struct actor_address
+struct EMILUA_API actor_address
 {
     actor_address(vm_context& vm_ctx);
     ~actor_address();
@@ -492,7 +499,7 @@ struct actor_address
     asio::executor_work_guard<asio::io_context::executor_type> work_guard;
 };
 
-struct inbox_t
+struct EMILUA_API inbox_t
 {
 #if BOOST_OS_UNIX
     struct file_descriptor_box
@@ -578,7 +585,7 @@ struct inbox_t
 
 // This class represents a node to be destroyed when the VM finishes
 // prematurely. It can be used to register cleanup code (the `cancel()` method).
-class pending_operation
+class EMILUA_API pending_operation
     : public boost::intrusive::list_base_hook<
         boost::intrusive::link_mode<
 #ifdef NDEBUG
@@ -604,7 +611,7 @@ public:
     bool shared_ownership;
 };
 
-class vm_context: public std::enable_shared_from_this<vm_context>
+class EMILUA_API vm_context : public std::enable_shared_from_this<vm_context>
 {
 public:
     struct options
@@ -790,7 +797,7 @@ private:
     void* failed_cleanup_handler_coro = nullptr;
 };
 
-vm_context& get_vm_context(lua_State* L);
+EMILUA_API vm_context& get_vm_context(lua_State* L);
 
 inline void setmetatable(lua_State* L, int index)
 {
@@ -798,12 +805,12 @@ inline void setmetatable(lua_State* L, int index)
     assert(res); boost::ignore_unused(res);
 }
 
-void push(lua_State* L, const std::error_code& ec);
+EMILUA_API void push(lua_State* L, const std::error_code& ec);
 
 namespace detail {
 
 template<class T>
-void push(lua_State* L, std::string_view key, T v)
+inline void push(lua_State* L, std::string_view key, T v)
 {
     static constexpr auto arg_pusher = hana::overload(
         [](lua_State* L, auto v)
@@ -825,7 +832,7 @@ void push(lua_State* L, std::string_view key, T v)
 }
 
 template<class T, class... Args>
-void push(lua_State* L, std::string_view key, T v, Args&&... args)
+inline void push(lua_State* L, std::string_view key, T v, Args&&... args)
 {
     push(L, key, v);
     push(L, std::forward<Args>(args)...);
@@ -834,7 +841,7 @@ void push(lua_State* L, std::string_view key, T v, Args&&... args)
 } // namespace detail
 
 template<class... Args>
-void push(lua_State* L, const std::error_code& ec, Args&&... args)
+inline void push(lua_State* L, const std::error_code& ec, Args&&... args)
 {
     static_assert(sizeof...(args) % 2 == 0);
     push(L, ec);
@@ -848,8 +855,10 @@ inline void push(lua_State* L, std::errc ec, Args&&... args)
 }
 
 // gets value from top of the stack
+EMILUA_API
 std::variant<std::string_view, std::error_code> inspect_errobj(lua_State* L);
 
+EMILUA_API
 std::string errobj_to_string(std::variant<std::string_view, std::error_code> o);
 
 inline void push(lua_State* L, std::string_view str)
@@ -910,11 +919,11 @@ inline int finalizer(lua_State* L)
     return 0;
 }
 
-int throw_enosys(lua_State* L);
+EMILUA_API int throw_enosys(lua_State* L);
 
 #if BOOST_OS_UNIX
-extern thread_local sigjmp_buf* longjmp_on_rtsigno_env;
-void longjmp_on_rtsigno(int signo, siginfo_t* info, void* context);
+EMILUA_API extern thread_local sigjmp_buf* longjmp_on_rtsigno_env;
+EMILUA_API void longjmp_on_rtsigno(int signo, siginfo_t* info, void* context);
 #endif // BOOST_OS_UNIX
 
 enum class lua_errc
@@ -926,7 +935,7 @@ enum class lua_errc
     mem = LUA_ERRMEM,
 };
 
-const std::error_category& lua_category();
+EMILUA_API const std::error_category& lua_category();
 
 inline std::error_code make_error_code(lua_errc e)
 {
@@ -974,7 +983,7 @@ enum class errc {
     current_module_not_known,
 };
 
-const std::error_category& category();
+EMILUA_API const std::error_category& category();
 
 inline std::error_code make_error_code(errc e)
 {
@@ -996,8 +1005,8 @@ public:
 };
 
 namespace detail {
-bool unsafe_can_suspend(vm_context& vm_ctx, lua_State* L);
-bool unsafe_can_suspend2(vm_context& vm_ctx, lua_State* L);
+EMILUA_API bool unsafe_can_suspend(vm_context& vm_ctx, lua_State* L);
+EMILUA_API bool unsafe_can_suspend2(vm_context& vm_ctx, lua_State* L);
 } // namespace detail
 
 } // namespace emilua
@@ -1011,6 +1020,7 @@ struct std::is_error_code_enum<emilua::errc>: std::true_type {};
 namespace emilua {
 
 template<class HanaSet>
+inline
 void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
 {
     static constexpr auto is_skip_clear_interrupter = hana::compose(

@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char future_key;
+EMILUA_API extern char future_key;
 
 void init_future(lua_State* L);
 

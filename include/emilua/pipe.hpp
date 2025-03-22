@@ -7,9 +7,9 @@
 
 namespace emilua {
 
-extern char pipe_key;
-extern char readable_pipe_mt_key;
-extern char writable_pipe_mt_key;
+EMILUA_API extern char pipe_key;
+EMILUA_API extern char readable_pipe_mt_key;
+EMILUA_API extern char writable_pipe_mt_key;
 
 void init_pipe(lua_State* L);
 

@@ -17,7 +17,7 @@
 
 namespace emilua::libc_service {
 
-struct slave
+struct EMILUA_API slave
 {
     slave(asio::io_context& ioctx)
         : socket{ioctx}
@@ -34,8 +34,8 @@ struct slave
     int masterdupfd = -1;
 };
 
-extern char key;
-extern char slave_mt_key;
+EMILUA_API extern char key;
+EMILUA_API extern char slave_mt_key;
 
 void init(lua_State* L);
 

@@ -7,7 +7,7 @@
 
 namespace emilua {
 
-extern char condition_variable_key;
+EMILUA_API extern char condition_variable_key;
 
 void init_condition_variable_module(lua_State* L);
 

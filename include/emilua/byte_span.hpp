@@ -7,10 +7,10 @@
 
 namespace emilua {
 
-extern char byte_span_key;
-extern char byte_span_mt_key;
+EMILUA_API extern char byte_span_key;
+EMILUA_API extern char byte_span_mt_key;
 
-struct byte_span_handle
+struct EMILUA_API byte_span_handle
 {
     byte_span_handle()
         : size(0)
