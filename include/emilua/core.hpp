@@ -933,7 +933,7 @@ inline std::error_code make_error_code(lua_errc e)
     return std::error_code{static_cast<int>(e), lua_category()};
 }
 
-class lua_exception: public std::system_error
+class BOOST_SYMBOL_VISIBLE lua_exception : public std::system_error
 {
 public:
     lua_exception(int ev);
@@ -981,7 +981,7 @@ inline std::error_code make_error_code(errc e)
     return std::error_code{static_cast<int>(e), category()};
 }
 
-class exception: public std::system_error
+class BOOST_SYMBOL_VISIBLE exception : public std::system_error
 {
 public:
     exception(int ev);
