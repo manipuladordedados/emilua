@@ -230,6 +230,7 @@ incdir = [
 src = [
     'src/file_descriptor.cpp',
     'src/recursive_mutex.cpp',
+    'src/builtin_module.cpp',
     'src/generic_error.cpp',
     'src/native_module.cpp',
     'src/scope_cleanup.cpp',
