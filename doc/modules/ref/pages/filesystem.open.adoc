@@ -28,7 +28,7 @@ the scenes.
 `"append"`:: Open the file in append mode.
 
 `"create"`:: Create the file if it does not exist.
-* Needs the mode argument. Exemplo: `fs.mode(x, y, z)`
+* Needs the mode argument. Example: `fs.mode(x, y, z)`
 
 `"directory"`:: Fail if `path` resolves to a non-directory file.
 
