@@ -28,7 +28,7 @@ the scenes.
 `"append"`:: Open the file in append mode.
 
 `"create"`:: Create the file if it does not exist.
-* Needs the mode argument. Example: `fs.mode(x, y, z)`
+NOTE: Requires the mode argument. Example: `fs.mode(x, y, z)`
 
 `"directory"`:: Fail if `path` resolves to a non-directory file.
 
@@ -48,6 +48,7 @@ synchronise the file data and metadata to disk
 (`FILE_FLAG_WRITE_THROUGH`/`O_SYNC`).
 
 `"temporary"`:: Create an unnamed temporary regular file.
+NOTE: Requires the mode argument. Example: `fs.mode(x, y, z)`
 
 `"truncate"`:: Open the file with any existing contents truncated.
 
