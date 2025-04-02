@@ -4,10 +4,11 @@
 #pragma once
 
 #include <emilua/core.hpp>
+#include <boost/predef/os/macos.h>
 
-#if !BOOST_OS_UNIX
+#if !BOOST_OS_UNIX && !BOOST_OS_MACOS
 # error "libc_service only supported on POSIX-like systems"
-#endif // !BOOST_OS_UNIX
+#endif // !BOOST_OS_UNIX && !BOOST_OS_MACOS
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 # include <asio/local/seq_packet_protocol.hpp>

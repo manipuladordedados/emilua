@@ -22,6 +22,7 @@
 // Not too intrusive/opinionated header-only libaries are okay too. {{{
 #include <boost/endian/conversion.hpp>
 #include <boost/pool/pool_alloc.hpp>
+#include <boost/predef/os/macos.h>
 #include <boost/scope_exit.hpp>
 // }}}
 
@@ -1386,33 +1387,57 @@ static int my_stat(
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_atimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_atimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_atim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_atim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "atim");
 
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_mtimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_mtimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_mtim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_mtim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "mtim");
 
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_ctimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_ctimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_ctim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_ctim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "ctim");
 
@@ -1562,13 +1587,21 @@ static int my_stat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_atimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_atim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_atimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_atim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             lua_pushliteral(L, "mtim");
@@ -1581,13 +1614,21 @@ static int my_stat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_mtimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_mtim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_mtimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_mtim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             lua_pushliteral(L, "ctim");
@@ -1600,13 +1641,21 @@ static int my_stat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_ctimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_ctim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_ctimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_ctim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             break;
@@ -1731,33 +1780,57 @@ static int my_lstat(
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_atimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_atimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_atim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_atim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "atim");
 
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_mtimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_mtimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_mtim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_mtim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "mtim");
 
             {
                 lua_createtable(L, /*narr=*/0, /*nrec=*/2);
 
+#if BOOST_OS_MACOS
+                lua_pushinteger(L, statbuf.st_ctimespec.tv_sec);
+                lua_setfield(L, -2, "sec");
+
+                lua_pushinteger(L, statbuf.st_ctimespec.tv_nsec);
+                lua_setfield(L, -2, "nsec");
+#else // BOOST_OS_MACOS
                 lua_pushinteger(L, statbuf.st_ctim.tv_sec);
                 lua_setfield(L, -2, "sec");
 
                 lua_pushinteger(L, statbuf.st_ctim.tv_nsec);
                 lua_setfield(L, -2, "nsec");
+#endif // BOOST_OS_MACOS
             }
             lua_setfield(L, -2, "ctim");
 
@@ -1907,13 +1980,21 @@ static int my_lstat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_atimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_atim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_atimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_atim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             lua_pushliteral(L, "mtim");
@@ -1926,13 +2007,21 @@ static int my_lstat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_mtimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_mtim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_mtimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_mtim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             lua_pushliteral(L, "ctim");
@@ -1945,13 +2034,21 @@ static int my_lstat(
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_ctimespec.tv_sec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_ctim.tv_sec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pushliteral(L, "nsec");
             lua_rawget(L, -3);
             if (lua_type(L, -1) != LUA_TNUMBER) {
                 return on_lua_fail();
             }
+#if BOOST_OS_MACOS
+            statbuf->st_ctimespec.tv_nsec = lua_tointeger(L, -1);
+#else // BOOST_OS_MACOS
             statbuf->st_ctim.tv_nsec = lua_tointeger(L, -1);
+#endif // BOOST_OS_MACOS
             lua_pop(L, 3);
 
             break;

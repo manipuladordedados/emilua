@@ -3,6 +3,7 @@
 
 #include <emilua/ambient_authority.hpp>
 #include <boost/predef/os/bsd/free.h>
+#include <boost/predef/os/macos.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -10,7 +11,7 @@
 
 namespace emilua {
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD)
@@ -67,6 +68,6 @@ int openat2(int dirfd, const char* pathname, open_how* how)
     }
 # endif
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 } // namespace emilua

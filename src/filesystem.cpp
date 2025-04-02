@@ -13,11 +13,11 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/scope_exit.hpp>
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_LINUX
 #include <sys/capability.h>
@@ -1780,7 +1780,14 @@ static int file_status_mt_eq(lua_State* L)
 {
     auto st1 = static_cast<fs::file_status*>(lua_touserdata(L, 1));
     auto st2 = static_cast<fs::file_status*>(lua_touserdata(L, 2));
+#if BOOST_OS_MACOS
+    lua_pushboolean(
+        L,
+        st1->type() == st2->type() &&
+        st1->permissions() == st2->permissions());
+#else // BOOST_OS_MACOS
     lua_pushboolean(L, *st1 == *st2);
+#endif // BOOST_OS_MACOS
     return 1;
 }
 
@@ -3162,7 +3169,7 @@ static int create_directory_symlink(lua_State* L)
     return 0;
 }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int emilua_open(lua_State* L)
 {
     lua_settop(L, 3);
@@ -3199,7 +3206,7 @@ static int emilua_open(lua_State* L)
         auto s = tostringview(L);
         lua_pop(L, 1);
         auto f = EMILUA_GPERF_BEGIN(s)
-            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX)
+            EMILUA_GPERF_PPGUARD(BOOST_OS_UNIX || BOOST_OS_MACOS)
             EMILUA_GPERF_PARAM(int action)
             EMILUA_GPERF_PAIR("append", O_APPEND)
             EMILUA_GPERF_PAIR("create", O_CREAT)
@@ -3211,7 +3218,14 @@ static int emilua_open(lua_State* L)
             EMILUA_GPERF_PAIR("write_only", O_WRONLY)
             EMILUA_GPERF_PAIR("directory", O_DIRECTORY)
             EMILUA_GPERF_PAIR("no_follow", O_NOFOLLOW)
-            EMILUA_GPERF_PAIR("path", O_PATH)
+            EMILUA_GPERF_PAIR(
+                "path",
+#ifdef O_PATH
+                O_PATH
+#else
+                0
+#endif // O_PATH
+            )
         EMILUA_GPERF_END(s);
         if (f) {
             flags |= *f;
@@ -3419,7 +3433,7 @@ static int fs_dev_minor(lua_State* L)
     lua_pushinteger(L, minor(dev));
     return 1;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 static int equivalent(lua_State* L)
 {
@@ -3518,7 +3532,7 @@ static int hardlink_count(lua_State* L)
     return 1;
 }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int chown(lua_State* L)
 {
     lua_settop(L, 3);
@@ -3574,7 +3588,7 @@ static int lchown(lua_State* L)
     }
     return 0;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 static int chmod(lua_State* L)
 {
@@ -3835,10 +3849,10 @@ static int current_working_directory(lua_State* L)
 
     void* arg1 = lua_touserdata(L, 1);
     fs::path* path = nullptr;
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     int dirfd = -1;
     BOOST_SCOPE_EXIT_ALL(&) { if (path && dirfd != -1) close(dirfd); };
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     if (!arg1 || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
@@ -3847,7 +3861,7 @@ static int current_working_directory(lua_State* L)
     rawgetp(L, LUA_REGISTRYINDEX, &filesystem_path_mt_key);
     if (!lua_rawequal(L, -1, -2)) {
         assert(!path);
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         rawgetp(L, LUA_REGISTRYINDEX, &file_descriptor_mt_key);
         if (!lua_rawequal(L, -1, -3)) {
             push(L, std::errc::invalid_argument, "arg", 1);
@@ -3861,17 +3875,17 @@ static int current_working_directory(lua_State* L)
 #else
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
     } else {
         path = static_cast<fs::path*>(arg1);
     }
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     assert(path || dirfd != -1);
 #else
     assert(path);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     if (vm_ctx.appctx.ipc_actor_service_sockfd != -1) {
         int channel[2] = { -1, -1 };
         BOOST_SCOPE_EXIT_ALL(&) {
@@ -3948,7 +3962,7 @@ static int current_working_directory(lua_State* L)
             std::exit(1);
         }
     } else {
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
         std::error_code ec;
         fs::current_path(*path, ec);
@@ -3960,14 +3974,14 @@ static int current_working_directory(lua_State* L)
             return lua_error(L);
         }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     return 0;
 }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int chroot(lua_State* L)
 {
     lua_settop(L, 1);
@@ -4012,7 +4026,17 @@ static int chroot(lua_State* L)
         auto as_str = path->string();
         mfd_size = as_str.size() + 1; //< include nul terminator
 
+#if BOOST_OS_MACOS
+        {
+            char name[] = "emilua.XXXXXX\0";
+            mfd = mkstemp(name);
+            if (mfd != -1) {
+                unlink(name);
+            }
+        }
+#else
         mfd = memfd_create("emilua/chroot", /*flags=*/0);
+#endif // BOOST_OS_MACOS
         if (mfd == -1) {
             push(L, std::error_code{errno, std::system_category()});
             return lua_error(L);
@@ -4084,7 +4108,7 @@ static int chroot(lua_State* L)
 
     return 0;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 static int exists(lua_State* L)
 {
@@ -4454,7 +4478,7 @@ static int temp_directory_path(lua_State* L)
 // Windows' _umask() is nonsense and useless. umask is an UNIX concept. The
 // attempt made to create a version for Windows under the same interface was
 // lame and useless. Windows execution model has no space for UNIX's umask.
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int filesystem_umask(lua_State* L)
 {
     auto& vm_ctx = get_vm_context(L);
@@ -4468,7 +4492,7 @@ static int filesystem_umask(lua_State* L)
     lua_pushinteger(L, res);
     return 1;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_LINUX
 static int filesystem_cap_get_file(lua_State* L)
@@ -4753,71 +4777,71 @@ static int filesystem_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "open",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, emilua_open);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "mkdir",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, mkdir);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "mkfifo",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, mkfifo);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "mknod",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, mknod);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "makedev",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, fs_makedev);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "dev_major",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, fs_dev_major);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "dev_minor",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, fs_dev_minor);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -4841,21 +4865,21 @@ static int filesystem_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "chown",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, chown);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "lchown",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, lchown);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -4915,11 +4939,11 @@ static int filesystem_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "chroot",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, chroot);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -5003,11 +5027,11 @@ static int filesystem_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "umask",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, filesystem_umask);
 #else
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(

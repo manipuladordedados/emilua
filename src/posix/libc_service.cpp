@@ -1,6 +1,7 @@
 // Copyright (c) 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
+#include <unistd.h>
 #include <fcntl.h>
 #include <dlfcn.h>
 

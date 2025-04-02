@@ -1,7 +1,6 @@
 // Copyright (c) 2023, 2024 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#include <sys/eventfd.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
@@ -27,6 +26,10 @@
 #include <emilua/open_posix_libs.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
+
+#if !BOOST_OS_MACOS
+#include <sys/eventfd.h>
+#endif // !BOOST_OS_MACOS
 
 #if BOOST_OS_LINUX
 #include <linux/close_range.h>
@@ -709,8 +712,14 @@ static int child_main(void*)
             return 1;
     }
 
+#if BOOST_OS_MACOS
+    for (int i = 4 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+        close(i);
+    }
+#else // BOOST_OS_MACOS
     if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
         return 1;
+#endif // BOOST_OS_MACOS
 
     {
         struct sigaction sa;
@@ -741,6 +750,8 @@ static int child_main(void*)
         int signo = SIGKILL;
         procctl(P_PID, 0, PROC_PDEATHSIG_CTL, &signo);
     }
+#elif BOOST_OS_MACOS
+    // do nothing
 #else
 # error "OS not supported"
 #endif // BOOST_OS_LINUX
@@ -778,7 +789,11 @@ static int child_main(void*)
         msg.msg_control = cmsgbuf;
         msg.msg_controllen = sizeof(cmsgbuf);
 
+#ifdef MSG_CMSG_CLOEXEC
         auto nread = recvmsg(inboxfd, &msg, MSG_CMSG_CLOEXEC);
+#else // defined(MSG_CMSG_CLOEXEC)
+        auto nread = recvmsg(inboxfd, &msg, 0);
+#endif // defined(MSG_CMSG_CLOEXEC)
         if (
             nread == -1 || nread == 0 ||
             (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
@@ -802,7 +817,13 @@ static int child_main(void*)
         monotonic_allocator allocator{
             malloc(EMILUA_LUA_HOOK_BUFFER_SIZE), EMILUA_LUA_HOOK_BUFFER_SIZE};
         BOOST_SCOPE_EXIT_ALL(&) {
+#if BOOST_OS_MACOS
+            static void* (*const volatile memset_ptr)(void*, int, std::size_t) =
+                std::memset;
+            memset_ptr(allocator.buffer, 0, allocator.next - allocator.buffer);
+#else // BOOST_OS_MACOS
             explicit_bzero(allocator.buffer, allocator.next - allocator.buffer);
+#endif // BOOST_OS_MACOS
             free(allocator.buffer);
         };
 
@@ -819,7 +840,11 @@ static int child_main(void*)
         msg.msg_control = cmsgbuf;
         msg.msg_controllen = sizeof(cmsgbuf);
 
+#ifdef MSG_CMSG_CLOEXEC
         auto nread = recvmsg(inboxfd, &msg, MSG_CMSG_CLOEXEC);
+#else // defined(MSG_CMSG_CLOEXEC)
+        auto nread = recvmsg(inboxfd, &msg, 0);
+#endif // defined(MSG_CMSG_CLOEXEC)
         if (
             nread == -1 || nread == 0 ||
             (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) ||
@@ -875,20 +900,53 @@ static int child_main(void*)
         }
 
         if (has_native_modules_cache) {
+#if BOOST_OS_MACOS
+            for (int i = 5 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+                close(i);
+            }
+#else // BOOST_OS_MACOS
             if (close_range(5, UINT_MAX, /*flags=*/0) == -1)
                 return 1;
+#endif // BOOST_OS_MACOS
         } else {
+#if BOOST_OS_MACOS
+            for (int i = 4 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+                close(i);
+            }
+#else // BOOST_OS_MACOS
             if (close_range(4, UINT_MAX, /*flags=*/0) == -1)
                 return 1;
+#endif // BOOST_OS_MACOS
         }
     }
 
     if (getpid() == 1) {
+#if BOOST_OS_MACOS
+        int pipes[2] = { -1, -1 };
+        if (pipe(pipes) != 0)
+            return 1;
+#else // BOOST_OS_MACOS
         int evfd = eventfd(0, EFD_SEMAPHORE);
         if (evfd == -1)
             return 1;
-        auto atfork_parent = [&buffer,&evfd]() -> std::optional<int> {
+#endif // BOOST_OS_MACOS
+
+        auto atfork_parent = [
+            &buffer,
+#if BOOST_OS_MACOS
+            &pipes
+#else // BOOST_OS_MACOS
+            &evfd
+#endif // BOOST_OS_MACOS
+        ]() -> std::optional<int> {
+#if BOOST_OS_MACOS
+            static void* (*const volatile memset_ptr)(void*, int, std::size_t) =
+                std::memset;
+            memset_ptr(buffer.data(), 0, buffer.size());
+#else // BOOST_OS_MACOS
             explicit_bzero(buffer.data(), buffer.size());
+#endif // BOOST_OS_MACOS
+
 #if BOOST_OS_LINUX
             if (prctl(PR_SET_DUMPABLE, 0) == -1) {
                 return 1;
@@ -900,11 +958,21 @@ static int child_main(void*)
             ) {
                 return 1;
             }
+#elif BOOST_OS_MACOS
+            // do nothing
 #else
 # error "OS not supported"
 #endif // BOOST_OS_LINUX
+
+#if BOOST_OS_MACOS
+            close(pipes[0]);
+            if (write(pipes[1], ".", 1) == -1)
+                return 1;
+            close(pipes[1]);
+#else // BOOST_OS_MACOS
             if (eventfd_write(evfd, 1) == -1)
                 return 1;
+#endif // BOOST_OS_MACOS
 
             return std::nullopt;
         };
@@ -913,10 +981,20 @@ static int child_main(void*)
         if (exit_code)
             return *exit_code;
 
+#if BOOST_OS_MACOS
+        close(pipes[1]);
+        {
+            char b;
+            if (read(pipes[0], &b, 1) == -1)
+                return 1;
+        }
+        close(pipes[0]);
+#else // BOOST_OS_MACOS
         eventfd_t evval;
         if (eventfd_read(evfd, &evval) == -1)
             return 1;
         close(evfd);
+#endif // BOOST_OS_MACOS
     }
 
     {
@@ -929,7 +1007,13 @@ static int child_main(void*)
     }
 
     int ipc_actor_service_pipe[2];
-    if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
+    if (
+#if BOOST_OS_MACOS
+        socketpair(AF_UNIX, SOCK_DGRAM, 0, ipc_actor_service_pipe) == -1
+#else // BOOST_OS_MACOS
+        socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1
+#endif // BOOST_OS_MACOS
+    ) {
         ipc_actor_service_pipe[0] = -1;
         ipc_actor_service_pipe[1] = -1;
         perror("<4>Failed to start subprocess-based actor subsystem");
@@ -948,13 +1032,20 @@ static int child_main(void*)
             ipc_actor_service_pipe[1] = -1;
             break;
         }
-        case 0:
+        case 0: {
             close(ipc_actor_service_pipe[1]);
+#if BOOST_OS_MACOS
+            static void* (*const volatile memset_ptr)(void*, int, std::size_t) =
+                std::memset;
+            memset_ptr(buffer.data(), 0, buffer.size());
+#else // BOOST_OS_MACOS
             explicit_bzero(buffer.data(), buffer.size());
+#endif // BOOST_OS_MACOS
             buffer.clear();
             buffer.shrink_to_fit();
             return emilua::app_context::ipc_actor_service_main(
                 ipc_actor_service_pipe[0]);
+        }
         default: {
             close(ipc_actor_service_pipe[0]);
             ipc_actor_service_pipe[0] = -1;
@@ -1009,7 +1100,11 @@ static int child_main(void*)
         msg.msg_control = cmsgbuf;
         msg.msg_controllen = sizeof(cmsgbuf);
 
+#ifdef MSG_CMSG_CLOEXEC
         auto nread = recvmsg(4, &msg, MSG_CMSG_CLOEXEC);
+#else // defined(MSG_CMSG_CLOEXEC)
+        auto nread = recvmsg(4, &msg, 0);
+#endif // defined(MSG_CMSG_CLOEXEC)
         if (
             nread == -1 || nread == 0 ||
             (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC))
@@ -1311,6 +1406,7 @@ std::optional<int> app_context::handle_pid1(
         // to PID1.
         sigaction(SIGINT, /*act=*/&sa, /*oldact=*/NULL);
 
+#if !BOOST_OS_MACOS
         // SysVinit 3.10 was released with a change to handle SIGRTMIN+4. The
         // change was motivated by systemD's machinectl behavior. Here we just
         // follow the same trend.
@@ -1321,6 +1417,7 @@ std::optional<int> app_context::handle_pid1(
         // desired here (poweroff.target) to coalesce as it's an one-time action
         // anyway.
         sigaction(SIGRTMIN+4, /*act=*/&sa, /*oldact=*/NULL);
+#endif // !BOOST_OS_MACOS
 
         // We only call atfork_on_parent after sighandling registration finishes
         // so it's possible to synchronize child actions that depend on
@@ -1334,7 +1431,13 @@ std::optional<int> app_context::handle_pid1(
 
         // Allow EPIPE to propagate if child process closes standard file
         // descriptors.
+#if BOOST_OS_MACOS
+        for (int i = 0 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+            close(i);
+        }
+#else // BOOST_OS_MACOS
         close_range(0, UINT_MAX, /*flags=*/0);
+#endif // BOOST_OS_MACOS
 
         for (siginfo_t info ;;) {
             waitid(P_ALL, /*ignored_id=*/0, &info, WEXITED);
@@ -1363,7 +1466,13 @@ int app_context::ipc_actor_service_main(int sockfd)
         if (args.s == nullptr)
             break;
 
+#if BOOST_OS_MACOS
+        static void* (*const volatile memset_ptr)(void*, int, std::size_t) =
+            std::memset;
+        memset_ptr(args.s, 0, args.n);
+#else // BOOST_OS_MACOS
         explicit_bzero(args.s, args.n);
+#endif // BOOST_OS_MACOS
     }
     {
         // we don't use clearenv() because it's unsafe when we manipulate
@@ -1383,10 +1492,16 @@ int app_context::ipc_actor_service_main(int sockfd)
     }
     sockfd = 3;
 
+#if BOOST_OS_MACOS
+    for (int i = 4 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+        close(i);
+    }
+#else // BOOST_OS_MACOS
     if (close_range(4, UINT_MAX, /*flags=*/0) == -1) {
         perror("<3>ipc_actor/supervisor");
         return 1;
     }
+#endif // BOOST_OS_MACOS
 
     {
         struct sigaction sa;
@@ -1439,6 +1554,7 @@ int app_context::ipc_actor_service_main(int sockfd)
         assert(nread == sizeof(request));
 
         switch (request.type) {
+#if !BOOST_OS_MACOS
         case ipc_actor_start_vm_request::SETRESUID: {
             int pout;
             char buf[1];
@@ -1477,6 +1593,7 @@ int app_context::ipc_actor_service_main(int sockfd)
             close(pout);
             continue;
         }
+#endif // !BOOST_OS_MACOS
         case ipc_actor_start_vm_request::SETGROUPS: {
             int fds[2] = { -1, -1 };
             char buf[1];
@@ -1913,6 +2030,12 @@ int app_context::ipc_actor_service_main(int sockfd)
                 child_main, clone_stack_address, request.clone_flags,
                 /*arg=*/nullptr, &pidfd);
             reply.error = (reply.childpid == -1) ? errno : 0;
+#elif BOOST_OS_MACOS
+            pid_t childpid = fork();
+            if (childpid == 0) {
+                return child_main(nullptr);
+            }
+            reply.error = (childpid == -1) ? errno : 0;
 #else
             pid_t childpid = pdfork(&pidfd, request.pdfork_flags);
             if (childpid == 0) {
@@ -1983,7 +2106,13 @@ int app_context::ipc_actor_service_main(int sockfd)
         out_cleanup_and_return_failure:
             exit_code = 1;
         out_cleanup:
+#if BOOST_OS_MACOS
+            for (int i = 0 ; i != sysconf(_SC_OPEN_MAX) ; ++i) {
+                close(i);
+            }
+#else // BOOST_OS_MACOS
             close_range(0, UINT_MAX, /*flags=*/0);
+#endif // BOOST_OS_MACOS
             while (wait(NULL) > 0);
             return exit_code;
         }

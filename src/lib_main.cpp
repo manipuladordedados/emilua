@@ -10,6 +10,7 @@
 
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/nowide/iostream.hpp>
+#include <boost/predef/os/macos.h>
 #include <boost/nowide/args.hpp>
 #include <boost/version.hpp>
 
@@ -40,11 +41,14 @@ extern "C" {
 } // extern "C"
 #endif // EMILUA_CONFIG_ENABLE_COLOR
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 #include <emilua/actor.hpp>
-#include <sys/eventfd.h>
 #include <sys/wait.h>
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
+
+#if !BOOST_OS_MACOS
+#include <sys/eventfd.h>
+#endif // !BOOST_OS_MACOS
 
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
@@ -55,11 +59,12 @@ namespace asio = boost::asio;
 
 namespace emilua::main {
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static std::array<bool, 7> lowfds {
     false, false, false, false, false, false, false };
 static int ipc_actor_service_sockfd = -1;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
+
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
 static std::string emilua_path_env_value;
 
@@ -67,6 +72,8 @@ static inline bool is_suid()
 {
 #if BOOST_OS_WINDOWS
     static constexpr bool ret = false;
+#elif BOOST_OS_MACOS
+    bool ret = issetugid();
 #else
     bool ret;
     uid_t ruid, euid, suid;
@@ -102,14 +109,34 @@ static inline bool is_safe_emilua_env(std::string_view key)
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void depart_pid1()
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     if (getpid() == 1) {
+#if BOOST_OS_MACOS
+        int pipes[2] = { -1, -1 };
+        if (pipe(pipes) != 0)
+            std::exit(1);
+#else // BOOST_OS_MACOS
         int evfd = eventfd(0, EFD_SEMAPHORE);
         if (evfd == -1)
             std::exit(1);
-        auto atfork_parent = [&evfd]() -> std::optional<int> {
+#endif // BOOST_OS_MACOS
+
+        auto atfork_parent = [
+#if BOOST_OS_MACOS
+            &pipes
+#else // BOOST_OS_MACOS
+            &evfd
+#endif // BOOST_OS_MACOS
+        ]() -> std::optional<int> {
+#if BOOST_OS_MACOS
+            close(pipes[0]);
+            if (write(pipes[1], ".", 1) == -1)
+                return 1;
+            close(pipes[1]);
+#else // BOOST_OS_MACOS
             if (eventfd_write(evfd, 1) == -1)
                 return 1;
+#endif // BOOST_OS_MACOS
 
             return std::nullopt;
         };
@@ -118,12 +145,22 @@ void depart_pid1()
         if (exit_code)
             std::exit(*exit_code);
 
+#if BOOST_OS_MACOS
+        close(pipes[1]);
+        {
+            char b;
+            if (read(pipes[0], &b, 1) == -1)
+                std::exit(1);
+        }
+        close(pipes[0]);
+#else // BOOST_OS_MACOS
         eventfd_t evval;
         if (eventfd_read(evfd, &evval) == -1)
             std::exit(1);
         close(evfd);
+#endif // BOOST_OS_MACOS
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -131,13 +168,13 @@ void depart_pid1()
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void parse_lowfds()
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     for (int fd = 3 ; fd <= 9 ; ++fd) {
         if (fcntl(fd, F_GETFD) != -1 || errno != EBADF) {
             lowfds[fd - 3] = true;
         }
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -145,9 +182,20 @@ void parse_lowfds()
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void start_forker_service(int argc, char *argv[], char *envp[])
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_MACOS
+    // disabled for now
+    return;
+#endif // BOOST_OS_MACOS
+
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     int ipc_actor_service_pipe[2];
-    if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1) {
+    if (
+#if BOOST_OS_MACOS
+        socketpair(AF_UNIX, SOCK_DGRAM, 0, ipc_actor_service_pipe) == -1
+#else // BOOST_OS_MACOS
+        socketpair(AF_UNIX, SOCK_SEQPACKET, 0, ipc_actor_service_pipe) == -1
+#endif // BOOST_OS_MACOS
+    ) {
         ipc_actor_service_pipe[0] = -1;
         ipc_actor_service_pipe[1] = -1;
         perror("<4>Failed to start subprocess-based actor subsystem");
@@ -215,11 +263,11 @@ void start_forker_service(int argc, char *argv[], char *envp[])
     }
 
     ipc_actor_service_sockfd = ipc_actor_service_pipe[1];
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
     std::ignore = argc;
     std::ignore = argv;
     std::ignore = envp;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -227,7 +275,7 @@ void start_forker_service(int argc, char *argv[], char *envp[])
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void register_eintr_rtsigno_handler()
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     if (EMILUA_CONFIG_EINTR_RTSIGNO != 0) {
         struct sigaction sa;
         std::memset(&sa, 0, sizeof(struct sigaction));
@@ -242,7 +290,7 @@ void register_eintr_rtsigno_handler()
         sa.sa_flags = SA_RESTART | SA_SIGINFO;
         sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if BOOST_OS_WINDOWS
@@ -389,11 +437,11 @@ void fill_env(app_context& appctx)
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void fill_lowfds(app_context& appctx)
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     appctx.lowfds = lowfds;
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
     std::ignore = appctx;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
@@ -401,11 +449,11 @@ void fill_lowfds(app_context& appctx)
 #endif // defined(EMILUA_STATIC_BUILD) && !BOOST_OS_WINDOWS
 void fill_forker_service_socket(app_context& appctx)
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     appctx.ipc_actor_service_sockfd = ipc_actor_service_sockfd;
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
     std::ignore = appctx;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 }
 
 #if BOOST_OS_WINDOWS
@@ -533,7 +581,7 @@ int (*main)(int argc, char *argv[], char *envp[]) =
 int main(int argc, char *argv[], char *envp[])
 #endif // BOOST_OS_WINDOWS
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     {
         struct sigaction sa;
         sa.sa_handler = SIG_DFL;
@@ -548,11 +596,11 @@ int main(int argc, char *argv[], char *envp[])
         sigfillset(&set);
         sigprocmask(SIG_UNBLOCK, &set, /*oldset=*/NULL);
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     depart_pid1();
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     {
         struct sigaction sa;
         sa.sa_handler = SIG_IGN;
@@ -561,9 +609,9 @@ int main(int argc, char *argv[], char *envp[])
 
         sigaction(SIGPIPE, /*act=*/&sa, /*oldact=*/NULL);
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     if (fcntl(0, F_GETFD) == -1 && errno == EBADF) {
         int p[2];
         if (pipe(p) == -1)
@@ -589,7 +637,7 @@ int main(int argc, char *argv[], char *envp[])
                 close(p[1]);
         }
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     parse_lowfds();
 
@@ -688,7 +736,7 @@ int main(int argc, char *argv[], char *envp[])
 
     destroy_native_modules();
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     if (appctx.ipc_actor_service_sockfd != -1) {
         ipc_actor_start_vm_request request;
         std::memset(&request, 0, sizeof(request));
@@ -697,7 +745,7 @@ int main(int argc, char *argv[], char *envp[])
         int flags = MSG_NOSIGNAL;
         send(appctx.ipc_actor_service_sockfd, &request, sizeof(request), flags);
     }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     return appctx.exit_code;
 }

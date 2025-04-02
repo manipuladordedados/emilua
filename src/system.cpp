@@ -11,7 +11,6 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 
 #include <boost/preprocessor/control/iif.hpp>
 #include <boost/vmd/is_number.hpp>
-#include <boost/predef/os/macos.h>
 #include <boost/scope_exit.hpp>
 #include <boost/vmd/empty.hpp>
 
@@ -47,14 +46,14 @@ EMILUA_GPERF_DECLS_BEGIN(includes)
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #endif // BOOST_OS_WINDOWS
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 #include <sys/mman.h>
 
 # if EMILUA_CONFIG_ENABLE_PLUGINS
 #  include <boost/dll.hpp>
 #  include <unordered_set>
 # endif // EMILUA_CONFIG_ENABLE_PLUGINS
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_LINUX
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
@@ -639,7 +638,7 @@ static int system_signal_raise(lua_State* L)
     return 0;
 }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int system_signal_ignore(lua_State* L)
 {
     int signo = luaL_checkinteger(L, 1);
@@ -703,7 +702,7 @@ static int system_signal_default(lua_State* L)
     }
     return 0;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_WINDOWS
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
@@ -1014,7 +1013,7 @@ inline int system_environment(lua_State* L)
 }
 EMILUA_GPERF_DECLS_END(system)
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 template<int FD>
 static int system_stdhandle_dup(lua_State* L)
 {
@@ -1180,7 +1179,7 @@ static int system_stdhandle_tcsetpgrp(lua_State* L)
     }
     return 0;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 EMILUA_GPERF_DECLS_BEGIN(system)
 EMILUA_GPERF_NAMESPACE(emilua)
@@ -2123,7 +2122,7 @@ static int system_caph_limit_stdio(lua_State* L)
 }
 #endif // BOOST_OS_BSD_FREE
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static int system_get_lowfd(lua_State* L)
 {
     lua_settop(L, 1);
@@ -2156,7 +2155,7 @@ static int system_get_lowfd(lua_State* L)
     return 1;
 }
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
+#if EMILUA_CONFIG_ENABLE_PLUGINS && !BOOST_OS_MACOS
 static int system_get_ld_library_directories(lua_State* L)
 {
 #if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
@@ -2245,8 +2244,9 @@ static int system_get_ld_library_directories(lua_State* L)
 
     return 1;
 }
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS && !BOOST_OS_MACOS
 
+#if !BOOST_OS_MACOS
 static int system_getresuid(lua_State* L)
 {
     uid_t ruid, euid, suid;
@@ -2416,6 +2416,7 @@ static int system_setresgid(lua_State* L)
 
     return 0;
 }
+#endif // !BOOST_OS_MACOS
 
 static int system_getgroups(lua_State* L)
 {
@@ -2483,6 +2484,14 @@ static int system_setgroups(lua_State* L)
         if (groups.size() != 0) {
 #if BOOST_OS_LINUX
             mfd = memfd_create("emilua/setgroups", /*flags=*/0);
+#elif BOOST_OS_MACOS
+            {
+                char name[] = "emilua.XXXXXX\0";
+                mfd = mkstemp(name);
+                if (mfd != -1) {
+                    unlink(name);
+                }
+            }
 #else
             mfd = shm_open(SHM_ANON, O_RDWR | O_CREAT, 0600);
 #endif // BOOST_OS_LINUX
@@ -2741,7 +2750,7 @@ static int system_setsid(lua_State* L)
     lua_pushinteger(L, res);
     return 1;
 }
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 EMILUA_GPERF_DECLS_END(system)
 
 EMILUA_GPERF_DECLS_BEGIN(linux_capabilities)
@@ -3692,11 +3701,11 @@ static int system_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "get_lowfd",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_get_lowfd);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -3978,111 +3987,111 @@ static int system_mt_index(lua_State* L)
         EMILUA_GPERF_PAIR(
             "getgroups",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getgroups);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "setgroups",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_setgroups);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "set_no_new_privs",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, set_no_new_privs);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "getpid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getpid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "getppid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getppid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "kill",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_kill);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "getpgrp",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getpgrp);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "getpgid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getpgid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "setpgid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_setpgid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "getsid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_getsid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
             "setsid",
             [](lua_State* L) -> int {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, system_setsid);
-#else // BOOST_OS_UNIX
+#else // BOOST_OS_UNIX || BOOST_OS_MACOS
                 lua_pushcfunction(L, throw_enosys);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
                 return 1;
             })
         EMILUA_GPERF_PAIR(
@@ -4174,7 +4183,7 @@ void init_system(lua_State* L)
         }
         lua_rawset(L, -3);
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         lua_pushliteral(L, "ignore");
         lua_pushcfunction(L, system_signal_ignore);
         lua_rawset(L, -3);
@@ -4182,7 +4191,7 @@ void init_system(lua_State* L)
         lua_pushliteral(L, "default");
         lua_pushcfunction(L, system_signal_default);
         lua_rawset(L, -3);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #define EMILUA_DEF_SIGNAL(KEY, VALUE) do { \
             lua_pushliteral(L, KEY);       \
@@ -4250,7 +4259,7 @@ void init_system(lua_State* L)
         lua_call(L, 2, 1);
         lua_rawset(L, -3);
 
-# if BOOST_OS_UNIX
+# if BOOST_OS_UNIX || BOOST_OS_MACOS
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDIN_FILENO>);
         lua_rawset(L, -3);
@@ -4270,7 +4279,7 @@ void init_system(lua_State* L)
         lua_pushliteral(L, "tcsetpgrp");
         lua_pushcfunction(L, system_stdhandle_tcsetpgrp<STDIN_FILENO>);
         lua_rawset(L, -3);
-# endif // BOOST_OS_UNIX
+# endif // BOOST_OS_UNIX || BOOST_OS_MACOS
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
 #endif // !BOOST_OS_WINDOWS || EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
@@ -4291,7 +4300,7 @@ void init_system(lua_State* L)
 #endif // BOOST_OS_WINDOWS
         lua_rawset(L, -3);
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDOUT_FILENO>);
         lua_rawset(L, -3);
@@ -4311,7 +4320,7 @@ void init_system(lua_State* L)
         lua_pushliteral(L, "tcsetpgrp");
         lua_pushcfunction(L, system_stdhandle_tcsetpgrp<STDOUT_FILENO>);
         lua_rawset(L, -3);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
 
@@ -4331,7 +4340,7 @@ void init_system(lua_State* L)
 #endif // BOOST_OS_WINDOWS
         lua_rawset(L, -3);
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         lua_pushliteral(L, "dup");
         lua_pushcfunction(L, system_stdhandle_dup<STDERR_FILENO>);
         lua_rawset(L, -3);
@@ -4351,7 +4360,7 @@ void init_system(lua_State* L)
         lua_pushliteral(L, "tcsetpgrp");
         lua_pushcfunction(L, system_stdhandle_tcsetpgrp<STDERR_FILENO>);
         lua_rawset(L, -3);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
     }
     lua_rawset(L, LUA_REGISTRYINDEX);
 

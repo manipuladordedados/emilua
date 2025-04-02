@@ -8,6 +8,7 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/predef/os/windows.h>
 #include <boost/predef/os/linux.h>
+#include <boost/predef/os/macos.h>
 #include <boost/predef/os/unix.h>
 #include <boost/predef/os/bsd.h>
 #include <boost/config.hpp>
@@ -52,9 +53,9 @@ extern "C" {
 #include <lua.h>
 }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 #include <csetjmp>
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #include <emilua/config.h>
 
@@ -374,9 +375,9 @@ private:
 public:
     app_context()
     {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         lowfds.fill(false);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
     }
     app_context(const app_context&) = delete;
 
@@ -396,11 +397,11 @@ public:
              fmt::make_format_args(args...));
     }
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     static std::optional<int> handle_pid1(
         std::function<std::optional<int>()> atfork_on_parent = nullptr);
     static int ipc_actor_service_main(int sockfd);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     std::vector<std::string_view> app_args;
     std::unordered_map<std::string_view, std::string_view> app_env;
@@ -427,7 +428,7 @@ public:
         native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 
-# if BOOST_OS_UNIX
+# if BOOST_OS_UNIX || BOOST_OS_MACOS
     std::unordered_map<std::string, int, TransparentStringHash, std::equal_to<>>
         native_modules_file_preload;
     std::vector<int> native_modules_dir_preload;
@@ -435,7 +436,7 @@ public:
 #  if EMILUA_CONFIG_HAVE_RTLD_SET_VAR
     std::vector<int> ld_library_directories;
 #  endif // EMILUA_CONFIG_HAVE_RTLD_SET_VAR
-# endif // BOOST_OS_UNIX
+# endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
     std::shared_mutex modules_cache_registry_mtx;
 
@@ -447,10 +448,10 @@ public:
     // <https://lists.isocpp.org/std-proposals/2021/07/2809.php>.
     std::condition_variable extra_threads_count_dummy_cond;
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     int ipc_actor_service_sockfd = -1;
     std::array<bool, 7> lowfds;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 private:
     void init_log_domain(std::string_view name, int& log_level);
@@ -494,7 +495,7 @@ struct actor_address
 
 struct inbox_t
 {
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     struct file_descriptor_box
     {
         file_descriptor_box()
@@ -518,9 +519,9 @@ struct inbox_t
 
         int value;
     };
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
     struct ipc_actor_address
     {
         ipc_actor_address(std::shared_ptr<file_descriptor_box> inbox)
@@ -529,14 +530,14 @@ struct inbox_t
 
         std::shared_ptr<file_descriptor_box> inbox;
     };
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
     struct value_type: std::variant<
         bool, lua_Number, std::string,
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
         std::shared_ptr<file_descriptor_box>,
         ipc_actor_address,
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
         std::map<std::string, value_type>,
         std::vector<value_type>,
         actor_address
@@ -759,7 +760,12 @@ public:
         ContextType context;
         std::filesystem::path import_root;
     };
+#if BOOST_OS_MACOS
+    // macOS doesn't add a std::hash<> specialization for fs::path
+    std::map<std::filesystem::path, import_data> import_tree;
+#else // BOOST_OS_MACOS
     std::unordered_map<std::filesystem::path, import_data> import_tree;
+#endif // BOOST_OS_MACOS
 
     // Use it to detect cycles when loading modules from external packages.
     std::set<std::string, TransparentStringComp> visited_external_packages;
@@ -912,10 +918,10 @@ inline int finalizer(lua_State* L)
 
 int throw_enosys(lua_State* L);
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 extern thread_local sigjmp_buf* longjmp_on_rtsigno_env;
 void longjmp_on_rtsigno(int signo, siginfo_t* info, void* context);
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 enum class lua_errc
 {

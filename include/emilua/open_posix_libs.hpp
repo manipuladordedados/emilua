@@ -4,6 +4,7 @@
 #pragma once
 
 #include <boost/predef/os/unix.h>
+#include <boost/predef/os/macos.h>
 
 extern "C" {
 #include <lauxlib.h>
@@ -12,9 +13,9 @@ extern "C" {
 #include <lua.h>
 }
 
-#if !BOOST_OS_UNIX
+#if !BOOST_OS_UNIX && !BOOST_OS_MACOS
 # error "posix libs only supported on POSIX-like systems"
-#endif // !BOOST_OS_UNIX
+#endif // !BOOST_OS_UNIX && !BOOST_OS_MACOS
 
 namespace emilua {
 

@@ -7,20 +7,25 @@
 
 #include <boost/predef/os/unix.h>
 #include <boost/predef/os/linux.h>
+#include <boost/predef/os/macos.h>
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 # include <sys/socket.h>
 # include <sys/types.h>
 # include <netdb.h>
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_LINUX
 # include <linux/openat2.h>
 #endif // BOOST_OS_LINUX
 
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
+struct stat;
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
+
 namespace emilua {
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 extern bool has_libc_service;
 
 struct open_how
@@ -91,6 +96,6 @@ struct ambient_authority
 };
 
 extern struct ambient_authority ambient_authority;
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 } // namespace emilua

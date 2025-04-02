@@ -1067,8 +1067,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_atimespec.tv_sec = secs.count();
+                    statbuf.st_atimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_atim.tv_sec = secs.count();
                     statbuf.st_atim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1097,8 +1102,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_mtimespec.tv_sec = secs.count();
+                    statbuf.st_mtimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_mtim.tv_sec = secs.count();
                     statbuf.st_mtim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1127,8 +1137,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_ctimespec.tv_sec = secs.count();
+                    statbuf.st_ctimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_ctim.tv_sec = secs.count();
                     statbuf.st_ctim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1339,8 +1354,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_atimespec.tv_sec = secs.count();
+                    statbuf.st_atimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_atim.tv_sec = secs.count();
                     statbuf.st_atim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1369,8 +1389,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_mtimespec.tv_sec = secs.count();
+                    statbuf.st_mtimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_mtim.tv_sec = secs.count();
                     statbuf.st_mtim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1399,8 +1424,13 @@ static std::errc fill_reply_buffer(
                     std::chrono::nanoseconds nsecs = unixtp.time_since_epoch();
                     auto secs = duration_cast<std::chrono::seconds>(nsecs);
                     nsecs -= secs;
+#if BOOST_OS_MACOS
+                    statbuf.st_ctimespec.tv_sec = secs.count();
+                    statbuf.st_ctimespec.tv_nsec = nsecs.count();
+#else // BOOST_OS_MACOS
                     statbuf.st_ctim.tv_sec = secs.count();
                     statbuf.st_ctim.tv_nsec = nsecs.count();
+#endif // BOOST_OS_MACOS
                     break;
                 }
                 }
@@ -1784,10 +1814,12 @@ static int master_arguments(lua_State* L)
                     lua_rawseti(L, -2, i++);
                 }
 
+#ifdef O_PATH
                 if ((r.oflag & O_PATH) == O_PATH) {
                     lua_pushliteral(L, "path");
                     lua_rawseti(L, -2, i++);
                 }
+#endif // defined(O_PATH)
 
 #ifdef O_TMPFILE
                 if ((r.oflag & O_TMPFILE) == O_TMPFILE) {
@@ -1871,10 +1903,12 @@ static int master_arguments(lua_State* L)
                     lua_rawseti(L, -2, i++);
                 }
 
+#ifdef O_PATH
                 if ((r.how.flags & O_PATH) == O_PATH) {
                     lua_pushliteral(L, "path");
                     lua_rawseti(L, -2, i++);
                 }
+#endif // defined(O_PATH)
 
 #ifdef O_TMPFILE
                 if ((r.how.flags & O_TMPFILE) == O_TMPFILE) {

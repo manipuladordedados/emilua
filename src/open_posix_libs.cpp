@@ -47,7 +47,11 @@ static int receive_with_fd(lua_State* L)
     msg.msg_control = cmsgbuf;
     msg.msg_controllen = sizeof(cmsgbuf);
 
+#ifdef MSG_CMSG_CLOEXEC
     int res = recvmsg(fd, &msg, MSG_CMSG_CLOEXEC);
+#else // defined(MSG_CMSG_CLOEXEC)
+    int res = recvmsg(fd, &msg, 0);
+#endif // defined(MSG_CMSG_CLOEXEC)
     int last_error = (res == -1) ? errno : 0;
     if (last_error != 0) {
         lua_getfield(L, LUA_GLOBALSINDEX, "errexit");

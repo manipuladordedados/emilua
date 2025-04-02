@@ -6,6 +6,7 @@
 #include <boost/predef/os/bsd/free.h>
 #include <boost/predef/os/linux.h>
 #include <boost/predef/os/unix.h>
+#include <boost/predef/os/macos.h>
 
 #include <sys/stat.h>
 #include <algorithm>
@@ -16,9 +17,9 @@
 
 #include <unistd.h>
 
-#if !BOOST_OS_UNIX
+#if !BOOST_OS_UNIX && !BOOST_OS_MACOS
 # error "libc_service only supported on POSIX-like systems"
-#endif // !BOOST_OS_UNIX
+#endif // !BOOST_OS_UNIX && !BOOST_OS_MACOS
 
 #define EMILUA_LIBC_SERVICE_MAXIMUM_FDS_PER_MESSAGE 4
 

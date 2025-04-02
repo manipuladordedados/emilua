@@ -10,13 +10,13 @@
 #include <sys/syscall.h>
 #endif // BOOST_OS_LINUX
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 # if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #  include <asio/local/seq_packet_protocol.hpp>
 # else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #  include <boost/asio/local/seq_packet_protocol.hpp>
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #if BOOST_OS_BSD_FREE
 #include <sys/procdesc.h>
@@ -28,7 +28,7 @@ extern char inbox_key;
 
 void init_actor_module(lua_State* L);
 
-#if BOOST_OS_UNIX
+#if BOOST_OS_UNIX || BOOST_OS_MACOS
 static constexpr std::uint64_t DOUBLE_SIGN_BIT = UINT64_C(0x8000000000000000);
 static constexpr std::uint64_t EXPONENT_MASK   = UINT64_C(0x7FF0000000000000);
 static constexpr std::uint64_t MANTISSA_MASK   = UINT64_C(0x000FFFFFFFFFFFFF);
@@ -130,8 +130,10 @@ struct ipc_actor_start_vm_request
     enum : std::uint8_t
     {
         CREATE_PROCESS,
+#if !BOOST_OS_MACOS
         SETRESUID,
         SETRESGID,
+#endif // !BOOST_OS_MACOS
         SETGROUPS,
         SET_NO_NEW_PRIVS,
 #if BOOST_OS_LINUX
@@ -216,6 +218,10 @@ struct ipc_actor_reaper : public pending_operation
         , childpidfd{childpidfd}
         , childpid{childpid}
     {}
+#elif BOOST_OS_MACOS
+    ipc_actor_reaper()
+        : pending_operation{/*shared_ownership=*/false}
+    {}
 #else
     ipc_actor_reaper(int childpidfd)
         : pending_operation{/*shared_ownership=*/false}
@@ -225,7 +231,9 @@ struct ipc_actor_reaper : public pending_operation
 
     ~ipc_actor_reaper()
     {
+#if !BOOST_OS_MACOS
         close(childpidfd);
+#endif // !BOOST_OS_MACOS
     }
 
     void cancel() noexcept override
@@ -233,12 +241,16 @@ struct ipc_actor_reaper : public pending_operation
 #if BOOST_OS_LINUX
         syscall(SYS_pidfd_send_signal, childpidfd, SIGKILL, /*info=*/NULL,
                 /*flags=*/0);
+#elif BOOST_OS_MACOS
+        // do nothing
 #else
         pdkill(childpidfd, SIGKILL);
 #endif // BOOST_OS_LINUX
     }
 
+#if !BOOST_OS_MACOS
     int childpidfd;
+#endif // !BOOST_OS_MACOS
 #if BOOST_OS_LINUX
     pid_t childpid;
 #endif // BOOST_OS_LINUX
@@ -253,6 +265,6 @@ struct ipc_actor_address
     asio::local::seq_packet_protocol::socket dest;
     ipc_actor_reaper* reaper = nullptr;
 };
-#endif // BOOST_OS_UNIX
+#endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 } // namespace emilua

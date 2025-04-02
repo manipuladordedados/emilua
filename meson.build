@@ -30,6 +30,10 @@ if host_machine.system() == 'freebsd'
     add_project_link_arguments('-ljail', language : 'cpp')
 endif
 
+if host_machine.system() == 'darwin'
+    add_project_arguments('-DMSG_NOSIGNAL=0', language : 'cpp')
+endif
+
 luajit = dependency('luajit', version : '>=2.1.0')
 boost = dependency(
     'boost',
@@ -485,6 +489,7 @@ else
                 libcap,
                 luajit,
                 boost,
+                fmt,
             ],
             include_directories : include_directories(incdir),
             implicit_include_directories : false,
