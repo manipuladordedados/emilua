@@ -1243,6 +1243,15 @@ static int child_main(void*)
 
     destroy_native_modules();
 
+    if (appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::LAST_WORDS;
+
+        int flags = MSG_NOSIGNAL;
+        send(appctx.ipc_actor_service_sockfd, &request, sizeof(request), flags);
+    }
+
     try {
         // The glibc runtime won't flush `stdout` on clone()d processes because
         // doing so is generally unsafe since buffered data would then be
@@ -1801,6 +1810,9 @@ int app_context::ipc_actor_service_main(int sockfd)
             write(fds[0], buf, 1);
             close(fds[0]);
             continue;
+        }
+        case ipc_actor_start_vm_request::LAST_WORDS: {
+            goto out_cleanup;
         }
         case ipc_actor_start_vm_request::CREATE_PROCESS: {
             int fds[4] = {-1, -1, -1, -1};

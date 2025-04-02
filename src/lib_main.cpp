@@ -688,6 +688,17 @@ int main(int argc, char *argv[], char *envp[])
 
     destroy_native_modules();
 
+#if BOOST_OS_UNIX
+    if (appctx.ipc_actor_service_sockfd != -1) {
+        ipc_actor_start_vm_request request;
+        std::memset(&request, 0, sizeof(request));
+        request.type = ipc_actor_start_vm_request::LAST_WORDS;
+
+        int flags = MSG_NOSIGNAL;
+        send(appctx.ipc_actor_service_sockfd, &request, sizeof(request), flags);
+    }
+#endif // BOOST_OS_UNIX
+
     return appctx.exit_code;
 }
 #if BOOST_OS_WINDOWS

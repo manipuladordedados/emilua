@@ -147,6 +147,7 @@ struct ipc_actor_start_vm_request
         REPLACE_STDIN,
         REPLACE_STDOUT,
         REPLACE_STDERR,
+        LAST_WORDS,
     } type;
 
     // opcodes for the native_modules_cache channel
