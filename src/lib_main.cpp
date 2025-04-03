@@ -11,6 +11,7 @@
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/nowide/iostream.hpp>
 #include <boost/predef/os/macos.h>
+#include <boost/predef/os/bsd.h>
 #include <boost/nowide/args.hpp>
 #include <boost/version.hpp>
 
@@ -25,6 +26,7 @@
 
 #if BOOST_OS_LINUX
 #include <boost/context/fixedsize_stack.hpp>
+#include <sys/auxv.h>
 #endif // BOOST_OS_LINUX
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
@@ -72,7 +74,9 @@ static inline bool is_suid()
 {
 #if BOOST_OS_WINDOWS
     static constexpr bool ret = false;
-#elif BOOST_OS_MACOS
+#elif BOOST_OS_LINUX
+    bool ret = getauxval(AT_SECURE) != 0;
+#elif BOOST_OS_MACOS || BOOST_OS_BSD_FREE
     bool ret = issetugid();
 #else
     bool ret;
