@@ -5,6 +5,11 @@ local fs = require 'filesystem'
 
 local pi, po = pipe.pair()
 
+-- subprocess.wait() isn't implemented for all platforms (e.g. macOS), so we use
+-- EPIPE to wait for the child
+local exit_pi, exit_po = pipe.pair()
+exit_po = exit_po:release()
+
 spawn(function()
     stream.write_all(po, 'hello from pipe')
     po:close()
@@ -20,6 +25,13 @@ system.spawn{
     stdout = 'share',
     stderr = 'share',
     extra_fds = {
-        [3] = pi:release()
+        [3] = pi:release(),
+        [4] = exit_po
     }
-}:wait()
+}
+exit_po:close()
+
+pcall(function()
+    local buf = byte_span.new(1)
+    exit_pi:read_some(buf)
+end)
