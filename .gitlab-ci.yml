@@ -22,8 +22,6 @@ macos:build:
         -Deintr_rtsigno=0 \
         -Ddefault_library=static \
         -Denable_manpages=false \
-        -Dbuildtype=release \
-        -Db_ndebug=true \
         build
     - meson compile -C build
 
