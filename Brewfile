@@ -1,4 +1,3 @@
-brew "asciidoctor"
 brew "boost"
 brew "meson"
 brew "gawk"
