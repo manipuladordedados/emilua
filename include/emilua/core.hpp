@@ -11,6 +11,7 @@
 #include <boost/predef/os/macos.h>
 #include <boost/predef/os/unix.h>
 #include <boost/predef/os/bsd.h>
+#include <boost/version.hpp>
 #include <boost/config.hpp>
 
 #include <boost/hana/functional/overload.hpp>
@@ -76,7 +77,9 @@ extern "C" {
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 #if EMILUA_CONFIG_ENABLE_PLUGINS
+# if BOOST_VERSION < 108800
 #include <boost/shared_ptr.hpp>
+# endif // BOOST_VERSION < 108800
 #endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 #define EMILUA_GPERF_BEGIN(ID)
@@ -424,8 +427,14 @@ public:
         std::filesystem::path, std::unique_ptr<rdf_error_category>, path_hash
     > rdf_ec_cache_registry;
 #if EMILUA_CONFIG_ENABLE_PLUGINS
-    std::unordered_map<std::string, boost::shared_ptr<native_module>>
-        native_modules_cache_registry;
+    std::unordered_map<
+        std::string,
+# if BOOST_VERSION >= 108800
+        std::shared_ptr<native_module>
+# else // BOOST_VERSION >= 108800
+        boost::shared_ptr<native_module>
+# endif // BOOST_VERSION >= 108800
+    > native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 
 # if BOOST_OS_UNIX || BOOST_OS_MACOS

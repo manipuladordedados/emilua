@@ -13,7 +13,6 @@
 #include <boost/predef/os/macos.h>
 #include <boost/predef/os/bsd.h>
 #include <boost/nowide/args.hpp>
-#include <boost/version.hpp>
 
 #include <emilua/windows.hpp>
 #include <emilua/state.hpp>
