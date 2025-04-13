@@ -36,11 +36,7 @@ static constexpr auto help_text = FMT_STRING(
 
 static std::string filename_buffer;
 static std::string_view filename;
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-static int main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_SAFE;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-static int main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+static int main_ctx_concurrency_hint_ = 0;
 static ContextType main_context_type = ContextType::main;
 
 #if BOOST_OS_WINDOWS
@@ -212,6 +208,10 @@ opt_long:
 opt_main_context_concurrency_hint:
     %{
     * { ERRARG("--main-context-concurrency-hint"); }
+    "0" {end} {
+        main_ctx_concurrency_hint_ = 0;
+        goto opt;
+    }
     "1" {end} {
         main_ctx_concurrency_hint_ = 1;
         goto opt;

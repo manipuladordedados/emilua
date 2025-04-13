@@ -1313,11 +1313,7 @@ static int spawn_vm(lua_State* L)
     bool inherit_ctx = true;
     bool new_master = false;
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+    int concurrency_hint = 0;
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
     int concurrency_hint = 1;
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
@@ -1392,10 +1388,36 @@ static int spawn_vm(lua_State* L)
         }
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
         lua_getfield(L, 1, "concurrency_hint");
-        if (lua_type(L, -1) == LUA_TNUMBER) {
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
+            return lua_error(L);
+        case LUA_TNUMBER: {
             int user_concurrency_hint = lua_tointeger(L, -1);
-            if (user_concurrency_hint == 1)
-                concurrency_hint = 1;
+            // magic constant 0xFFFF taken from
+            // <https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint>
+            if (user_concurrency_hint >= 0xFFFF) {
+                push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
+                return lua_error(L);
+            }
+            concurrency_hint = user_concurrency_hint;
+            break;
+        }
+        case LUA_TSTRING: {
+            auto user_concurrency_hint = tostringview(L);
+            if (user_concurrency_hint != "safe") {
+                push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
+                return lua_error(L);
+            }
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+            concurrency_hint = ASIO_CONCURRENCY_HINT_SAFE;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_SAFE;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            break;
+        }
+        case LUA_TNIL:
+            break;
         }
 #endif
         lua_getfield(L, 1, "subprocess");

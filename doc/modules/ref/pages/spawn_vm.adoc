@@ -65,7 +65,7 @@ multitasking is used to alternate execution among the ready VMs.
 TIP: A thread pool is one type of an execution context. The API prefers the term
 “context” as it's more general than “thread pool”.
 
-`concurrency_hint: integer|"safe" = "safe"`::
+`concurrency_hint: integer|"safe" = 0`::
 
 `integer`:::
 
@@ -79,8 +79,8 @@ NOTE: You still need to call `spawn_context_threads()` to create the extra
 threads.
 --
 
-`"safe"`::: The default. No assumption is made upfront on the number of active
-threads that will be created through `spawn_context_threads()`.
+`"safe"`::: Same as
+https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint[`ASIO_CONCURRENCY_HINT_SAFE`].
 
 `new_master: boolean = false`::
 

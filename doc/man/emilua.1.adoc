@@ -36,7 +36,9 @@ executed.
   <https://www.boost.org/doc/libs/1_72_0/doc/html/boost_asio/overview/core/concurrency_hint.html>
   for more info.
 +
-The default is _HINT=safe_.
+The default is _HINT=0_.
++
+The old default was _HINT=safe_.
 
 *--test*::
 

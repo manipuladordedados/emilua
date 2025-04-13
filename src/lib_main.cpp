@@ -534,11 +534,7 @@ int (*main_ctx_concurrency_hint)() = []()
 int main_ctx_concurrency_hint()
 #endif // BOOST_OS_WINDOWS
 {
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-    return ASIO_CONCURRENCY_HINT_SAFE;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-    return BOOST_ASIO_CONCURRENCY_HINT_SAFE;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+    return 0;
 }
 #if BOOST_OS_WINDOWS
 ;
