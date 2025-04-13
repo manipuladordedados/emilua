@@ -469,6 +469,8 @@ private:
               fmt::string_view format_str, fmt::format_args args);
 };
 
+// for standalone ASIO, it's okay to always require the latest version
+#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 class properties_service : public asio::execution_context::service
 {
 public:
@@ -483,6 +485,7 @@ public:
 
     static asio::io_context::id id;
 };
+#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 void set_interrupter(lua_State* L, vm_context& vm_ctx);
 asio::cancellation_slot

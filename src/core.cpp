@@ -40,7 +40,9 @@ void* clone_stack_address;
 thread_local sigjmp_buf* longjmp_on_rtsigno_env;
 #endif // BOOST_OS_UNIX
 
+#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 asio::io_context::id properties_service::id;
+#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 std::string_view log_domain<default_log_domain>::name = "emilua";
 int log_domain<default_log_domain>::log_level = /*LOG_WARNING=*/4;
@@ -175,6 +177,7 @@ void app_context::vlog(int priority, std::string_view domain,
     } catch (const std::ios_base::failure&) {}
 }
 
+#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 properties_service::properties_service(asio::execution_context& ctx,
                                        int concurrency_hint)
     : asio::execution_context::service(ctx)
@@ -190,6 +193,7 @@ properties_service::properties_service(asio::execution_context& ctx)
 
 void properties_service::shutdown()
 {}
+#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 vm_context::vm_context(emilua::app_context& appctx, strand_type strand)
     : appctx(appctx)

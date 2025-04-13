@@ -25,11 +25,9 @@ list of steps you need to do:
    long as at least one Lua VM is alive. If you want to be sure, just make sure
    it outlives `boost::asio::io_context` and you're good to go.
 
-4. Create an `emilua::properties_service` object with the same concurrency hint
-   passed to `boost::asio::io_context` and add it to the
-   `boost::asio::io_context` object using `boost::asio::make_service`. This step
-   will be needed for as long as Boost.Asio refuses to add a getter for the
-   concurrency hint: <https://github.com/chriskohlhoff/asio/pull/1254>.
+4. Make sure all `asio::io_context` objects store an option (`asio::config`) for
+   `scheduler/concurrency_hint`. Alternatively you may use
+   `emilua::properties_service` on older ASIO versions.
 
 5. Call `emilua::make_vm()` (see `src/main.ypp` for an example).
 
