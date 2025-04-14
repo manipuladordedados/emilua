@@ -27,6 +27,7 @@ extern int __sys_mkdir(const char *file, mode_t mode);
 extern int __sys_rmdir(const char *file);
 extern int __sys_connect(int, const struct sockaddr*, socklen_t);
 extern int __sys_bind(int, const struct sockaddr*, socklen_t);
+extern int fstatat(int fd, const char *path, struct stat *sb, int flag);
 
 int open(const char *file, int oflag, ...)
 {
@@ -251,6 +252,33 @@ int bind(int s, const struct sockaddr* name, socklen_t namelen)
         return (*emilua::ambient_authority.bind)(__sys_bind, s, name, namelen);
     } else {
         return __sys_bind(s, name, namelen);
+    }
+}
+
+int stat(const char* pathname, struct stat* statbuf)
+{
+    auto real_stat = [](const char* pathname, struct stat* statbuf) -> int {
+        return fstatat(AT_FDCWD, pathname, statbuf, /*flags=*/0);
+    };
+
+    if (emilua::ambient_authority.stat) {
+        return (*emilua::ambient_authority.stat)(real_stat, pathname, statbuf);
+    } else {
+        return real_stat(pathname, statbuf);
+    }
+}
+
+int lstat(const char* pathname, struct stat* statbuf)
+{
+    auto real_lstat = [](const char* pathname, struct stat* statbuf) -> int {
+        return fstatat(AT_FDCWD, pathname, statbuf, AT_SYMLINK_NOFOLLOW);
+    };
+
+    if (emilua::ambient_authority.lstat) {
+        return (*emilua::ambient_authority.lstat)(
+            real_lstat, pathname, statbuf);
+    } else {
+        return real_lstat(pathname, statbuf);
     }
 }
 
