@@ -575,12 +575,6 @@ static native_module& load_native_module(
             dirfd = -1;
         }
 # else // BOOST_OS_LINUX
-        template<class T>
-#  if BOOST_VERSION >= 108800
-        using dll_shared_ptr = std::shared_ptr<T>;
-#  else // BOOST_VERSION >= 108800
-        using dll_shared_ptr = boost::shared_ptr<T>;
-#  endif // BOOST_VERSION >= 108800
         dll_shared_ptr<void> raw;
         {
             void* handle = fdlopen(fd, RTLD_LAZY | RTLD_LOCAL);

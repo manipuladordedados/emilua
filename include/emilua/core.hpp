@@ -152,6 +152,16 @@ using asio_error_code = boost::system::error_code;
 using asio_system_error = boost::system::system_error;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
+#if EMILUA_CONFIG_ENABLE_PLUGINS
+template<class T>
+using dll_shared_ptr =
+# if BOOST_VERSION >= 108800
+    std::shared_ptr<T>;
+# else // BOOST_VERSION >= 108800
+    boost::shared_ptr<T>;
+# endif // BOOST_VERSION >= 108800
+#endif // EMILUA_CONFIG_ENABLE_PLUGINS
+
 extern bool stdout_has_color;
 extern char raw_unpack_key;
 extern char raw_xpcall_key;
@@ -429,11 +439,7 @@ public:
 #if EMILUA_CONFIG_ENABLE_PLUGINS
     std::unordered_map<
         std::string,
-# if BOOST_VERSION >= 108800
-        std::shared_ptr<native_module>
-# else // BOOST_VERSION >= 108800
-        boost::shared_ptr<native_module>
-# endif // BOOST_VERSION >= 108800
+        dll_shared_ptr<native_module>
     > native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 
