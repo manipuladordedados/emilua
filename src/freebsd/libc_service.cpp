@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Vinícius dos Santos Oliveira
+// Copyright (c) 2024, 2025 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
 #include <fcntl.h>
@@ -254,15 +254,12 @@ int bind(int s, const struct sockaddr* name, socklen_t namelen)
     }
 }
 
-namespace {
-int emilua_getaddrinfo(
+int getaddrinfo(
     const char* node, const char* service, const struct addrinfo* hints,
     struct addrinfo** res)
 {
     // libc's doesn't offer an alias for getaddrinfo, so dlsym() is the only way
-    // to get one. Given this function won't be used by builds against static
-    // libc anyways (see comments below in the next function), this is fine for
-    // now.
+    // to get one.
     auto real_getaddrinfo = reinterpret_cast<int (*)(
         const char*, const char*, const struct addrinfo*, struct addrinfo**
     )>(dlfunc(RTLD_NEXT, "getaddrinfo"));
@@ -274,15 +271,6 @@ int emilua_getaddrinfo(
         return real_getaddrinfo(node, service, hints, res);
     }
 }
-} // namespace
-
-// libc's getaddrinfo() is not weak, so we cannot override it when linking
-// against static libc. Defining our own symbol as a weak alias allows builds
-// against static libc to succeed (for such case, our definition won't be used).
-[[gnu::weak, gnu::alias("emilua_getaddrinfo")]]
-int getaddrinfo(
-    const char* node, const char* service, const struct addrinfo* hints,
-    struct addrinfo** res);
 
 } // extern "C"
 

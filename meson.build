@@ -1082,15 +1082,15 @@ if get_option('enable_tests')
                 'spawn_with_pid_on_env',
             ],
             'libc_service' : [
+                'libc_service_getaddrinfo',
+                'libc_service_getaddrinfo2',
+                'libc_service_getaddrinfo3',
+                'libc_service_getaddrinfo4',
             ] +
             (('-static' in get_option('cpp_link_args')) ? [] : [
                 'libc_service_cat',
             ]) +
             (host_machine.system() == 'freebsd' ? [] : [
-                'libc_service_getaddrinfo',
-                'libc_service_getaddrinfo2',
-                'libc_service_getaddrinfo3',
-                'libc_service_getaddrinfo4',
                 'libc_service_stat1',
                 'libc_service_stat2',
                 'libc_service_stat3',
