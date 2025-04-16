@@ -1280,9 +1280,8 @@ static int file_clock_time_point_add(lua_State* L)
 {
     lua_settop(L, 2);
 
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp || !lua_getmetatable(L, 1)) {
+    auto tpmem = lua_touserdata(L, 1);
+    if (!tpmem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1291,6 +1290,7 @@ static int file_clock_time_point_add(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
     lua_Number secs = luaL_checknumber(L, 2);
     if (std::isnan(secs) || std::isinf(secs)) {
@@ -1323,9 +1323,8 @@ static int file_clock_time_point_sub(lua_State* L)
 {
     lua_settop(L, 2);
 
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp || !lua_getmetatable(L, 1)) {
+    auto tpmem = lua_touserdata(L, 1);
+    if (!tpmem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1334,6 +1333,7 @@ static int file_clock_time_point_sub(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
     lua_Number secs = luaL_checknumber(L, 2);
     if (std::isnan(secs) || std::isinf(secs)) {
@@ -1364,9 +1364,8 @@ static int file_clock_time_point_sub(lua_State* L)
 
 static int file_clock_time_point_to_system(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp || !lua_getmetatable(L, 1)) {
+    auto tpmem = lua_touserdata(L, 1);
+    if (!tpmem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1375,6 +1374,7 @@ static int file_clock_time_point_to_system(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
     auto ret = static_cast<std::chrono::system_clock::time_point*>(
         lua_newuserdata(L, sizeof(std::chrono::system_clock::time_point))
@@ -1467,9 +1467,8 @@ static int file_clock_time_point_mt_eq(lua_State* L)
 
 static int file_clock_time_point_mt_lt(lua_State* L)
 {
-    auto tp1 = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp1 || !lua_getmetatable(L, 1)) {
+    auto tp1mem = lua_touserdata(L, 1);
+    if (!tp1mem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1478,10 +1477,10 @@ static int file_clock_time_point_mt_lt(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp1 = aligned_userdata<std::chrono::file_clock::time_point>(tp1mem);
 
-    auto tp2 = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 2));
-    if (!tp2 || !lua_getmetatable(L, 2)) {
+    auto tp2mem = lua_touserdata(L, 2);
+    if (!tp2mem || !lua_getmetatable(L, 2)) {
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
@@ -1490,6 +1489,7 @@ static int file_clock_time_point_mt_lt(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
+    auto tp2 = aligned_userdata<std::chrono::file_clock::time_point>(tp2mem);
 
     lua_pushboolean(L, *tp1 < *tp2);
     return 1;
@@ -1497,9 +1497,8 @@ static int file_clock_time_point_mt_lt(lua_State* L)
 
 static int file_clock_time_point_mt_le(lua_State* L)
 {
-    auto tp1 = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp1 || !lua_getmetatable(L, 1)) {
+    auto tp1mem = lua_touserdata(L, 1);
+    if (!tp1mem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1508,10 +1507,10 @@ static int file_clock_time_point_mt_le(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp1 = aligned_userdata<std::chrono::file_clock::time_point>(tp1mem);
 
-    auto tp2 = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 2));
-    if (!tp2 || !lua_getmetatable(L, 2)) {
+    auto tp2mem = lua_touserdata(L, 2);
+    if (!tp2mem || !lua_getmetatable(L, 2)) {
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
@@ -1520,6 +1519,7 @@ static int file_clock_time_point_mt_le(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 2);
         return lua_error(L);
     }
+    auto tp2 = aligned_userdata<std::chrono::file_clock::time_point>(tp2mem);
 
     lua_pushboolean(L, *tp1 <= *tp2);
     return 1;
@@ -1527,9 +1527,8 @@ static int file_clock_time_point_mt_le(lua_State* L)
 
 static int file_clock_time_point_mt_add(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp || !lua_getmetatable(L, 1)) {
+    auto tpmem = lua_touserdata(L, 1);
+    if (!tpmem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1538,6 +1537,7 @@ static int file_clock_time_point_mt_add(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
     lua_Number secs = luaL_checknumber(L, 2);
     if (std::isnan(secs) || std::isinf(secs)) {
@@ -1554,9 +1554,7 @@ static int file_clock_time_point_mt_add(lua_State* L)
         return lua_error(L);
     }
 
-    auto ret = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto ret = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (ret) std::chrono::file_clock::time_point{};
@@ -1576,9 +1574,8 @@ static int file_clock_time_point_mt_add(lua_State* L)
 
 static int file_clock_time_point_mt_sub(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_touserdata(L, 1));
-    if (!tp || !lua_getmetatable(L, 1)) {
+    auto tpmem = lua_touserdata(L, 1);
+    if (!tpmem || !lua_getmetatable(L, 1)) {
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
@@ -1587,6 +1584,7 @@ static int file_clock_time_point_mt_sub(lua_State* L)
         push(L, std::errc::invalid_argument, "arg", 1);
         return lua_error(L);
     }
+    auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
     switch (lua_type(L, 2)) {
     case LUA_TNUMBER: {
@@ -1605,9 +1603,8 @@ static int file_clock_time_point_mt_sub(lua_State* L)
             return lua_error(L);
         }
 
-        auto ret = static_cast<std::chrono::file_clock::time_point*>(
-            lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-        );
+        auto ret =
+            aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
         rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
         setmetatable(L, -2);
         new (ret) std::chrono::file_clock::time_point{};
@@ -1625,9 +1622,8 @@ static int file_clock_time_point_mt_sub(lua_State* L)
         }
     }
     case LUA_TUSERDATA: {
-        auto tp2 = static_cast<std::chrono::file_clock::time_point*>(
-            lua_touserdata(L, 2));
-        if (!tp2 || !lua_getmetatable(L, 2)) {
+        auto tp2mem = lua_touserdata(L, 2);
+        if (!tp2mem || !lua_getmetatable(L, 2)) {
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
@@ -1636,6 +1632,8 @@ static int file_clock_time_point_mt_sub(lua_State* L)
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
+        auto tp2 =
+            aligned_userdata<std::chrono::file_clock::time_point>(tp2mem);
 
         try {
             lua_pushnumber(L, lua_Seconds{*tp - *tp2}.count());
@@ -1913,9 +1911,7 @@ inline int directory_entry_last_write_time(lua_State* L)
         return lua_error(L);
     }
 
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto tp = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (tp) std::chrono::file_clock::time_point{ret};
@@ -2314,9 +2310,7 @@ EMILUA_GPERF_DECLS_BEGIN(clock_ctors)
 EMILUA_GPERF_NAMESPACE(emilua)
 static int file_clock_now(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto tp = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (tp) std::chrono::file_clock::time_point{};
@@ -2326,9 +2320,7 @@ static int file_clock_now(lua_State* L)
 
 static int file_clock_epoch(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto tp = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (tp) std::chrono::file_clock::time_point{};
@@ -2337,9 +2329,7 @@ static int file_clock_epoch(lua_State* L)
 
 static int file_clock_unix_epoch(lua_State* L)
 {
-    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto tp = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (tp) std::chrono::file_clock::time_point{};
@@ -2368,9 +2358,7 @@ static int file_clock_from_system(lua_State* L)
         return lua_error(L);
     }
 
-    auto ret = static_cast<std::chrono::file_clock::time_point*>(
-        lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-    );
+    auto ret = aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
     rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
     setmetatable(L, -2);
     new (ret) std::chrono::file_clock::time_point{};
@@ -2639,9 +2627,8 @@ static int last_write_time(lua_State* L)
 
     switch (lua_type(L, 2)) {
     case LUA_TNIL: {
-        auto tp = static_cast<std::chrono::file_clock::time_point*>(
-            lua_newuserdata(L, sizeof(std::chrono::file_clock::time_point))
-        );
+        auto tp =
+            aligned_alloc_userdata<std::chrono::file_clock::time_point>(L);
         rawgetp(L, LUA_REGISTRYINDEX, &file_clock_time_point_mt_key);
         setmetatable(L, -2);
         new (tp) std::chrono::file_clock::time_point{};
@@ -2657,9 +2644,8 @@ static int last_write_time(lua_State* L)
         return 1;
     }
     case LUA_TUSERDATA: {
-        auto tp = static_cast<std::chrono::file_clock::time_point*>(
-            lua_touserdata(L, 2));
-        if (!tp || !lua_getmetatable(L, 2)) {
+        auto tpmem = lua_touserdata(L, 2);
+        if (!tpmem || !lua_getmetatable(L, 2)) {
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
@@ -2668,6 +2654,7 @@ static int last_write_time(lua_State* L)
             push(L, std::errc::invalid_argument, "arg", 2);
             return lua_error(L);
         }
+        auto tp = aligned_userdata<std::chrono::file_clock::time_point>(tpmem);
 
         std::error_code ec;
         fs::last_write_time(*path, *tp, ec);

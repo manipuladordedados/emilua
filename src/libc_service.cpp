@@ -1051,8 +1051,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1061,6 +1060,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
@@ -1086,8 +1087,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1096,6 +1096,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
@@ -1121,8 +1123,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1131,6 +1132,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
@@ -1338,8 +1341,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1348,6 +1350,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
@@ -1373,8 +1377,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1383,6 +1386,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
@@ -1408,8 +1413,7 @@ static std::errc fill_reply_buffer(
                 case LUA_TNIL:
                     break;
                 case LUA_TUSERDATA: {
-                    auto tp = static_cast<std::chrono::file_clock::time_point*>(
-                        lua_touserdata(L, -1));
+                    auto tpmem = lua_touserdata(L, -1);
                     if (!lua_getmetatable(L, -1)) {
                         return std::errc::invalid_argument;
                     }
@@ -1418,6 +1422,8 @@ static std::errc fill_reply_buffer(
                     if (!lua_rawequal(L, -1, -2)) {
                         return std::errc::invalid_argument;
                     }
+                    auto tp = aligned_userdata<
+                        std::chrono::file_clock::time_point>(tpmem);
 
                     auto unixtp = time_point_cast<std::chrono::nanoseconds>(
                         std::chrono::file_clock::to_sys(*tp));
