@@ -816,6 +816,36 @@ private:
 
 vm_context& get_vm_context(lua_State* L);
 
+template<class T>
+inline T* aligned_alloc_userdata(lua_State* L)
+{
+    if constexpr (alignof(T) <= alignof(std::max_align_t)) {
+        return static_cast<T*>(lua_newuserdata(L, sizeof(T)));
+    } else {
+        std::size_t alloc_size = sizeof(T) * 2;
+        void* memptr = lua_newuserdata(L, alloc_size);
+        bool align_succeed =
+            std::align(alignof(T), sizeof(T), memptr, alloc_size);
+        assert(align_succeed);
+        std::ignore = align_succeed;
+        return static_cast<T*>(memptr);
+    }
+}
+
+template<class T>
+inline T* aligned_userdata(void* p)
+{
+    if constexpr (alignof(T) <= alignof(std::max_align_t)) {
+        return static_cast<T*>(p);
+    } else {
+        std::size_t alloc_size = sizeof(T) * 2;
+        bool align_succeed = std::align(alignof(T), sizeof(T), p, alloc_size);
+        assert(align_succeed);
+        std::ignore = align_succeed;
+        return static_cast<T*>(p);
+    }
+}
+
 inline void setmetatable(lua_State* L, int index)
 {
     int res = lua_setmetatable(L, index);
@@ -931,6 +961,21 @@ template<class T>
 inline int finalizer(lua_State* L)
 {
     finalize<T>(L);
+    return 0;
+}
+
+template<class T>
+inline void aligned_finalize(lua_State* L, int index = 1)
+{
+    auto obj = aligned_userdata<T>(lua_touserdata(L, index));
+    assert(obj);
+    obj->~T();
+}
+
+template<class T>
+inline int aligned_finalizer(lua_State* L)
+{
+    aligned_finalize<T>(L);
     return 0;
 }
 
