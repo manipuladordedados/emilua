@@ -819,7 +819,18 @@ vm_context& get_vm_context(lua_State* L);
 template<class T>
 inline T* aligned_alloc_userdata(lua_State* L)
 {
-    if constexpr (alignof(T) <= alignof(std::max_align_t)) {
+#if EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+    static constexpr std::size_t max_align = alignof(std::max_align_t);
+#else // EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+    // Value 8 taken from:
+    // <https://github.com/LuaJIT/LuaJIT/issues/1161#issuecomment-1939114337>.
+    static constexpr std::size_t default_lua_alignment = 8;
+
+    static constexpr std::size_t max_align =
+        std::min(default_lua_alignment, alignof(std::max_align_t));
+#endif // EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+
+    if constexpr (alignof(T) <= max_align) {
         return static_cast<T*>(lua_newuserdata(L, sizeof(T)));
     } else {
         std::size_t alloc_size = sizeof(T) * 2;
@@ -835,7 +846,18 @@ inline T* aligned_alloc_userdata(lua_State* L)
 template<class T>
 inline T* aligned_userdata(void* p)
 {
-    if constexpr (alignof(T) <= alignof(std::max_align_t)) {
+#if EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+    static constexpr std::size_t max_align = alignof(std::max_align_t);
+#else // EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+    // Value 8 taken from:
+    // <https://github.com/LuaJIT/LuaJIT/issues/1161#issuecomment-1939114337>.
+    static constexpr std::size_t default_lua_alignment = 8;
+
+    static constexpr std::size_t max_align =
+        std::min(default_lua_alignment, alignof(std::max_align_t));
+#endif // EMILUA_CONFIG_LUA_ALLOCATOR_RESPECTS_MAX_ALIGN_T
+
+    if constexpr (alignof(T) <= max_align) {
         return static_cast<T*>(p);
     } else {
         std::size_t alloc_size = sizeof(T) * 2;
