@@ -188,6 +188,17 @@ int unlink(const char* pathname)
     }
 }
 
+int remove(const char* pathname)
+{
+    if (unlink(pathname) == 0)
+        return 0;
+
+    if (errno == EISDIR || errno == EPERM)
+        return rmdir(pathname);
+
+    return -1;
+}
+
 int rename(const char* pathname1, const char* pathname2)
 {
     if (emilua::ambient_authority.rename) {
