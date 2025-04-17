@@ -1304,7 +1304,7 @@ static int child_main(void*)
 
         try {
             auto vm_ctx = make_vm(
-                ioctx, appctx, ContextType::worker, entry_point, import_root);
+                appctx, ioctx, ContextType::worker, entry_point, import_root);
             appctx.master_vm = vm_ctx;
 
             ++vm_ctx->inbox.nsenders;

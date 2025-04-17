@@ -125,7 +125,7 @@ void make_master_vm(app_context& appctx, asio::io_context& ioctx)
 #endif // BOOST_OS_WINDOWS
 {
     auto vm_ctx = make_vm(
-        ioctx, appctx, ContextType::main,
+        appctx, ioctx, ContextType::main,
         fs::path{"/NUL/app/main.lua", fs::path::generic_format});
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {

@@ -33,10 +33,11 @@ void destroy_native_modules();
 // }}}
 
 std::shared_ptr<vm_context> make_vm(
-    asio::io_context& ioctx,
     emilua::app_context& appctx,
+    asio::io_context& ioctx,
     ContextType lua_context,
     std::filesystem::path entry_point,
-    std::filesystem::path import_root = std::filesystem::path{});
+    std::filesystem::path import_root = std::filesystem::path{},
+    std::optional<strand_type> strand = std::nullopt);
 
 } // namespace emilua

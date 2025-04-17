@@ -1697,11 +1697,12 @@ static int require(lua_State* L)
     }
 }
 
-std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
-                                    emilua::app_context& appctx,
+std::shared_ptr<vm_context> make_vm(emilua::app_context& appctx,
+                                    asio::io_context& ioctx,
                                     ContextType lua_context,
                                     fs::path entry_point,
-                                    fs::path import_root)
+                                    fs::path import_root,
+                                    std::optional<strand_type> strand)
 {
     switch (lua_context) {
     case ContextType::regular_context:
@@ -1731,13 +1732,15 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
         is_leaf = entry_point.filename() != "init.lua";
     }
 
+    if (!strand) {
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1 || \
     EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
-    strand_type strand{ioctx.get_executor()};
+        strand.emplace(ioctx.get_executor());
 #else
-    strand_type strand{ioctx};
+        strand.emplace(ioctx);
 #endif
-    auto state = std::make_shared<vm_context>(appctx, strand);
+    }
+    auto state = std::make_shared<vm_context>(appctx, *strand);
     assert(state->valid());
 
     lua_State* L = state->L();

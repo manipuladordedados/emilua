@@ -2763,16 +2763,21 @@ static int spawn_vm(lua_State* L)
 #endif
 
     try {
+        using OStrand = std::optional<strand_type>;
+        bool share_strand = inherit_ctx &&
+            ioctxcfg.get("scheduler", "concurrency_hint", 0) == 1;
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
         auto new_vm_ctx = emilua::make_vm(
-            new_ioctx ? *new_ioctx : vm_ctx.strand().context(),
-            vm_ctx.appctx, emilua::ContextType::worker, module_path,
-            import_root);
+            vm_ctx.appctx,
+            new_ioctx ? *new_ioctx : ioctx,
+            emilua::ContextType::worker, module_path, import_root,
+            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt});
         new_vm_ctx->ioctxref = new_ioctx;
 #else
         auto new_vm_ctx = emilua::make_vm(
-            vm_ctx.strand().context(), vm_ctx.appctx,
-            emilua::ContextType::worker, module_path, import_root);
+            vm_ctx.appctx, ioctx,
+            emilua::ContextType::worker, module_path, import_root,
+            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt});
 #endif
 
         if (new_master) {
