@@ -37,8 +37,6 @@ executed.
   for more info.
 +
 The default is _HINT=0_.
-+
-The old default was _HINT=safe_.
 
 *--test*::
 

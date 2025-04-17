@@ -6,6 +6,12 @@
 [id=0.12]
 == 0.12 - unreleased
 
+=== Removed
+
+* `spawn_vm()` no longer accepts `concurrency_hint="safe"`.
+* `/usr/bin/emilua` no longer accepts the parameter
+  `--main-context-concurrency-hint=safe`.
+
 [id=0.11]
 == 0.11 - 2025-01-31
 
