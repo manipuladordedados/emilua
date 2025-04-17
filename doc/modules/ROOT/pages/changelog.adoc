@@ -9,6 +9,7 @@
 === Added
 
 * Interfaces for `concurrency_hint="unsafe_io"`.
+* Interfaces for `concurrency_hint="unsafe"`.
 
 === Removed
 

@@ -42,6 +42,12 @@ name). Check
 <https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html>
 for more info.
 +
+Use _HINT=unsafe_ to enable even further optimizations. As long as you're only
+running Lua code, your program is still safe (despite the parameter
+name). However it'll disable threading completely. Check
+<https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html>
+for more info.
++
 The default is _HINT=0_.
 
 *--test*::

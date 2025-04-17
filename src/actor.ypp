@@ -1260,6 +1260,8 @@ static int spawn_vm(lua_State* L)
     lua_settop(L, 1);
 
     auto& vm_ctx = get_vm_context(L);
+    auto& ioctx = vm_ctx.strand().context();
+    asio::config ioctxcfg{ioctx};
     std::string_view module;
 
     switch (lua_type(L, 1)) {
@@ -1410,6 +1412,12 @@ static int spawn_vm(lua_State* L)
                 concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE_IO;
 # else // EMILUA_CONFIG_USE_STANDALONE_ASIO
                 concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE_IO;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            } else if (user_concurrency_hint == "unsafe") {
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
             } else {
                 push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
@@ -2710,6 +2718,18 @@ static int spawn_vm(lua_State* L)
         work_guard = std::nullopt;
 
     if (!inherit_ctx) {
+        if (
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+            concurrency_hint == ASIO_CONCURRENCY_HINT_UNSAFE ||
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            concurrency_hint == BOOST_ASIO_CONCURRENCY_HINT_UNSAFE ||
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            !ioctxcfg.get("scheduler", "locking", false)
+        ) {
+            push(L, std::errc::invalid_argument, "arg", "inherit_context");
+            return lua_error(L);
+        }
+
         new_ioctx = std::make_shared<asio::io_context>(concurrency_hint);
         work_guard.emplace(new_ioctx->get_executor());
 
