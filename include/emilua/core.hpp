@@ -76,12 +76,6 @@ extern "C" {
 #include <boost/asio/io_context.hpp>
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
-#if EMILUA_CONFIG_ENABLE_PLUGINS
-# if BOOST_VERSION < 108800
-#include <boost/shared_ptr.hpp>
-# endif // BOOST_VERSION < 108800
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
-
 #define EMILUA_GPERF_BEGIN(ID)
 #define EMILUA_GPERF_END(ID) {}
 #define EMILUA_GPERF_PARAM(...)
@@ -151,16 +145,6 @@ namespace asio = boost::asio;
 using asio_error_code = boost::system::error_code;
 using asio_system_error = boost::system::system_error;
 #endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-
-#if EMILUA_CONFIG_ENABLE_PLUGINS
-template<class T>
-using dll_shared_ptr =
-# if BOOST_VERSION >= 108800
-    std::shared_ptr<T>;
-# else // BOOST_VERSION >= 108800
-    boost::shared_ptr<T>;
-# endif // BOOST_VERSION >= 108800
-#endif // EMILUA_CONFIG_ENABLE_PLUGINS
 
 extern bool stdout_has_color;
 extern char raw_unpack_key;
@@ -439,7 +423,7 @@ public:
 #if EMILUA_CONFIG_ENABLE_PLUGINS
     std::unordered_map<
         std::string,
-        dll_shared_ptr<native_module>
+        std::shared_ptr<native_module>
     > native_modules_cache_registry;
     std::set<std::string, TransparentStringComp> visited_native_modules;
 
@@ -474,24 +458,6 @@ private:
     void vlog(int priority, std::string_view domain,
               fmt::string_view format_str, fmt::format_args args);
 };
-
-// for standalone ASIO, it's okay to always require the latest version
-#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-class properties_service : public asio::execution_context::service
-{
-public:
-    using key_type = properties_service;
-
-    properties_service(asio::execution_context& ctx, int concurrency_hint);
-    explicit properties_service(asio::execution_context& ctx);
-
-    void shutdown() override;
-
-    const int concurrency_hint;
-
-    static asio::io_context::id id;
-};
-#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 void set_interrupter(lua_State* L, vm_context& vm_ctx);
 asio::cancellation_slot

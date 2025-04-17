@@ -2710,9 +2710,6 @@ static int spawn_vm(lua_State* L)
 
     if (!inherit_ctx) {
         new_ioctx = std::make_shared<asio::io_context>(concurrency_hint);
-#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(*new_ioctx, concurrency_hint);
-#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
         work_guard.emplace(new_ioctx->get_executor());
 
         {
@@ -2802,15 +2799,10 @@ static int spawn_context_threads(lua_State* L)
     auto nthrds = lua_tointeger(L, 1);
 
     int concurrency_hint;
-#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-    concurrency_hint = asio::use_service<properties_service>(
-        vm_ctx.strand().context()).concurrency_hint;
-#else // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
     {
         asio::config ioctxcfg{vm_ctx.strand().context()};
         concurrency_hint = ioctxcfg.get("scheduler", "concurrency_hint", 1);
     }
-#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
     if (concurrency_hint == 1) {
         push(L, std::errc::not_supported);
         return lua_error(L);

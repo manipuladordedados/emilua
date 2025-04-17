@@ -1301,10 +1301,6 @@ static int child_main(void*)
 
     {
         asio::io_context ioctx{main_ctx_concurrency_hint};
-#if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(
-            ioctx, main_ctx_concurrency_hint);
-#endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 
         try {
             auto vm_ctx = make_vm(

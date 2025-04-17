@@ -37,7 +37,7 @@ endif
 luajit = dependency('luajit', version : '>=2.1.0')
 boost = dependency(
     'boost',
-    version : '>=1.82',
+    version : '>=1.88',
     modules : boost_modules,
 )
 fmt = dependency('fmt', version : '>=8.0')

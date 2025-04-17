@@ -699,24 +699,14 @@ int main(int argc, char *argv[], char *envp[])
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
         auto main_ctx_concurrency_hint_ = main_ctx_concurrency_hint();
         asio::io_context ioctx{main_ctx_concurrency_hint_};
-# if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(
-            ioctx, main_ctx_concurrency_hint_);
-# endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
         asio::io_context ioctx{1};
-# if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(ioctx, 1);
-# endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
 # if EMILUA_CONFIG_USE_STANDALONE_ASIO
         asio::io_context ioctx{ASIO_CONCURRENCY_HINT_UNSAFE};
 # else // EMILUA_CONFIG_USE_STANDALONE_ASIO
         asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-# if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(ioctx, 1);
-# endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #else
 # error Invalid thread support level
 #endif

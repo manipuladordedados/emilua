@@ -575,19 +575,19 @@ static native_module& load_native_module(
             dirfd = -1;
         }
 # else // BOOST_OS_LINUX
-        dll_shared_ptr<void> raw;
+        std::shared_ptr<void> raw;
         {
             void* handle = fdlopen(fd, RTLD_LAZY | RTLD_LOCAL);
             if (handle == nullptr) {
                 throw std::runtime_error{dlerror()};
             }
-            raw = dll_shared_ptr<void>{handle, dlclose};
+            raw = std::shared_ptr<void>{handle, dlclose};
         }
         auto s = dlsym(raw.get(), BOOST_PP_STRINGIZE(EMILUA_PLUGIN_SYMBOL));
         if (s == NULL) {
             throw std::runtime_error{dlerror()};
         }
-        dll_shared_ptr<native_module> natmod{
+        std::shared_ptr<native_module> natmod{
             std::move(raw), static_cast<native_module*>(s)};
 # endif // BOOST_OS_LINUX
         cache_registry.emplace(
