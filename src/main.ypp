@@ -216,6 +216,14 @@ opt_main_context_concurrency_hint:
         main_ctx_concurrency_hint_ = 1;
         goto opt;
     }
+    "unsafe-io" {end} {
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+        main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_UNSAFE_IO;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+        main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE_IO;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+        goto opt;
+    }
     %}
 end:
 

@@ -1405,8 +1405,16 @@ static int spawn_vm(lua_State* L)
         }
         case LUA_TSTRING: {
             auto user_concurrency_hint = tostringview(L);
-            push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
-            return lua_error(L);
+            if (user_concurrency_hint == "unsafe_io") {
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE_IO;
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE_IO;
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            } else {
+                push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
+                return lua_error(L);
+            }
             break;
         }
         case LUA_TNIL:
