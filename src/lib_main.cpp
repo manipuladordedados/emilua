@@ -557,13 +557,15 @@ const asio::execution_context::service_maker& main_ctx_service_maker()
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_WINDOWS
-void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx) =
-    [](app_context& appctx, asio::io_context& ioctx)
+void (*make_master_vm)(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx) =
+    [](app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #else // BOOST_OS_WINDOWS
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD)
-void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+void make_master_vm(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #endif // BOOST_OS_WINDOWS
 {}
 #if BOOST_OS_WINDOWS
@@ -712,7 +714,8 @@ int main(int argc, char *argv[], char *envp[])
     }
 
     {
-        asio::io_context ioctx{main_ctx_service_maker()};
+        auto ioctx = std::make_shared<asio::io_context>(
+            main_ctx_service_maker());
         try {
             make_master_vm(appctx, ioctx);
         } catch (std::exception& e) {
@@ -722,7 +725,7 @@ int main(int argc, char *argv[], char *envp[])
             } catch (const std::ios_base::failure&) {}
             return 1;
         }
-        run(appctx, ioctx);
+        run(appctx, *ioctx);
     }
 
     {

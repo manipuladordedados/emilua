@@ -2835,11 +2835,22 @@ static int spawn_context_threads(lua_State* L)
     luaL_checktype(L, 1, LUA_TNUMBER);
 
     auto& vm_ctx = get_vm_context(L);
+    auto ioctx = vm_ctx.ioctxref.lock();
     auto nthrds = lua_tointeger(L, 1);
+
+    // It should only happen if you're embedding the Emilua runtime inside 3rd
+    // party apps, and the app developer doesn't want to share means for
+    // extending the outer asio::io_context lifetime with Emilua (which is fine
+    // as the only limitation is that we won't be able to support
+    // spawn_context_threads() for this asio::io_context).
+    if (!ioctx) {
+        push(L, std::errc::not_supported);
+        return lua_error(L);
+    }
 
     int concurrency_hint;
     {
-        asio::config ioctxcfg{vm_ctx.strand().context()};
+        asio::config ioctxcfg{*ioctx};
         concurrency_hint = ioctxcfg.get("scheduler", "concurrency_hint", 1);
     }
     if (concurrency_hint == 1) {
@@ -2857,26 +2868,20 @@ static int spawn_context_threads(lua_State* L)
         vm_ctx.appctx.extra_threads_count += nthrds;
     }
     for (;nthrds > 0 ; --nthrds) {
-        std::thread{
-            [
-                &appctx=vm_ctx.appctx,
-                &ioctx=vm_ctx.strand().context(),
-                guard=vm_ctx.ioctxref.lock()
-            ]() mutable {
-                ioctx.run(); //< doesn't need a work guard
-                guard.reset();
+        std::thread{[&appctx=vm_ctx.appctx,ioctx]() mutable {
+            ioctx->run(); //< doesn't need a work guard
+            ioctx.reset();
 
-                std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
-                --appctx.extra_threads_count;
-                if (appctx.extra_threads_count == 0) {
-                    std::notify_all_at_thread_exit(
-                        appctx.extra_threads_count_empty_cond, std::move(lk));
-                } else {
-                    std::notify_all_at_thread_exit(
-                        appctx.extra_threads_count_dummy_cond, std::move(lk));
-                }
+            std::unique_lock<std::mutex> lk{appctx.extra_threads_count_mtx};
+            --appctx.extra_threads_count;
+            if (appctx.extra_threads_count == 0) {
+                std::notify_all_at_thread_exit(
+                    appctx.extra_threads_count_empty_cond, std::move(lk));
+            } else {
+                std::notify_all_at_thread_exit(
+                    appctx.extra_threads_count_dummy_cond, std::move(lk));
             }
-        }.detach();
+        }}.detach();
     }
     return 0;
 #endif

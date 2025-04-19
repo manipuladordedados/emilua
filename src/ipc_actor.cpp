@@ -1300,15 +1300,17 @@ static int child_main(void*)
     }
 
     {
-        asio::io_context ioctx{main_ctx_concurrency_hint};
+        auto ioctx = std::make_shared<asio::io_context>(
+            main_ctx_concurrency_hint);
 
         try {
             auto vm_ctx = make_vm(
-                appctx, ioctx, ContextType::worker, entry_point, import_root);
+                appctx, *ioctx, ContextType::worker, entry_point, import_root);
+            vm_ctx->ioctxref = ioctx;
             appctx.master_vm = vm_ctx;
 
             ++vm_ctx->inbox.nsenders;
-            auto inbox_service = new ipc_actor_inbox_service{ioctx, inboxfd};
+            auto inbox_service = new ipc_actor_inbox_service{*ioctx, inboxfd};
             vm_ctx->pending_operations.push_back(*inbox_service);
 
             vm_ctx->strand().post([vm_ctx]() {
@@ -1325,7 +1327,7 @@ static int child_main(void*)
             return 1;
         }
 
-        ioctx.run();
+        ioctx->run();
     }
 
     {

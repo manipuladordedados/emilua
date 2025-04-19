@@ -138,11 +138,12 @@ stream.write_all(system.out, byte_span.append(
     'namespace emilua::main {\n' ..
     'int main(int argc, char *argv[], char *envp[]);\n' ..
     [[
-    void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+    void make_master_vm(app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
     {
         auto vm_ctx = make_vm(
-            appctx, ioctx, ContextType::main,
+            appctx, *ioctx, ContextType::main,
             fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
+        vm_ctx->ioctxref = ioctx;
         appctx.master_vm = vm_ctx;
         vm_ctx->strand().post([vm_ctx]() {
             vm_ctx->fiber_resume(
@@ -191,15 +192,19 @@ int main(int argc, char *argv[], char *envp[]);
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_WINDOWS
-extern void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx);
-static void make_master_vm2(app_context& appctx, asio::io_context& ioctx)
+extern void (*make_master_vm)(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx);
+static void make_master_vm2(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #else // BOOST_OS_WINDOWS
-void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+void make_master_vm(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #endif // BOOST_OS_WINDOWS
 {
     auto vm_ctx = make_vm(
-        appctx, ioctx, ContextType::main,
+        appctx, *ioctx, ContextType::main,
         fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
+    vm_ctx->ioctxref = ioctx;
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(
