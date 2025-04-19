@@ -768,8 +768,10 @@ public:
 
     app_context& appctx;
 
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
     // can be empty
     std::weak_ptr<asio::io_context> ioctxref;
+#endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
 
 private:
     void fiber_epilogue(int resume_result);

@@ -226,7 +226,9 @@ void make_master_vm(
     auto vm_ctx = make_vm(
         appctx, *ioctx, ContextType::main,
         fs::path{"/dev/null/NUL/app/init.lua", fs::path::generic_format});
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
     vm_ctx->ioctxref = ioctx;
+#endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(

@@ -1306,7 +1306,9 @@ static int child_main(void*)
         try {
             auto vm_ctx = make_vm(
                 appctx, *ioctx, ContextType::worker, entry_point, import_root);
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
             vm_ctx->ioctxref = ioctx;
+#endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
             appctx.master_vm = vm_ctx;
 
             ++vm_ctx->inbox.nsenders;

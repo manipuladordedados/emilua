@@ -2785,7 +2785,9 @@ static int spawn_vm(lua_State* L)
             new_ioctx ? *new_ioctx : ioctx,
             emilua::ContextType::worker, module_path, import_root,
             share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt});
+# if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
         new_vm_ctx->ioctxref = inherit_ctx ? vm_ctx.ioctxref : new_ioctx;
+# endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
 #else
         auto new_vm_ctx = emilua::make_vm(
             vm_ctx.appctx, ioctx,
