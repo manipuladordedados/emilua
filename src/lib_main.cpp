@@ -69,6 +69,22 @@ static int ipc_actor_service_sockfd = -1;
 static std::unordered_map<std::string_view, std::string_view> tmp_env;
 static std::string emilua_path_env_value;
 
+#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
+static asio::config_from_concurrency_hint main_ctx_service_maker_{0};
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
+static asio::config_from_concurrency_hint main_ctx_service_maker_{1};
+#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
+# if EMILUA_CONFIG_USE_STANDALONE_ASIO
+static asio::config_from_concurrency_hint main_ctx_service_maker_{
+    ASIO_CONCURRENCY_HINT_UNSAFE};
+# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+static asio::config_from_concurrency_hint main_ctx_service_maker_{
+    BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
+# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+#else
+# error Invalid thread support level
+#endif
+
 static inline bool is_suid()
 {
 #if BOOST_OS_WINDOWS
@@ -526,15 +542,15 @@ void fill_emilua_path(app_context& appctx)
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_WINDOWS
-int (*main_ctx_concurrency_hint)() = []()
+const asio::execution_context::service_maker& (*main_ctx_service_maker)() = []()
 #else // BOOST_OS_WINDOWS
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD)
-int main_ctx_concurrency_hint()
+const asio::execution_context::service_maker& main_ctx_service_maker()
 #endif // BOOST_OS_WINDOWS
 {
-    return 0;
+    return main_ctx_service_maker_;
 }
 #if BOOST_OS_WINDOWS
 ;
@@ -696,21 +712,7 @@ int main(int argc, char *argv[], char *envp[])
     }
 
     {
-#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-        auto main_ctx_concurrency_hint_ = main_ctx_concurrency_hint();
-        asio::io_context ioctx{main_ctx_concurrency_hint_};
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
-        asio::io_context ioctx{1};
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{ASIO_CONCURRENCY_HINT_UNSAFE};
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-#else
-# error Invalid thread support level
-#endif
-
+        asio::io_context ioctx{main_ctx_service_maker()};
         try {
             make_master_vm(appctx, ioctx);
         } catch (std::exception& e) {

@@ -59,6 +59,7 @@ extern "C" {
 #endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 #include <emilua/config.h>
+#include <emilua/config_from_cli.hpp>
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/bind_cancellation_slot.hpp>
@@ -84,6 +85,10 @@ extern "C" {
 #define EMILUA_GPERF_DECLS_BEGIN(ID)
 #define EMILUA_GPERF_DECLS_END(ID)
 #define EMILUA_GPERF_NAMESPACE(ID)
+
+// constant 0xFFFF taken from
+// <https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint>
+#define EMILUA_MAX_ASIO_CONCURRENCY_HINT (0xFFFF - 1)
 
 #define EMILUA_IMPL_INITIAL_FIBER_DATA_CAPACITY 10
 #define EMILUA_IMPL_INITIAL_MODULE_FIBER_DATA_CAPACITY 5

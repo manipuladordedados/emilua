@@ -1314,17 +1314,7 @@ static int spawn_vm(lua_State* L)
 
     bool inherit_ctx = true;
     bool new_master = false;
-#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-    int concurrency_hint = 0;
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
-    int concurrency_hint = 1;
-#elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE;
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-    int concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
-#endif
+    config_from_cli concurrency_hint;
 #if BOOST_OS_UNIX || BOOST_OS_MACOS
     bool run_in_subprocess = false;
     std::string subprocess_module;
@@ -1388,7 +1378,7 @@ static int spawn_vm(lua_State* L)
 
             host_type_already_defined = true;
         }
-#if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 1
+
         lua_getfield(L, 1, "concurrency_hint");
         switch (lua_type(L, -1)) {
         default:
@@ -1396,29 +1386,20 @@ static int spawn_vm(lua_State* L)
             return lua_error(L);
         case LUA_TNUMBER: {
             int user_concurrency_hint = lua_tointeger(L, -1);
-            // magic constant 0xFFFF taken from
-            // <https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint>
-            if (user_concurrency_hint >= 0xFFFF) {
+            if (user_concurrency_hint > EMILUA_MAX_ASIO_CONCURRENCY_HINT) {
                 push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
                 return lua_error(L);
             }
-            concurrency_hint = user_concurrency_hint;
+            concurrency_hint.storage.scheduler_concurrency_hint =
+                user_concurrency_hint;
             break;
         }
         case LUA_TSTRING: {
             auto user_concurrency_hint = tostringview(L);
             if (user_concurrency_hint == "unsafe_io") {
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-                concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE_IO;
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-                concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE_IO;
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint.use_hint_unsafe_io();
             } else if (user_concurrency_hint == "unsafe") {
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-                concurrency_hint = ASIO_CONCURRENCY_HINT_UNSAFE;
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-                concurrency_hint = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+                concurrency_hint.use_hint_unsafe();
             } else {
                 push(L, std::errc::invalid_argument, "arg", "concurrency_hint");
                 return lua_error(L);
@@ -1428,7 +1409,43 @@ static int spawn_vm(lua_State* L)
         case LUA_TNIL:
             break;
         }
-#endif
+
+        lua_getfield(L, 1, "scheduler_task_usec");
+        if (lua_type(L, -1) == LUA_TNUMBER) {
+            int user = lua_tointeger(L, -1);
+            if (user < 0 && user != -1) {
+                push(L, std::errc::invalid_argument,
+                     "arg", "scheduler_task_usec");
+                return lua_error(L);
+            }
+            concurrency_hint.storage.scheduler_task_usec = user;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 1, "scheduler_wait_usec");
+        if (lua_type(L, -1) == LUA_TNUMBER) {
+            int user = lua_tointeger(L, -1);
+            if (user < 0 && user != -1) {
+                push(L, std::errc::invalid_argument,
+                     "arg", "scheduler_wait_usec");
+                return lua_error(L);
+            }
+            concurrency_hint.storage.scheduler_task_usec = user;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 1, "reactor_preallocated_io_objects");
+        if (lua_type(L, -1) == LUA_TNUMBER) {
+            int user = lua_tointeger(L, -1);
+            if (user < 0) {
+                push(L, std::errc::invalid_argument,
+                     "arg", "reactor_preallocated_io_objects");
+                return lua_error(L);
+            }
+            concurrency_hint.storage.scheduler_task_usec = user;
+        }
+        lua_pop(L, 1);
+
         lua_getfield(L, 1, "subprocess");
         if (lua_type(L, -1) == LUA_TTABLE) {
 #if BOOST_OS_UNIX || BOOST_OS_MACOS
@@ -2719,11 +2736,7 @@ static int spawn_vm(lua_State* L)
 
     if (!inherit_ctx) {
         if (
-# if EMILUA_CONFIG_USE_STANDALONE_ASIO
-            concurrency_hint == ASIO_CONCURRENCY_HINT_UNSAFE ||
-# else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-            concurrency_hint == BOOST_ASIO_CONCURRENCY_HINT_UNSAFE ||
-# endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+            !concurrency_hint.storage.scheduler_locking ||
             !ioctxcfg.get("scheduler", "locking", false)
         ) {
             push(L, std::errc::invalid_argument, "arg", "inherit_context");

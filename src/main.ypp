@@ -31,12 +31,18 @@ static constexpr auto help_text = FMT_STRING(
     "  -h,--help                   Print this help message and exit\n"
     "  --main-context-concurrency-hint INT\n"
     "                              Concurrency hint for the main execution engine context\n"
+    "  --main-context-scheduler-task-usec INT\n"
+    "                              The maximum time, in microseconds, that the scheduler will wait for its reactor task to complete.\n"
+    "  --main-context-scheduler-wait-usec INT\n"
+    "                              The maximum time, in microseconds, that the scheduler will wait on its wake-up event in an idle thread.\n"
+    "  --main-context-reactor-preallocated-io-objects INT\n"
+    "                              The number of internal reactor I/O object states to allocate at construction.\n"
     "  --test Run tests\n"
     "  --version                   Output version information and exit\n");
 
 static std::string filename_buffer;
 static std::string_view filename;
-static int main_ctx_concurrency_hint_ = 0;
+static config_from_cli main_ctx_service_maker_;
 static ContextType main_context_type = ContextType::main;
 
 #if BOOST_OS_WINDOWS
@@ -84,6 +90,7 @@ void parse_args(int argc, char *argv[], app_context& appctx)
 
     end = "\x00";
     filename = [^\x00-][^\x00]*;
+    unsigned_integer = [0-9]+;
     */
     char* YYCURSOR;
     char* YYMARKER;
@@ -199,6 +206,28 @@ opt_long:
         NEXT_ARG("--main-context-concurrency-hint",
                  opt_main_context_concurrency_hint);
     }
+    "main-context-scheduler-task-usec=" {
+        *cur_arg = YYCURSOR;
+        goto opt_scheduler_task_usec;
+    }
+    "main-context-scheduler-task-usec" {end} {
+        NEXT_ARG("--main-context-scheduler-task-usec", opt_scheduler_task_usec);
+    }
+    "main-context-scheduler-wait-usec=" {
+        *cur_arg = YYCURSOR;
+        goto opt_scheduler_wait_usec;
+    }
+    "main-context-scheduler-wait-usec" {end} {
+        NEXT_ARG("--main-context-scheduler-wait-usec", opt_scheduler_wait_usec);
+    }
+    "main-context-reactor-preallocated-io-objects=" {
+        *cur_arg = YYCURSOR;
+        goto opt_reactor_preallocated_io_objects;
+    }
+    "main-context-reactor-preallocated-io-objects" {end} {
+        NEXT_ARG("--main-context-reactor-preallocated-io-objects",
+                 opt_reactor_preallocated_io_objects);
+    }
     "test" {end} {
         main_context_type = ContextType::test;
         goto opt;
@@ -208,31 +237,82 @@ opt_long:
 opt_main_context_concurrency_hint:
     %{
     * { ERRARG("--main-context-concurrency-hint"); }
-    "0" {end} {
-        main_ctx_concurrency_hint_ = 0;
-        goto opt;
-    }
-    "1" {end} {
-        main_ctx_concurrency_hint_ = 1;
+    {unsigned_integer} {end} {
+        std::string_view view = *cur_arg;
+        int as_int;
+        if (
+            std::from_chars(view.data(), view.data() + view.size(), as_int).ec
+            != std::errc{} || as_int > EMILUA_MAX_ASIO_CONCURRENCY_HINT
+        ) {
+            ERRARG("--main-context-concurrency-hint");
+        }
+        // from
+        // https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint
+        main_ctx_service_maker_.storage.scheduler_concurrency_hint = as_int;
+        main_ctx_service_maker_.storage.scheduler_locking = true;
+        main_ctx_service_maker_.storage.reactor_registration_locking = true;
+        main_ctx_service_maker_.storage.reactor_io_locking = true;
         goto opt;
     }
     "unsafe-io" {end} {
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_UNSAFE_IO;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE_IO;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+        main_ctx_service_maker_.use_hint_unsafe_io();
         goto opt;
     }
     "unsafe" {end} {
-#if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = ASIO_CONCURRENCY_HINT_UNSAFE;
-#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        main_ctx_concurrency_hint_ = BOOST_ASIO_CONCURRENCY_HINT_UNSAFE;
-#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
+        main_ctx_service_maker_.use_hint_unsafe();
         goto opt;
     }
     %}
+
+opt_scheduler_task_usec:
+    {
+        std::string_view view = *cur_arg;
+        int as_int;
+        auto res = std::from_chars(
+            view.data(), view.data() + view.size(), as_int);
+        if (
+            res.ec != std::errc{} || res.ptr != view.data() + view.size() ||
+            (as_int < 0 && as_int != -1)
+        ) {
+            ERRARG("--main-context-scheduler-task-usec");
+        }
+        main_ctx_service_maker_.storage.scheduler_task_usec = as_int;
+        goto opt;
+    }
+
+opt_scheduler_wait_usec:
+    {
+        std::string_view view = *cur_arg;
+        int as_int;
+        auto res = std::from_chars(
+            view.data(), view.data() + view.size(), as_int);
+        if (
+            res.ec != std::errc{} || res.ptr != view.data() + view.size() ||
+            (as_int < 0 && as_int != -1)
+        ) {
+            ERRARG("--main-context-scheduler-wait-usec");
+        }
+        main_ctx_service_maker_.storage.scheduler_wait_usec = as_int;
+        goto opt;
+    }
+
+opt_reactor_preallocated_io_objects:
+    {
+        std::string_view view = *cur_arg;
+        int as_int;
+        auto res = std::from_chars(
+            view.data(), view.data() + view.size(), as_int);
+        if (
+            res.ec != std::errc{} || res.ptr != view.data() + view.size() ||
+            as_int < 0
+        ) {
+            ERRARG("--main-context-reactor-preallocated-io-objects");
+        }
+        main_ctx_service_maker_.storage.reactor_preallocated_io_objects =
+            as_int;
+        goto opt;
+    }
+
 end:
 
     if (filename.size() == 0) {
@@ -250,13 +330,14 @@ end:
 }
 
 #if BOOST_OS_WINDOWS
-extern int (*main_ctx_concurrency_hint)();
-static int main_ctx_concurrency_hint2()
+extern
+const asio::execution_context::service_maker& (*main_ctx_service_maker)();
+static const asio::execution_context::service_maker& main_ctx_service_maker2()
 #else // BOOST_OS_WINDOWS
-int main_ctx_concurrency_hint()
+const asio::execution_context::service_maker& main_ctx_service_maker()
 #endif // BOOST_OS_WINDOWS
 {
-    return main_ctx_concurrency_hint_;
+    return main_ctx_service_maker_;
 }
 
 #if BOOST_OS_WINDOWS
@@ -282,8 +363,8 @@ int main(int argc, char *argv[], char *envp[])
 {
 #if BOOST_OS_WINDOWS
     emilua::main::parse_args = emilua::main::parse_args2;
-    emilua::main::main_ctx_concurrency_hint =
-        emilua::main::main_ctx_concurrency_hint2;
+    emilua::main::main_ctx_service_maker =
+        emilua::main::main_ctx_service_maker2;
     emilua::main::make_master_vm = emilua::main::make_master_vm2;
 #endif // BOOST_OS_WINDOWS
     return emilua::main::main(argc, argv, envp);

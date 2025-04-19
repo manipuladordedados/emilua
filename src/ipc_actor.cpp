@@ -1073,7 +1073,7 @@ static int child_main(void*)
         sigaction(EMILUA_CONFIG_EINTR_RTSIGNO, /*act=*/&sa, /*oldact=*/NULL);
     }
 
-    int main_ctx_concurrency_hint;
+    config_from_cli main_ctx_concurrency_hint;
     fs::path entry_point;
     fs::path import_root;
 

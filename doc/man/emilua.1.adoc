@@ -50,6 +50,33 @@ for more info.
 +
 The default is _HINT=0_.
 
+*--main-context-scheduler-task-usec* _MICROSECONDS_::
+
+  The maximum time, in microseconds, that the scheduler will wait for its
+  reactor task to complete. A value of _-1_ means that no limit is placed on
+  this wait time. May be set to _0_ to enable CPU-bound spinning.
+
+*--main-context-scheduler-wait-usec* _MICROSECONDS_::
+
+  The maximum time, in microseconds, that the scheduler will wait on its wake-up
+  event in an idle thread (i.e. a thread that is not otherwise executing a
+  handler or waiting on the reactor). A value of _-1_ means that no limit is
+  placed on this wait time. May be set to _0_ to enable CPU-bound spinning in an
+  execution context that is being run on multiple threads.
+
+*--main-context-reactor-preallocated-io-objects* _ALLOCATIONS_::
+
+  The number of internal reactor I/O object states to allocate at construction.
++
+The reactor implementation uses per I/O object state to track things like the
+queue of outstanding operations. These state objects are recycled once the I/O
+object is destroyed, but new ones are allocated if there are no unused state
+objects currently available.
++
+If an upper bound on the number of I/O objects is known at construction time,
+this configuration option can be set to ensure that no allocations occur after
+construction is complete.
+
 *--test*::
 
   Run the application with *_CONTEXT="test"*.

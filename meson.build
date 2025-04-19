@@ -232,6 +232,7 @@ incdir = [
 ]
 
 src = [
+    'src/config_from_cli.cpp',
     'src/file_descriptor.cpp',
     'src/recursive_mutex.cpp',
     'src/builtin_module.cpp',

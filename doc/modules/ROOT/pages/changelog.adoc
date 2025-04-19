@@ -10,6 +10,11 @@
 
 * Interfaces for `concurrency_hint="unsafe_io"`.
 * Interfaces for `concurrency_hint="unsafe"`.
+* Some options in `spawn_vm()`/`/usr/bin/emilua` to have a little bit less of
+  latency (at the cost of keeping the CPU spinning more).
+** `scheduler_task_usec`.
+** `scheduler_wait_usec`.
+** `reactor_preallocated_io_objects`.
 
 === Removed
 

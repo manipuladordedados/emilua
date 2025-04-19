@@ -86,6 +86,33 @@ https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configur
 https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/overview/core/configuration.html#boost_asio.overview.core.configuration.configuration_from_concurrency_hint[`ASIO_CONCURRENCY_HINT_UNSAFE`]. It
 can only be used to spawn subprocess-based actors.
 
+`scheduler_task_usec: integer = -1`::
+
+  The maximum time, in microseconds, that the scheduler will wait for its
+  reactor task to complete. A value of `-1` means that no limit is placed on
+  this wait time. May be set to `0` to enable CPU-bound spinning.
+
+`scheduler_wait_usec: integer = -1`::
+
+  The maximum time, in microseconds, that the scheduler will wait on its wake-up
+  event in an idle thread (i.e. a thread that is not otherwise executing a
+  handler or waiting on the reactor). A value of `-1` means that no limit is
+  placed on this wait time. May be set to `0` to enable CPU-bound spinning in an
+  execution context that is being run on multiple threads.
+
+`reactor_preallocated_io_objects: integer = 0`::
+
+  The number of internal reactor I/O object states to allocate at construction.
++
+The reactor implementation uses per I/O object state to track things like the
+queue of outstanding operations. These state objects are recycled once the I/O
+object is destroyed, but new ones are allocated if there are no unused state
+objects currently available.
++
+If an upper bound on the number of I/O objects is known at construction time,
+this configuration option can be set to ensure that no allocations occur after
+construction is complete.
+
 `new_master: boolean = false`::
 
 The first VM (actor) to run in a process has different responsibilities as
