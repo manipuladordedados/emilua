@@ -983,6 +983,7 @@ if get_option('enable_tests')
         tests +=  {
             'actor' : tests['actor'] + [
                 'actor29',
+                'actor33',
             ]
         }
     endif
