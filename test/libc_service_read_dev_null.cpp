@@ -128,11 +128,13 @@ namespace main {
 
 int main(int argc, char *argv[], char *envp[]);
 
-void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+void make_master_vm(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 {
     auto vm_ctx = make_vm(
-        ioctx, appctx, ContextType::main,
+        *ioctx, appctx, ContextType::main,
         fs::path{"/app/main.lua", fs::path::generic_format});
+    vm_ctx->ioctxref = ioctx;
     appctx.master_vm = vm_ctx;
     vm_ctx->strand().post([vm_ctx]() {
         vm_ctx->fiber_resume(

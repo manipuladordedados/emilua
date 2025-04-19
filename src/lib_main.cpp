@@ -541,13 +541,15 @@ int main_ctx_concurrency_hint()
 #endif // BOOST_OS_WINDOWS
 
 #if BOOST_OS_WINDOWS
-void (*make_master_vm)(app_context& appctx, asio::io_context& ioctx) =
-    [](app_context& appctx, asio::io_context& ioctx)
+void (*make_master_vm)(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx) =
+    [](app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #else // BOOST_OS_WINDOWS
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD)
-void make_master_vm(app_context& appctx, asio::io_context& ioctx)
+void make_master_vm(
+    app_context& appctx, std::shared_ptr<asio::io_context> ioctx)
 #endif // BOOST_OS_WINDOWS
 {}
 #if BOOST_OS_WINDOWS
@@ -698,24 +700,27 @@ int main(int argc, char *argv[], char *envp[])
     {
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
         auto main_ctx_concurrency_hint_ = main_ctx_concurrency_hint();
-        asio::io_context ioctx{main_ctx_concurrency_hint_};
+        auto ioctx = std::make_shared<asio::io_context>(
+            main_ctx_concurrency_hint_);
 # if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
         asio::make_service<properties_service>(
-            ioctx, main_ctx_concurrency_hint_);
+            *ioctx, main_ctx_concurrency_hint_);
 # endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 1
-        asio::io_context ioctx{1};
+        auto ioctx = std::make_shared<asio::io_context>(1);
 # if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(ioctx, 1);
+        asio::make_service<properties_service>(*ioctx, 1);
 # endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #elif EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 0
 # if EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{ASIO_CONCURRENCY_HINT_UNSAFE};
+        auto ioctx = std::make_shared<asio::io_context>(
+            ASIO_CONCURRENCY_HINT_UNSAFE);
 # else // EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::io_context ioctx{BOOST_ASIO_CONCURRENCY_HINT_UNSAFE};
+        auto ioctx = std::make_shared<asio::io_context>(
+            BOOST_ASIO_CONCURRENCY_HINT_UNSAFE);
 # endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 # if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
-        asio::make_service<properties_service>(ioctx, 1);
+        asio::make_service<properties_service>(*ioctx, 1);
 # endif // BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
 #else
 # error Invalid thread support level
@@ -730,7 +735,7 @@ int main(int argc, char *argv[], char *envp[])
             } catch (const std::ios_base::failure&) {}
             return 1;
         }
-        run(appctx, ioctx);
+        run(appctx, *ioctx);
     }
 
     {
