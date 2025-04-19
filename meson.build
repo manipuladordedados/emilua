@@ -3,7 +3,7 @@ project(
     default_options : ['cpp_std=c++20'],
     meson_version : '>=1.3.0',
     license : 'BSL-1.0 OR MIT',
-    version : '0.11.4',
+    version : '0.11.5',
 )
 
 pkgconfig = import('pkgconfig')
