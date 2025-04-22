@@ -60,6 +60,7 @@ extern "C" {
 
 #include <emilua/config.h>
 #include <emilua/config_from_cli.hpp>
+#include <emilua/allocator.hpp>
 
 #if EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <asio/bind_cancellation_slot.hpp>
@@ -650,7 +651,10 @@ public:
         struct fast_auto_detect_interrupt_t {} fast_auto_detect_interrupt{};
     };
 
-    vm_context(app_context& appctx, strand_type strand);
+    vm_context(
+        app_context& appctx, strand_type strand,
+        std::shared_ptr<void> memory_resource = nullptr,
+        std::size_t memory_resource_size = 0);
     ~vm_context();
 
     vm_context(const vm_context&) = delete;
@@ -781,6 +785,7 @@ private:
     bool lua_errmem;
     bool exit_request;
     bool suppress_tail_errors = false;
+    general_purpose_allocator alloc;
     lua_State* L_;
     lua_State* current_fiber_;
     std::vector<std::string> deadlock_errors;

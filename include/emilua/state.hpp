@@ -38,6 +38,8 @@ std::shared_ptr<vm_context> make_vm(
     ContextType lua_context,
     std::filesystem::path entry_point,
     std::filesystem::path import_root = std::filesystem::path{},
-    std::optional<strand_type> strand = std::nullopt);
+    std::optional<strand_type> strand = std::nullopt,
+    std::shared_ptr<void> memory_resource = nullptr,
+    std::size_t memory_resource_size = 0);
 
 } // namespace emilua

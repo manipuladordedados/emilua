@@ -1702,7 +1702,9 @@ std::shared_ptr<vm_context> make_vm(emilua::app_context& appctx,
                                     ContextType lua_context,
                                     fs::path entry_point,
                                     fs::path import_root,
-                                    std::optional<strand_type> strand)
+                                    std::optional<strand_type> strand,
+                                    std::shared_ptr<void> memory_resource,
+                                    std::size_t memory_resource_size)
 {
     switch (lua_context) {
     case ContextType::regular_context:
@@ -1740,7 +1742,8 @@ std::shared_ptr<vm_context> make_vm(emilua::app_context& appctx,
         strand.emplace(ioctx);
 #endif
     }
-    auto state = std::make_shared<vm_context>(appctx, *strand);
+    auto state = std::make_shared<vm_context>(
+        appctx, *strand, memory_resource, memory_resource_size);
     assert(state->valid());
 
     lua_State* L = state->L();

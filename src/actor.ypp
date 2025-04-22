@@ -9,6 +9,7 @@
 #include <emilua/ambient_authority.hpp>
 #include <emilua/async_base.hpp>
 #include <emilua/filesystem.hpp>
+#include <emilua/byte_span.hpp>
 #include <emilua/windows.hpp>
 #include <emilua/actor.hpp>
 #include <emilua/state.hpp>
@@ -1312,6 +1313,8 @@ static int spawn_vm(lua_State* L)
     }
     const auto& import_root = vm_ctx.import_tree[importer_path].import_root;
 
+    std::shared_ptr<void> memory_resource;
+    std::size_t memory_resource_size = 0;
     bool inherit_ctx = true;
     bool new_master = false;
     config_from_cli concurrency_hint;
@@ -1368,6 +1371,49 @@ static int spawn_vm(lua_State* L)
             inherit_ctx = lua_toboolean(L, -1);
             host_type_already_defined = true;
         }
+
+        lua_getfield(L, 1, "memory_resource");
+        switch (lua_type(L, -1)) {
+        default:
+            push(L, std::errc::invalid_argument, "arg", "memory_resource");
+            return lua_error(L);
+        case LUA_TNUMBER: {
+            memory_resource_size = lua_tointeger(L, -1);
+            if (memory_resource_size < 1) {
+                push(L, std::errc::invalid_argument, "arg", "memory_resource");
+                return lua_error(L);
+            }
+            memory_resource = std::make_shared_for_overwrite<unsigned char[]>(
+                memory_resource_size);
+            break;
+        }
+        case LUA_TUSERDATA: {
+            auto bs = static_cast<byte_span_handle*>(lua_touserdata(L, -1));
+            if (!lua_getmetatable(L, -1)) {
+                push(L, std::errc::invalid_argument, "arg", "memory_resource");
+                return lua_error(L);
+            }
+            rawgetp(L, LUA_REGISTRYINDEX, &byte_span_mt_key);
+            if (!lua_rawequal(L, -1, -2)) {
+                push(L, std::errc::invalid_argument, "arg", "memory_resource");
+                return lua_error(L);
+            }
+            lua_pop(L, 2);
+
+            if (bs->size == 0) {
+                push(L, std::errc::invalid_argument, "arg", "memory_resource");
+                return lua_error(L);
+            }
+
+            memory_resource = bs->data;
+            memory_resource_size = bs->size;
+            break;
+        }
+        case LUA_TNIL:
+            break;
+        }
+        lua_pop(L, 1);
+
         lua_getfield(L, 1, "new_master");
         if (lua_type(L, -1) == LUA_TBOOLEAN) {
             new_master = lua_toboolean(L, -1);
@@ -2784,7 +2830,8 @@ static int spawn_vm(lua_State* L)
             vm_ctx.appctx,
             new_ioctx ? *new_ioctx : ioctx,
             emilua::ContextType::worker, module_path, import_root,
-            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt});
+            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt},
+            memory_resource, memory_resource_size);
 # if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
         new_vm_ctx->ioctxref = inherit_ctx ? vm_ctx.ioctxref : new_ioctx;
 # endif // EMILUA_CONFIG_THREAD_SUPPORT_LEVEL >= 2
@@ -2792,7 +2839,8 @@ static int spawn_vm(lua_State* L)
         auto new_vm_ctx = emilua::make_vm(
             vm_ctx.appctx, ioctx,
             emilua::ContextType::worker, module_path, import_root,
-            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt});
+            share_strand ? OStrand{vm_ctx.strand()} : OStrand{std::nullopt},
+            memory_resource, memory_resource_size);
 #endif
 
         if (new_master) {

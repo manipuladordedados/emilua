@@ -15,6 +15,8 @@
 ** `scheduler_task_usec`.
 ** `scheduler_wait_usec`.
 ** `reactor_preallocated_io_objects`.
+* `spawn_vm()` accepts the parameter `memory_resource` to restrict memory
+  allocations to the given resource.
 
 === Removed
 

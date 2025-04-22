@@ -173,13 +173,17 @@ void app_context::vlog(int priority, std::string_view domain,
     } catch (const std::ios_base::failure&) {}
 }
 
-vm_context::vm_context(emilua::app_context& appctx, strand_type strand)
+vm_context::vm_context(
+    emilua::app_context& appctx, strand_type strand,
+    std::shared_ptr<void> memory_resource,
+    std::size_t memory_resource_size)
     : appctx(appctx)
     , strand_(std::move(strand))
     , valid_(true)
     , lua_errmem(false)
     , exit_request(false)
-    , L_(luaL_newstate())
+    , alloc{memory_resource, memory_resource_size}
+    , L_(lua_newstate(alloc.get_lua_allocator(), &alloc))
     , current_fiber_(nullptr)
 {
     if (!L_)
@@ -316,6 +320,7 @@ void vm_context::fiber_epilogue(int resume_result)
     }
     if (!lua_checkstack(current_fiber_, LUA_MINSTACK)) {
         lua_errmem = true;
+        alloc.allow_reserved_zone();
         close();
         return;
     }
@@ -375,6 +380,7 @@ void vm_context::fiber_epilogue(int resume_result)
                     lua_pop(current_fiber_, 2);
                 } catch (...) {
                     lua_errmem = true;
+                    alloc.allow_reserved_zone();
                     close();
                     return;
                 }
@@ -404,6 +410,7 @@ void vm_context::fiber_epilogue(int resume_result)
             int nret = (resume_result == 0) ? lua_gettop(current_fiber_) : 1;
             if (!lua_checkstack(joiner, nret + 1 + LUA_MINSTACK)) {
                 lua_errmem = true;
+                alloc.allow_reserved_zone();
                 close();
                 return;
             }
@@ -423,6 +430,7 @@ void vm_context::fiber_epilogue(int resume_result)
                     }
                 } catch (...) {
                     lua_errmem = true;
+                    alloc.allow_reserved_zone();
                     close();
                     return;
                 }
@@ -463,6 +471,7 @@ void vm_context::fiber_epilogue(int resume_result)
     }
     case LUA_ERRMEM: //< memory allocation error
         lua_errmem = true;
+        alloc.allow_reserved_zone();
         close();
         break;
     case LUA_ERRERR:
@@ -474,6 +483,7 @@ void vm_context::fiber_epilogue(int resume_result)
 void vm_context::notify_errmem()
 {
     lua_errmem = true;
+    alloc.allow_reserved_zone();
 }
 
 void vm_context::notify_exit_request()

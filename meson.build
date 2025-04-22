@@ -243,6 +243,7 @@ src = [
     'src/async_base.cpp',
     'src/asio_error.cpp',
     'src/filesystem.cpp',
+    'src/allocator.cpp',
     'src/byte_span.cpp',
     'src/lua_shim.cpp',
     'src/future.cpp',

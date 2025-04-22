@@ -53,6 +53,20 @@ TIP: `'.'` is also a valid module to use when you spawn actors.
 
 Only valid for IPC-based actors (see parameter `subprocess` below).
 
+`memory_resource: byte_span|integer|nil`::
+
+If specified, the runtime will try to perform all Lua allocations using the
+given resource (an integer value means we allocate a new resource of the
+specified size behind the scenes). If this memory is exhausted, we kill the Lua
+VM as soon as feasible and release the memory resource. Allocations to native
+resources (e.g. {cpp} objects will still use the global system allocator).
++
+This feature is still experimental. Currently we use the allocator from
+Boost.Interprocess, but this allocator is very limited to our needs and it'll
+report `ENOMEM` much more than it should due to inefficiencies and a bad match
+for the semantics that the Lua VM demands. We can replace the allocator as soon
+as a new one is found.
+
 `inherit_context: boolean = true`::
 
 Whether to inherit the thread pool of the parent VM (i.e. the one calling
