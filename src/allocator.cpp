@@ -3,11 +3,13 @@
 
 EMILUA_GPERF_DECLS_BEGIN(includes)
 #include <emilua/allocator.hpp>
+#include <cassert>
 EMILUA_GPERF_DECLS_END(includes)
 
 namespace emilua {
 
-namespace interprocess = boost::interprocess;
+// TODO: move to <emilua/config.h>
+static constexpr std::size_t reserved_zone_size = 2048;
 
 static inline
 void* do_std_alloc(void* ptr, std::size_t osize, std::size_t nsize)
@@ -34,19 +36,39 @@ general_purpose_allocator::general_purpose_allocator(
 {
     if (this->block) {
         assert(block_size > 0);
-        external_buffer_manager = interprocess::managed_external_buffer{
-            interprocess::create_only, this->block.get(), block_size
-        };
-        allocator.emplace(external_buffer_manager.get_segment_manager());
+        mi_arena_id_t arena_id;
+        if (!mi_manage_os_memory_ex(
+            this->block.get(), block_size, /*is_committed=*/true,
+            /*is_large=*/false, /*is_zero=*/false,
+            /*numa_node=no_preference*/-1, /*exclusive=*/true, &arena_id)) {
+            throw std::bad_alloc{};
+        }
+
+        heap = mi_heap_new_in_arena(arena_id);
+        if (!heap)
+            throw std::bad_alloc{};
+
+        reserved_zone = mi_heap_malloc(heap, reserved_zone_size);
+        if (!reserved_zone) {
+            mi_heap_delete(heap);
+            throw std::bad_alloc{};
+        }
+    }
+}
+
+general_purpose_allocator::~general_purpose_allocator()
+{
+    if (heap) {
+        mi_heap_delete(heap);
     }
 }
 
 lua_Alloc general_purpose_allocator::get_lua_allocator()
 {
-    static constexpr auto use_boost_allocator = [](
+    static constexpr auto use_mimalloc = [](
         void* ud, void* ptr, std::size_t osize, std::size_t nsize
     ) -> void* {
-        return static_cast<general_purpose_allocator*>(ud)->do_alloc(
+        return static_cast<general_purpose_allocator*>(ud)->do_mimalloc(
             ptr, osize, nsize);
     };
 
@@ -56,8 +78,8 @@ lua_Alloc general_purpose_allocator::get_lua_allocator()
         return do_std_alloc(ptr, osize, nsize);
     };
 
-    if (allocator) {
-        return use_boost_allocator;
+    if (heap) {
+        return use_mimalloc;
     } else {
         return use_c_allocator;
     }
@@ -65,78 +87,26 @@ lua_Alloc general_purpose_allocator::get_lua_allocator()
 
 void general_purpose_allocator::allow_reserved_zone()
 {
-    // TODO: allow allocations to proceed through fallback memory resources if
-    // necessary
+    if (reserved_zone) {
+        mi_free_size(reserved_zone, reserved_zone_size);
+        reserved_zone = nullptr;
+    }
 }
 
-inline std::size_t general_purpose_allocator::bytes_to_units(std::size_t bytes)
-{
-    return (bytes + sizeof(unit_type) - 1) / sizeof(unit_type);
-}
-
-void* general_purpose_allocator::do_alloc(
+void* general_purpose_allocator::do_mimalloc(
     void* ptr, std::size_t osize, std::size_t nsize)
 {
     if (nsize == 0) {
-        if (!allocator) {
-            return nullptr;
-        }
-
-        allocator->deallocate(
-            static_cast<unit_type*>(ptr), bytes_to_units(osize));
+        mi_free_size(ptr, osize);
         return nullptr;
-    } else if (ptr == nullptr) { // malloc
-        if (!allocator) {
-            return nullptr;
-        }
-
-        try {
-            return allocator->allocate(bytes_to_units(nsize)).get();
-        } catch (const interprocess::bad_alloc&) {
-            return nullptr;
-        }
-    } else { // realloc
+    } else {
+        auto ret = mi_heap_realloc(heap, ptr, nsize);
         if (nsize <= osize) {
-            if (!allocator) {
-                return ptr;
-            }
-
-            try {
-                std::size_t nsize_as_units = bytes_to_units(nsize);
-                interprocess::offset_ptr<unit_type> as_offset_ptr{
-                    static_cast<unit_type*>(ptr)};
-                bool success{allocator->allocation_command(
-                    interprocess::try_shrink_in_place,
-                    bytes_to_units(osize), nsize_as_units, as_offset_ptr)};
-                if (!success) {
-                    throw interprocess::bad_alloc{};
-                }
-                return as_offset_ptr.get();
-            } catch (const interprocess::bad_alloc&) {
-                // According to Programming in Lua 3rd edition § 32.1 ¶ 8, Lua
-                // is unable to recover from allocation shrinking failures.
-                // Therefore we just return a success value, but put the
-                // allocator into an invalid state where new allocations will
-                // always fail.
-                allocator.reset();
-                return ptr;
-            }
-        } else {
-            assert(ptr); //< malloc is handled separately
-            if (!allocator) {
-                return nullptr;
-            }
-
-            auto ret = allocator->allocate(bytes_to_units(nsize)).get();
-            if (!ret) {
-                return nullptr;
-            }
-
-            std::memcpy(ret, ptr, osize);
-            allocator->deallocate(
-                static_cast<unit_type*>(ptr), bytes_to_units(osize));
-            return ret;
+            // According to Programming in Lua 3rd edition § 32.1 ¶ 8, Lua is
+            // unable to recover from allocation shrinking failures.
+            assert(ret);
         }
+        return ret;
     }
 }
 

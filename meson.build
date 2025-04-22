@@ -44,6 +44,7 @@ fmt = dependency('fmt', version : '>=8.0')
 serd = dependency('serd-0')
 sord = dependency('sord-0')
 cereal = dependency('cereal')
+mimalloc = dependency('mimalloc')
 libdl = meson.get_compiler('cpp').find_library('dl', required : false)
 gawk = find_program('gawk')
 
@@ -368,6 +369,7 @@ libemilua = library(
         serd,
         sord,
         cereal,
+        mimalloc,
         ssl,
         curses,
         libdl,
