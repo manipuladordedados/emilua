@@ -84,11 +84,3 @@ option(
         ' feature altogether) for a sighandler that will longjmp() to unblock' +
         ' a thread (only needed for old partially abandoned syscalls)'
 )
-
-option(
-    'lua_allocator_respects_max_align_t', type : 'boolean', value : false,
-    description : 'Whether LuaJIT allocator is respecting max_align_t (e.g.' +
-        ' LUAJIT_USE_SYSMALLOC). On false, Emilua will workaround this' +
-        ' limitation by requesting twice as much memory per allocation and' +
-        ' aligning within the returned memory block.'
-)
