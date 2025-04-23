@@ -47,9 +47,9 @@ extern "C" {
 #include <sys/wait.h>
 #endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-#if !BOOST_OS_MACOS
+#if BOOST_OS_UNIX
 #include <sys/eventfd.h>
-#endif // !BOOST_OS_MACOS
+#endif // BOOST_OS_UNIX
 
 namespace hana = boost::hana;
 namespace fs = std::filesystem;
