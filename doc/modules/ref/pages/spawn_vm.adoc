@@ -260,6 +260,20 @@ topological relationships with one another [...]
 ____
 ====
 
+[NOTE]
+.Order of message delivery
+====
+Given:
+
+* A channel `c`.
+* A message `a`.
+* A message `b`.
+
+If `c:send(a)` happens-before `c:send(b)`, then `b` will not be delivered
+earlier than `a`. That's the same guarantee given by
+Boost.Asio{_}footnote:[link:pass:[https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/reference/io_context__strand.html#boost_asio.reference.io_context__strand.order_of_handler_invocation][]].
+====
+
 === `close(self)`
 
 Closes the channel. No further messages can be sent after a channel is closed.
