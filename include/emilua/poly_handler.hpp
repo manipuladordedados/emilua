@@ -1,8 +1,9 @@
-// Copyright (c) 2018 Vinícius dos Santos Oliveira
+// Copyright (c) 2018, 2025 Vinícius dos Santos Oliveira
 // SPDX-License-Identifier: MIT OR BSL-1.0
 
-#ifndef BOOST_HTTP_ASIO_POLY_HANDLER_HPP
-#define BOOST_HTTP_ASIO_POLY_HANDLER_HPP
+#pragma once
+
+#include <emilua/config.h>
 
 #include <type_traits>
 #include <functional>
@@ -10,19 +11,27 @@
 #include <utility>
 #include <memory>
 
-#include <experimental/memory_resource>
+#include <memory_resource>
 
 #include <boost/core/ignore_unused.hpp>
 
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+#include <asio/associated_allocator.hpp>
+#include <asio/associated_executor.hpp>
+#include <asio/executor.hpp>
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
 #include <boost/asio/associated_allocator.hpp>
 #include <boost/asio/associated_executor.hpp>
 #include <boost/asio/executor.hpp>
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
-namespace boost {
+namespace emilua {
 
-namespace http {
-namespace asio {
-namespace experimental {
+#if EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = ::asio;
+#else // EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace asio = boost::asio;
+#endif // EMILUA_CONFIG_USE_STANDALONE_ASIO
 
 template<class>
 struct poly_handler; /* undefined */
@@ -39,11 +48,12 @@ struct is_poly_alloc: std::false_type {};
 
 template<class T>
 struct is_poly_alloc<
-    std::experimental::pmr::polymorphic_allocator<T>
+    std::pmr::polymorphic_allocator<T>
 >: std::true_type {};
 
 // }}}
 
+// TODO: add support to immediate executors
 template<class R, class... Args>
 class poly_handler_interface
 {
@@ -54,8 +64,8 @@ public:
 
     virtual R call(Args... args) = 0;
 
-    virtual std::experimental::pmr::memory_resource* resource() const = 0;
-    virtual boost::asio::executor get_executor() const = 0;
+    virtual std::pmr::memory_resource* resource() const = 0;
+    virtual asio::executor get_executor() const = 0;
 };
 
 template<class F, class R, class... Args>
@@ -65,11 +75,11 @@ public:
     poly_handler_impl(F f)
         : wrapped(std::move(f))
     {
-        using boost::asio::associated_allocator_t;
+        using asio::associated_allocator_t;
         if constexpr (is_poly_alloc<associated_allocator_t<F>>::value) {
-            alloc.emplace(boost::asio::get_associated_allocator(f));
+            alloc.emplace(asio::get_associated_allocator(f));
         } else {
-            using A = boost::asio::associated_allocator_t<
+            using A = asio::associated_allocator_t<
                 F, detail::not_an_allocator_t
             >;
             static_assert(std::is_same_v<A, detail::not_an_allocator_t>,
@@ -92,7 +102,7 @@ public:
         return wrapped(args...);
     }
 
-    std::experimental::pmr::memory_resource* resource() const override
+    std::pmr::memory_resource* resource() const override
     {
         if (alloc)
             return alloc->resource();
@@ -100,15 +110,15 @@ public:
             return NULL;
     }
 
-    boost::asio::executor get_executor() const override
+    asio::executor get_executor() const override
     {
-        boost::asio::executor fallback_executor;
-        return boost::asio::get_associated_executor(wrapped, fallback_executor);
+        asio::executor fallback_executor;
+        return asio::get_associated_executor(wrapped, fallback_executor);
     }
 
 private:
     F wrapped;
-    std::optional<std::experimental::pmr::polymorphic_allocator<void>> alloc;
+    std::optional<std::pmr::polymorphic_allocator<void>> alloc;
 };
 
 template<class R, class... Args>
@@ -119,7 +129,7 @@ get_impl(const poly_handler<R(Args...)> &h);
 
 // Completion handler wrapper that will preserve associated allocators and
 // associated executors (and more if ASIO API expands to have more associated
-// properties).
+// characteristics).
 template<class R, class... Args>
 struct poly_handler<R(Args...)>
 {
@@ -179,7 +189,7 @@ public:
         return impl;
     }
 
-    std::experimental::pmr::memory_resource* associated_resource() const
+    std::pmr::memory_resource* associated_resource() const
     {
         if (!impl)
             return NULL;
@@ -209,21 +219,22 @@ get_impl(const poly_handler<R(Args...)> &h)
 
 } // namespace detail
 
-} // namespace experimental
-} // namespace asio
-} // namespace http
+} // namespace emilua
 
+#if !EMILUA_CONFIG_USE_STANDALONE_ASIO
+namespace boost {
+#endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
 namespace asio {
 
 template<class F>
 struct associated_allocator<
-    http::asio::experimental::poly_handler<F>,
+    ::emilua::poly_handler<F>,
     std::allocator<void>
 >
 {
     using type = std::allocator<void>;
 
-    static type get(const http::asio::experimental::poly_handler<F>&,
+    static type get(const ::emilua::poly_handler<F>&,
                     const std::allocator<void>& = {}) noexcept
     {
         return {};
@@ -232,13 +243,13 @@ struct associated_allocator<
 
 template<class F, class Allocatee>
 struct associated_allocator<
-    http::asio::experimental::poly_handler<F>,
-    std::experimental::pmr::polymorphic_allocator<Allocatee>
+    ::emilua::poly_handler<F>,
+    std::pmr::polymorphic_allocator<Allocatee>
 >
 {
-    using type = std::experimental::pmr::polymorphic_allocator<Allocatee>;
+    using type = std::pmr::polymorphic_allocator<Allocatee>;
 
-    static type get(const http::asio::experimental::poly_handler<F> &handler,
+    static type get(const ::emilua::poly_handler<F> &handler,
                     const type& a = type()) noexcept
     {
         auto r = handler.associated_resource();
@@ -251,7 +262,7 @@ struct associated_allocator<
 
 template<class F, class Allocator>
 struct associated_allocator<
-    http::asio::experimental::poly_handler<F>,
+    ::emilua::poly_handler<F>,
     Allocator
 >
 {
@@ -260,8 +271,7 @@ struct associated_allocator<
     public:
         using value_type = typename Allocator::value_type;
 
-        type(std::experimental::pmr::memory_resource* resource,
-             const Allocator& a)
+        type(std::pmr::memory_resource* resource, const Allocator& a)
             : fallback_resource(a)
             , alloc(resource ? resource : &fallback_resource)
         {}
@@ -277,8 +287,7 @@ struct associated_allocator<
         }
 
     private:
-        class fallback_resource_type
-            : public std::experimental::pmr::memory_resource
+        class fallback_resource_type : public std::pmr::memory_resource
         {
         public:
             fallback_resource_type(const Allocator& a)
@@ -306,7 +315,7 @@ struct associated_allocator<
             }
 
             bool do_is_equal(
-                const std::experimental::pmr::memory_resource&
+                const std::pmr::memory_resource&
             ) const noexcept override
             {
                 return false;
@@ -315,12 +324,10 @@ struct associated_allocator<
             Allocator alloc;
         } fallback_resource;
 
-        std::experimental::pmr::polymorphic_allocator<
-            typename Allocator::value_type
-        > alloc;
+        std::pmr::polymorphic_allocator<typename Allocator::value_type> alloc;
     };
 
-    static type get(const http::asio::experimental::poly_handler<F> &handler,
+    static type get(const ::emilua::poly_handler<F> &handler,
                     const Allocator& a = Allocator()) noexcept
     {
         return type{handler.associated_resource(), a};
@@ -329,18 +336,18 @@ struct associated_allocator<
 
 template<class F, class Executor>
 struct associated_executor<
-    http::asio::experimental::poly_handler<F>,
+    ::emilua::poly_handler<F>,
     Executor
 >
 {
-    using type = boost::asio::executor;
+    using type = asio::executor;
 
     static type get(
-        const http::asio::experimental::poly_handler<F> &h,
+        const ::emilua::poly_handler<F> &h,
         const Executor &ex = Executor()
     )
     {
-        auto impl = http::asio::experimental::detail::get_impl(h);
+        auto impl = ::emilua::detail::get_impl(h);
         auto associated_ex = impl->get_executor();
         if (associated_ex)
             return associated_ex;
@@ -350,7 +357,6 @@ struct associated_executor<
 };
 
 } // namespace asio
-
+#if !EMILUA_CONFIG_USE_STANDALONE_ASIO
 } // namespace boost
-
-#endif // BOOST_HTTP_ASIO_POLY_HANDLER_HPP
+#endif // !EMILUA_CONFIG_USE_STANDALONE_ASIO
