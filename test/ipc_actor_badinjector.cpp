@@ -14,6 +14,9 @@ namespace emilua {
 class ipc_actor_badinjector_plugin : native_module
 {
 public:
+    using knuth_lcg64 = std::linear_congruential_engine<
+        std::uint64_t, 6364136223846793005U, 1442695040888963407U, 0U>;
+
     void init_appctx(
         const std::unique_lock<std::shared_mutex>&,
         app_context&) noexcept override;
@@ -113,7 +116,7 @@ private:
     static int fuzzer_send_good(lua_State* L);
     static int fuzzer_send_bad(lua_State* L);
 
-    static std::mt19937 prng;
+    static knuth_lcg64 prng;
     static std::uniform_int_distribution<std::uint8_t> leaf_t_dist;
     static std::uniform_int_distribution<std::uint8_t> bool_dist;
     static std::uniform_int_distribution<std::uint64_t> double_dist;
@@ -127,7 +130,7 @@ private:
     static int socketpairfds[2];
 };
 
-std::mt19937 ipc_actor_badinjector_plugin::prng;
+ipc_actor_badinjector_plugin::knuth_lcg64 ipc_actor_badinjector_plugin::prng;
 
 std::uniform_int_distribution<std::uint8_t>
 ipc_actor_badinjector_plugin::leaf_t_dist;
@@ -554,7 +557,8 @@ int ipc_actor_badinjector_plugin::fuzzer_seed(lua_State* L)
     }
 
     std::random_device rd;
-    decltype(prng)::result_type seed = rd();
+    auto seed =
+        std::uniform_int_distribution<decltype(prng)::result_type>{}(rd);
     prng.seed(seed);
     lua_pushinteger(L, seed);
     return 1;
