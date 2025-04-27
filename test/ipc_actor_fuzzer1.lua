@@ -40,11 +40,11 @@ if _CONTEXT ~= 'main' then
     host:send('OK')
 else
     if system.environment.EMILUA_TEST_SEED then
-        local seed = system.environment.EMILUA_TEST_SEED + 0
-        badinjector.fuzzer_seed(seed)
+        local seed = system.environment.EMILUA_TEST_SEED
         print('SEED=' .. seed)
+        badinjector.fuzzer_seed(seed + 0)
     else
-        print('SEED=' .. badinjector.fuzzer_seed())
+        print(format('SEED={}', badinjector.fuzzer_seed()))
     end
 
     if system.environment.EMILUA_TEST_FUZZER_NITER then
