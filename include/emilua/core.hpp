@@ -1090,13 +1090,17 @@ void vm_context::fiber_resume(lua_State* new_current_fiber, HanaSet&& options)
         )(x);
     };
 
+    [[maybe_unused]]
     static constexpr decltype(hana::any_of(options, is_skip_clear_interrupter))
         has_skip_clear_interrupter;
+    [[maybe_unused]]
     static constexpr decltype(hana::any_of(options, is_auto_detect_interrupt))
         has_auto_detect_interrupt;
+    [[maybe_unused]]
     static constexpr decltype(
         hana::any_of(options, is_fast_auto_detect_interrupt)
     ) has_fast_auto_detect_interrupt;
+    [[maybe_unused]]
     static constexpr decltype(hana::any_of(options, is_variadic_arguments))
         has_variadic_arguments;
 
