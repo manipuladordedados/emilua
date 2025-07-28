@@ -15,7 +15,7 @@
 
 namespace emilua {
 
-struct ambient_authority ambient_authority;
+volatile struct ambient_authority ambient_authority;
 
 namespace {
 static struct preload_libc

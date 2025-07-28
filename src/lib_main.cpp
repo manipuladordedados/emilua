@@ -599,7 +599,10 @@ int main(int argc, char *argv[], char *envp[])
     }
 #endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-    depart_pid1();
+    {
+        void (*const volatile dp)() = depart_pid1;
+        dp();
+    }
 
 #if BOOST_OS_UNIX || BOOST_OS_MACOS
     {
@@ -640,7 +643,10 @@ int main(int argc, char *argv[], char *envp[])
     }
 #endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
-    parse_lowfds();
+    {
+        void (*const volatile pl)() = parse_lowfds;
+        pl();
+    }
 
 #if BOOST_OS_LINUX
     boost::context::fixedsize_stack clone_stack_allocator;
@@ -648,9 +654,16 @@ int main(int argc, char *argv[], char *envp[])
     clone_stack_address = clone_stack.sp;
 #endif // BOOST_OS_LINUX
 
-    start_forker_service(argc, argv, envp);
-    register_eintr_rtsigno_handler();
-    set_locales();
+    {
+        void (*const volatile sfs)(int, char*[], char*[]) =
+            start_forker_service;
+        void (*const volatile rerh)() = register_eintr_rtsigno_handler;
+        void (*const volatile sl)() = set_locales;
+
+        sfs(argc, argv, envp);
+        rerh();
+        sl();
+    }
 
     std::optional<boost::nowide::args> args = std::nullopt;
     try {
@@ -665,14 +678,27 @@ int main(int argc, char *argv[], char *envp[])
         return 2;
     }
 
-    parse_env(envp);
+    {
+        void (*const volatile pe)(char*[]) = parse_env;
+        pe(envp);
+    }
 
     app_context appctx;
-    fill_env(appctx);
-    fill_lowfds(appctx);
-    fill_forker_service_socket(appctx);
-    parse_args(argc, argv, appctx);
-    fill_emilua_path(appctx);
+
+    {
+        void (*const volatile fe)(app_context&) = fill_env;
+        void (*const volatile fl)(app_context&) = fill_lowfds;
+        void (*const volatile ffss)(app_context&) = fill_forker_service_socket;
+        void (*const volatile pa)(int argc, char *argv[], app_context& appctx) =
+            parse_args;
+        void (*const volatile fep)(app_context& appctx) = fill_emilua_path;
+
+        fe(appctx);
+        fl(appctx);
+        ffss(appctx);
+        pa(argc, argv, appctx);
+        fep(appctx);
+    }
 
 #if BOOST_OS_LINUX && (defined(ASIO_DISABLE_EPOLL) || defined(BOOST_ASIO_DISABLE_EPOLL))
     {
@@ -699,7 +725,8 @@ int main(int argc, char *argv[], char *envp[])
 
     {
 #if EMILUA_CONFIG_THREAD_SUPPORT_LEVEL == 2
-        auto main_ctx_concurrency_hint_ = main_ctx_concurrency_hint();
+        int (*const volatile mcch)() = main_ctx_concurrency_hint;
+        auto main_ctx_concurrency_hint_ = mcch();
         auto ioctx = std::make_shared<asio::io_context>(
             main_ctx_concurrency_hint_);
 # if BOOST_VERSION < 108800 && !EMILUA_CONFIG_USE_STANDALONE_ASIO
@@ -727,7 +754,10 @@ int main(int argc, char *argv[], char *envp[])
 #endif
 
         try {
-            make_master_vm(appctx, ioctx);
+            void (*const volatile mmv)(
+                app_context&, std::shared_ptr<asio::io_context>) =
+                make_master_vm;
+            mmv(appctx, ioctx);
         } catch (std::exception& e) {
             try {
                 boost::nowide::cerr << "Error starting the lua VM: " <<
@@ -735,7 +765,9 @@ int main(int argc, char *argv[], char *envp[])
             } catch (const std::ios_base::failure&) {}
             return 1;
         }
-        run(appctx, *ioctx);
+
+        void (*const volatile r)(app_context&, asio::io_context&) = run;
+        r(appctx, *ioctx);
     }
 
     {

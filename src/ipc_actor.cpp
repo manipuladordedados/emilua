@@ -1295,8 +1295,12 @@ static int child_main(void*)
     }
 
     {
+        void (*const volatile cnm)(
+            const std::unique_lock<std::shared_mutex>&, app_context&) =
+            create_native_modules;
+
         const std::unique_lock wlock{appctx.modules_cache_registry_mtx};
-        create_native_modules(wlock, appctx);
+        cnm(wlock, appctx);
     }
 
     {
@@ -1340,7 +1344,10 @@ static int child_main(void*)
             appctx.extra_threads_count_empty_cond.wait(lk);
     }
 
-    destroy_native_modules();
+    {
+        void (*const volatile dnm)() = destroy_native_modules;
+        dnm();
+    }
 
     if (appctx.ipc_actor_service_sockfd != -1) {
         ipc_actor_start_vm_request request;

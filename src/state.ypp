@@ -850,7 +850,14 @@ static int on_external_package(
         return 2;
     };
 
-    if (auto m = get_builtin_native_module(module_id) ; m) {
+    std::optional<std::string_view>
+    (*const volatile gbm)(const std::filesystem::path&) = get_builtin_module;
+    std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+    (*const volatile gbre)(const std::filesystem::path&) = get_builtin_rdf_ec;
+    std::optional<std::reference_wrapper<emilua::native_module>>
+    (*const volatile gbnm)(std::string_view) = get_builtin_native_module;
+
+    if (auto m = gbnm(module_id) ; m) {
         native_module& natmod = m->get();
         return on_native_module(&natmod);
     } else for (const auto& p: vm_ctx->appctx.emilua_path) {
@@ -870,16 +877,14 @@ static int on_external_package(
         native_module* natmod = nullptr;
 
         try {
-            if (get_builtin_module(p / (std::string{module_id} + ".lua"))) {
+            if (gbm(p / (std::string{module_id} + ".lua"))) {
                 module_path = p / (std::string{module_id} + ".lua");
                 module_is_leaf = true;
-            } else if (get_builtin_module(p / module_id / "init.lua")) {
+            } else if (gbm(p / module_id / "init.lua")) {
                 module_path = p / module_id / "init.lua";
                 module_is_leaf = false;
             } else if (
-                auto m = get_builtin_rdf_ec(
-                    p / (std::string{module_id} + ".ttl")
-                ) ; m
+                auto m = gbre(p / (std::string{module_id} + ".ttl")) ; m
             ) {
                 error_category_module = &m->get();
 #if EMILUA_CONFIG_ENABLE_PLUGINS
@@ -992,7 +997,7 @@ static int on_external_package(
         }
 
         std::string_view module_source;
-        if (auto m = get_builtin_module(module_path) ; m) {
+        if (auto m = gbm(module_path) ; m) {
             module_source = *m;
         } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
@@ -1134,6 +1139,11 @@ static int require(lua_State* L)
     std::shared_lock modules_cache_registry_rlock{
         vm_ctx->appctx.modules_cache_registry_mtx};
 
+    std::optional<std::string_view>
+    (*const volatile gbm)(const std::filesystem::path&) = get_builtin_module;
+    std::optional<std::reference_wrapper<emilua::rdf_error_category>>
+    (*const volatile gbre)(const std::filesystem::path&) = get_builtin_rdf_ec;
+
     /*!re2c
     re2c:define:YYCTYPE = char;
     re2c:yyfill:enable = 0;
@@ -1191,14 +1201,10 @@ static int require(lua_State* L)
 
         bool module_is_leaf;
         try {
-            if (get_builtin_module(
-                module_path / (std::string{module_id} + ".lua")
-            )) {
+            if (gbm(module_path / (std::string{module_id} + ".lua"))) {
                 module_path /= std::string{module_id} + ".lua";
                 module_is_leaf = true;
-            } else if (get_builtin_module(
-                module_path / module_id / "init.lua"
-            )) {
+            } else if (gbm(module_path / module_id / "init.lua")) {
                 module_path /= module_id;
                 module_path /= "init.lua";
                 module_is_leaf = false;
@@ -1248,7 +1254,7 @@ static int require(lua_State* L)
         }
 
         std::string_view module_source;
-        if (auto m = get_builtin_module(module_path) ; m) {
+        if (auto m = gbm(module_path) ; m) {
             module_source = *m;
         } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
@@ -1313,19 +1319,16 @@ static int require(lua_State* L)
 
         bool module_is_leaf;
         try {
-            if (get_builtin_module(
-                module_path / (std::string{module_id} + ".lua")
+            if (gbm(module_path / (std::string{module_id} + ".lua")
             )) {
                 module_path /= std::string{module_id} + ".lua";
                 module_is_leaf = true;
-            } else if (get_builtin_module(
-                module_path / module_id / "init.lua"
-            )) {
+            } else if (gbm(module_path / module_id / "init.lua")) {
                 module_path /= module_id;
                 module_path /= "init.lua";
                 module_is_leaf = false;
             } else if (
-                auto m = get_builtin_rdf_ec(
+                auto m = gbre(
                     module_path / (std::string{module_id} + ".ttl")
                 ) ; m
             ) {
@@ -1432,7 +1435,7 @@ static int require(lua_State* L)
         }
 
         std::string_view module_source;
-        if (auto m = get_builtin_module(module_path) ; m) {
+        if (auto m = gbm(module_path) ; m) {
             module_source = *m;
         } else try {
             auto it = vm_ctx->appctx.modules_cache_registry.find(module_path);
@@ -2234,7 +2237,10 @@ std::shared_ptr<vm_context> make_vm(asio::io_context& ioctx,
 
     std::string_view module_source;
 
-    if (auto m = get_builtin_module(entry_point) ; m) {
+    std::optional<std::string_view>
+    (*const volatile gbm)(const std::filesystem::path&) = get_builtin_module;
+
+    if (auto m = gbm(entry_point) ; m) {
         module_source = *m;
     } else {
         std::shared_lock rlock{state->appctx.modules_cache_registry_mtx};
