@@ -12,7 +12,7 @@
 #include <cerrno>
 
 namespace emilua {
-bool has_libc_service = true;
+volatile bool has_libc_service = true;
 } // namespace emilua
 
 extern "C" {

@@ -15,9 +15,9 @@ namespace emilua {
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]
 # endif // defined(EMILUA_STATIC_BUILD)
-bool has_libc_service = false;
+volatile bool has_libc_service = false;
 
-struct ambient_authority ambient_authority;
+volatile struct ambient_authority ambient_authority;
 
 # if defined(EMILUA_STATIC_BUILD)
 [[gnu::weak]]

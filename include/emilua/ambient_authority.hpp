@@ -26,7 +26,7 @@ struct stat;
 namespace emilua {
 
 #if BOOST_OS_UNIX || BOOST_OS_MACOS
-extern bool has_libc_service;
+extern volatile bool has_libc_service;
 
 struct open_how
 {
@@ -95,7 +95,7 @@ struct ambient_authority
         int, const char*, open_how*);
 };
 
-extern struct ambient_authority ambient_authority;
+extern volatile struct ambient_authority ambient_authority;
 #endif // BOOST_OS_UNIX || BOOST_OS_MACOS
 
 } // namespace emilua
