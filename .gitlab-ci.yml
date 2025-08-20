@@ -1,0 +1,57 @@
+.macos:
+  variables:
+    HOMEBREW_NO_AUTO_UPDATE: 1
+  tags:
+    - saas-macos-medium-m1
+  image: macos-15-xcode-16
+  before_script:
+    - brew bundle install
+
+macos:build:
+  extends:
+    - .macos
+  stage: build
+  artifacts:
+    expire_in: "30 days"
+    paths:
+      - build
+  script:
+    - |
+      meson setup \
+        -Dwrap_mode=nofallback \
+        -Deintr_rtsigno=0 \
+        -Ddefault_library=static \
+        -Denable_manpages=false \
+        build
+    - meson compile -C build
+
+macos:test:
+  extends:
+    - .macos
+  stage: test
+  artifacts:
+    reports:
+      junit: build/meson-logs/testlog.junit.xml
+  needs:
+    - job: macos:build
+      artifacts: true
+  script:
+    - |
+      meson test "emilua:" \
+        --print-errorlogs \
+        --no-rebuild \
+        --no-suite libc_service \
+        --no-suite ipc_actor1 \
+        --no-suite ipc_actor2 \
+        --no-suite ipc_actor3 \
+        --no-suite ipc_actor4 \
+        --no-suite ipc_actor_cache \
+        --no-suite is_socket \
+        -C build
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
